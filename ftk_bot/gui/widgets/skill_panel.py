@@ -9,6 +9,7 @@ from PyQt6.QtGui import QFont, QTextCursor
 
 from ...core import SkillManager
 from ...models import Skill
+from ..dialogs import SkillEditorDialog
 
 
 class SkillPanel(QWidget):
@@ -82,7 +83,7 @@ class SkillPanel(QWidget):
         detail_header.addStretch()
 
         edit_btn = QPushButton("编辑")
-        edit_btn.clicked.connect(self._toggle_edit_mode)
+        edit_btn.clicked.connect(self._edit_skill)
         save_btn = QPushButton("保存")
         save_btn.clicked.connect(self._save_skill)
         export_btn = QPushButton("导出")
@@ -237,21 +238,29 @@ class SkillPanel(QWidget):
         if not self.content_edit.isReadOnly():
             self.content_edit.setFocus()
 
+    def _edit_skill(self):
+        if not self._current_skill or not self._skill_manager:
+            return
+
+        dialog = SkillEditorDialog(self._skill_manager, self._current_skill, parent=self)
+        if dialog.exec() == SkillEditorDialog.DialogCode.Accepted:
+            self._load_skills()
+            name = dialog.get_skill_name()
+            skill = self._skill_manager.get_skill(name)
+            if skill:
+                self._current_skill = skill
+                self._display_skill(skill)
+
     def _new_skill(self):
         if not self._skill_manager:
             QMessageBox.warning(self, "错误", "请先配置技能目录")
             return
 
-        from PyQt6.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "新建技能", "技能名称:")
-        if ok and name:
-            try:
-                skill = self._skill_manager.create_skill(name)
-                self._load_skills()
-                self.skill_selected.emit(name)
-                QMessageBox.information(self, "成功", f"已创建技能: {name}")
-            except Exception as e:
-                QMessageBox.warning(self, "错误", f"创建失败: {e}")
+        dialog = SkillEditorDialog(self._skill_manager, parent=self)
+        if dialog.exec() == SkillEditorDialog.DialogCode.Accepted:
+            self._load_skills()
+            name = dialog.get_skill_name()
+            self.skill_selected.emit(name)
 
     def _import_skill(self):
         if not self._skill_manager:
