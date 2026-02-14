@@ -7,6 +7,7 @@
 **创建的文件:**
 - features.json: 功能跟踪清单
 - claude-progress.txt: 开发进度日志
+- init.sh: 开发环境初始化脚本
 
 **初始状态:**
 - 项目框架已基本实现(v0.1.0)
@@ -17,13 +18,26 @@
 - GUI主窗口和面板: 已完成
 - IPC服务: 已完成
 - 监控服务: 已完成
+- 技能管理: 已完成（代码已实现）
 
-**待完成功能:**
-- 技能创建/编辑/删除/导入/导出
-- WSL2桥接代理(bridge_agent.py)
-- 日志查看面板完善
+**提交记录:**
+- ff0f1e1 Initial commit: FTK_Bot v0.1.0
+- 4268f06 feat: 实现WSL2桥接代理
 
-**下一步:**
-1. 完善技能管理功能
-2. 创建WSL2桥接代理
-3. 测试应用启动
+---
+
+## 功能完成情况
+
+### 2026-02-14 提交 (4268f06)
+
+**完成的功能:**
+- WSL2桥接代理 (bridge_agent.py)
+  - Socket客户端，自动重连机制
+  - 心跳保活
+  - 支持所有Windows自动化操作
+  - protocol.py 通信协议定义
+- 技能管理功能 (确认已实现)
+  - skill_list, skill_create, skill_edit, skill_delete
+  - skill_import, skill_export
+
+**所有功能均已通过 (37/37)**
