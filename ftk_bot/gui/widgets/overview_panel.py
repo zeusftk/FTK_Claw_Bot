@@ -5,8 +5,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 
-from ..core import WSLManager, NanobotController, ConfigManager
-from ..models import DistroStatus
+from ...core import WSLManager, NanobotController, ConfigManager
+from ...models import DistroStatus
 
 
 class StatusCard(QFrame):
