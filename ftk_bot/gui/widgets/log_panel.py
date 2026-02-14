@@ -111,23 +111,25 @@ class LogPanel(QWidget):
 
         format = QTextCharFormat()
 
+        # 使用高对比度颜色方案
         level_colors = {
-            "DEBUG": QColor("#888888"),
-            "INFO": QColor("#4fc3f7"),
-            "WARNING": QColor("#ffb74d"),
-            "ERROR": QColor("#ef5350"),
+            "DEBUG": QColor("#8b949e"),    # 灰色
+            "INFO": QColor("#58a6ff"),     # 蓝色
+            "WARNING": QColor("#d29922"),  # 黄色
+            "ERROR": QColor("#f85149"),    # 红色
+            "SUCCESS": QColor("#3fb950"),  # 绿色
         }
-        format.setForeground(level_colors.get(entry.level, QColor("#d4d4d4")))
+        format.setForeground(level_colors.get(entry.level, QColor("#c9d1d9")))
 
         cursor.insertText(f"[{entry.level}] ", format)
 
-        format.setForeground(QColor("#888888"))
+        format.setForeground(QColor("#8b949e"))
         cursor.insertText(f"{entry.timestamp} ", format)
 
-        format.setForeground(QColor("#81c784"))
+        format.setForeground(QColor("#3fb950"))
         cursor.insertText(f"[{entry.source}] ", format)
 
-        format.setForeground(QColor("#d4d4d4"))
+        format.setForeground(QColor("#f0f6fc"))
         cursor.insertText(f"{entry.message}\n", format)
 
         if self._auto_scroll:
