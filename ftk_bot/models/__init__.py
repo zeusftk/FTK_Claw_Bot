@@ -1,5 +1,5 @@
 from .wsl_distro import WSLDistro, DistroStatus
-from .nanobot_config import NanobotConfig, NanobotStatus
+from .nanobot_config import NanobotConfig, NanobotStatus, NanobotInstance
 from .skill import Skill
 
 __all__ = [
@@ -7,5 +7,6 @@ __all__ = [
     "DistroStatus",
     "NanobotConfig",
     "NanobotStatus",
+    "NanobotInstance",
     "Skill",
 ]

@@ -23,7 +23,8 @@ class PathUtils:
             if len(parts) >= 1:
                 drive = parts[0].upper()
                 rest = parts[1] if len(parts) > 1 else ""
-                return f"{drive}:\\{rest.replace('/', '\\')}"
+                rest_windows = rest.replace("/", "\\")
+                return f"{drive}:\\{rest_windows}"
 
         return wsl_path
 
