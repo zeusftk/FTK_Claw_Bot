@@ -1,0 +1,439 @@
+{
+  "features": [
+    {
+      "id": "wsl-list-distros",
+      "category": "WSL管理",
+      "priority": "high",
+      "description": "获取并显示所有WSL2分发版本列表",
+      "steps": [
+        "执行 wsl.exe --list --verbose 获取分发列表",
+        "解析输出提取名称、版本、状态",
+        "在GUI表格中显示"
+      ],
+      "passes": true
+    },
+    {
+      "id": "wsl-start-distro",
+      "category": "WSL管理",
+      "priority": "high",
+      "description": "启动指定的WSL2分发",
+      "steps": [
+        "用户选择分发并点击启动按钮",
+        "执行 wsl.exe -d <distro> 启动",
+        "更新状态显示"
+      ],
+      "passes": true
+    },
+    {
+      "id": "wsl-stop-distro",
+      "category": "WSL管理",
+      "priority": "high",
+      "description": "停止指定的WSL2分发",
+      "steps": [
+        "用户选择分发并点击停止按钮",
+        "执行 wsl.exe --terminate <distro>",
+        "更新状态显示"
+      ],
+      "passes": true
+    },
+    {
+      "id": "wsl-shutdown-all",
+      "category": "WSL管理",
+      "priority": "medium",
+      "description": "关闭所有WSL实例",
+      "steps": [
+        "用户点击关闭所有按钮",
+        "执行 wsl.exe --shutdown",
+        "更新所有分发状态"
+      ],
+      "passes": true
+    },
+    {
+      "id": "wsl-resource-monitor",
+      "category": "WSL管理",
+      "priority": "medium",
+      "description": "监控WSL资源使用情况(CPU/内存)",
+      "steps": [
+        "定时获取 /proc/meminfo 和 top 输出",
+        "解析CPU和内存使用率",
+        "在GUI中显示"
+      ],
+      "passes": true
+    },
+    {
+      "id": "wsl-ip-address",
+      "category": "WSL管理",
+      "priority": "low",
+      "description": "获取WSL实例IP地址",
+      "steps": [
+        "执行 hostname -I 获取IP",
+        "显示在详情面板"
+      ],
+      "passes": true
+    },
+    {
+      "id": "nanobot-start",
+      "category": "Nanobot控制",
+      "priority": "high",
+      "description": "在WSL2中启动Nanobot实例",
+      "steps": [
+        "用户选择配置并点击启动",
+        "确保WSL分发运行中",
+        "执行 nanobot 命令",
+        "启动进程监控"
+      ],
+      "passes": true
+    },
+    {
+      "id": "nanobot-stop",
+      "category": "Nanobot控制",
+      "priority": "high",
+      "description": "停止运行中的Nanobot实例",
+      "steps": [
+        "发送终止信号或执行 pkill",
+        "更新实例状态"
+      ],
+      "passes": true
+    },
+    {
+      "id": "nanobot-restart",
+      "category": "Nanobot控制",
+      "priority": "medium",
+      "description": "重启Nanobot实例",
+      "steps": [
+        "先停止再启动",
+        "保持配置不变"
+      ],
+      "passes": true
+    },
+    {
+      "id": "nanobot-status-monitor",
+      "category": "Nanobot控制",
+      "priority": "high",
+      "description": "监控Nanobot运行状态",
+      "steps": [
+        "检测进程是否存在",
+        "解析日志获取状态信息",
+        "回调通知GUI更新"
+      ],
+      "passes": true
+    },
+    {
+      "id": "nanobot-log-view",
+      "category": "Nanobot控制",
+      "priority": "medium",
+      "description": "收集和显示Nanobot日志",
+      "steps": [
+        "捕获stdout/stderr输出",
+        "显示在日志面板",
+        "支持日志级别过滤"
+      ],
+      "passes": true
+    },
+    {
+      "id": "config-create",
+      "category": "配置管理",
+      "priority": "high",
+      "description": "创建Nanobot配置",
+      "steps": [
+        "填写配置表单",
+        "保存到JSON文件",
+        "添加到配置列表"
+      ],
+      "passes": true
+    },
+    {
+      "id": "config-edit",
+      "category": "配置管理",
+      "priority": "high",
+      "description": "编辑现有Nanobot配置",
+      "steps": [
+        "加载配置到表单",
+        "用户修改参数",
+        "保存更新"
+      ],
+      "passes": true
+    },
+    {
+      "id": "config-delete",
+      "category": "配置管理",
+      "priority": "medium",
+      "description": "删除Nanobot配置",
+      "steps": [
+        "确认删除操作",
+        "删除配置文件",
+        "更新配置列表"
+      ],
+      "passes": true
+    },
+    {
+      "id": "config-default",
+      "category": "配置管理",
+      "priority": "medium",
+      "description": "设置默认配置",
+      "steps": [
+        "选择配置设为默认",
+        "保存到主配置"
+      ],
+      "passes": true
+    },
+    {
+      "id": "config-workspace-sync",
+      "category": "配置管理",
+      "priority": "high",
+      "description": "工作空间同步到/mnt目录",
+      "steps": [
+        "配置Windows工作空间路径",
+        "自动转换为WSL路径",
+        "支持路径同步"
+      ],
+      "passes": true
+    },
+    {
+      "id": "skill-list",
+      "category": "技能管理",
+      "priority": "high",
+      "description": "显示所有可用技能",
+      "steps": [
+        "扫描技能目录",
+        "解析Markdown文件",
+        "在列表中显示"
+      ],
+      "passes": true
+    },
+    {
+      "id": "skill-create",
+      "category": "技能管理",
+      "priority": "high",
+      "description": "创建新技能",
+      "steps": [
+        "点击新建按钮",
+        "编辑技能内容",
+        "保存到技能目录"
+      ],
+      "passes": false
+    },
+    {
+      "id": "skill-edit",
+      "category": "技能管理",
+      "priority": "high",
+      "description": "编辑现有技能",
+      "steps": [
+        "选择技能",
+        "修改Markdown内容",
+        "保存更新"
+      ],
+      "passes": false
+    },
+    {
+      "id": "skill-delete",
+      "category": "技能管理",
+      "priority": "medium",
+      "description": "删除技能",
+      "steps": [
+        "确认删除",
+        "删除文件"
+      ],
+      "passes": false
+    },
+    {
+      "id": "skill-import",
+      "category": "技能管理",
+      "priority": "low",
+      "description": "从外部导入技能",
+      "steps": [
+        "选择导入文件",
+        "复制到技能目录"
+      ],
+      "passes": false
+    },
+    {
+      "id": "skill-export",
+      "category": "技能管理",
+      "priority": "low",
+      "description": "导出技能到外部",
+      "steps": [
+        "选择技能",
+        "指定导出路径",
+        "保存文件"
+      ],
+      "passes": false
+    },
+    {
+      "id": "bridge-ipc-server",
+      "category": "Windows桥接",
+      "priority": "high",
+      "description": "启动IPC服务端接受请求",
+      "steps": [
+        "监听指定端口",
+        "接收JSON请求",
+        "调用自动化模块"
+      ],
+      "passes": true
+    },
+    {
+      "id": "bridge-mouse-control",
+      "category": "Windows桥接",
+      "priority": "high",
+      "description": "鼠标点击/移动/拖拽控制",
+      "steps": [
+        "接收鼠标命令",
+        "调用pyautogui执行"
+      ],
+      "passes": true
+    },
+    {
+      "id": "bridge-keyboard-control",
+      "category": "Windows桥接",
+      "priority": "high",
+      "description": "键盘输入和快捷键",
+      "steps": [
+        "接收键盘命令",
+        "调用pyautogui执行"
+      ],
+      "passes": true
+    },
+    {
+      "id": "bridge-screenshot",
+      "category": "Windows桥接",
+      "priority": "high",
+      "description": "屏幕截图",
+      "steps": [
+        "接收截图请求",
+        "调用pyautogui截图",
+        "返回Base64数据"
+      ],
+      "passes": true
+    },
+    {
+      "id": "bridge-window-control",
+      "category": "Windows桥接",
+      "priority": "medium",
+      "description": "窗口查找和控制",
+      "steps": [
+        "接收窗口查找请求",
+        "使用pywinauto查找",
+        "返回窗口信息"
+      ],
+      "passes": true
+    },
+    {
+      "id": "bridge-app-launch",
+      "category": "Windows桥接",
+      "priority": "medium",
+      "description": "启动Windows应用程序",
+      "steps": [
+        "接收启动命令",
+        "使用subprocess启动"
+      ],
+      "passes": true
+    },
+    {
+      "id": "bridge-clipboard",
+      "category": "Windows桥接",
+      "priority": "medium",
+      "description": "剪贴板读写",
+      "steps": [
+        "接收剪贴板命令",
+        "使用win32clipboard操作"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-overview-panel",
+      "category": "GUI界面",
+      "priority": "high",
+      "description": "概览面板显示系统状态",
+      "steps": [
+        "显示WSL状态",
+        "显示Nanobot状态",
+        "显示快速操作按钮",
+        "显示最近活动"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-wsl-panel",
+      "category": "GUI界面",
+      "priority": "high",
+      "description": "WSL管理面板",
+      "steps": [
+        "显示分发列表表格",
+        "显示资源详情",
+        "操作按钮"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-config-panel",
+      "category": "GUI界面",
+      "priority": "high",
+      "description": "配置管理面板",
+      "steps": [
+        "显示配置列表",
+        "编辑表单",
+        "保存/删除按钮"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-skill-panel",
+      "category": "GUI界面",
+      "priority": "high",
+      "description": "技能管理面板",
+      "steps": [
+        "显示技能列表",
+        "技能详情/编辑器",
+        "操作按钮"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-log-panel",
+      "category": "GUI界面",
+      "priority": "medium",
+      "description": "日志查看面板",
+      "steps": [
+        "显示日志列表",
+        "日志级别过滤",
+        "导出/清空功能"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-system-tray",
+      "category": "GUI界面",
+      "priority": "medium",
+      "description": "系统托盘功能",
+      "steps": [
+        "最小化到托盘",
+        "托盘菜单",
+        "双击恢复"
+      ],
+      "passes": true
+    },
+    {
+      "id": "gui-dark-theme",
+      "category": "GUI界面",
+      "priority": "low",
+      "description": "深色主题样式",
+      "steps": [
+        "定义暗色样式表",
+        "应用到主窗口"
+      ],
+      "passes": true
+    },
+    {
+      "id": "wsl2-bridge-agent",
+      "category": "WSL2桥接代理",
+      "priority": "high",
+      "description": "部署到WSL2的桥接代理",
+      "steps": [
+        "创建bridge_agent.py",
+        "实现Socket客户端",
+        "转发请求到Windows"
+      ],
+      "passes": false
+    }
+  ]
+}
