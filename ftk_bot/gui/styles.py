@@ -459,6 +459,91 @@ QToolTip {
     border-radius: 4px;
     padding: 6px 10px;
 }
+
+/* 配置面板特定样式 */
+QFrame#configCard {
+    background-color: %(bg_secondary)s;
+    border: 1px solid %(border)s;
+    border-radius: 12px;
+}
+
+QFrame#configCard:hover {
+    border-color: %(border_hover)s;
+}
+
+QLabel#cardTitle {
+    color: %(text_primary)s;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+QLabel#fieldLabel {
+    color: %(text_secondary)s;
+    font-size: 12px;
+}
+
+QLabel#pathLabel {
+    color: %(accent)s;
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+}
+
+QFrame#leftPanel, QFrame#rightPanel {
+    background-color: transparent;
+}
+
+QListWidget#configList {
+    background-color: %(bg_secondary)s;
+    color: %(text_secondary)s;
+    border: 1px solid %(border)s;
+    border-radius: 8px;
+    outline: none;
+    padding: 8px;
+}
+
+QListWidget#configList::item {
+    padding: 12px;
+    border-radius: 6px;
+    margin: 2px 0;
+}
+
+QListWidget#configList::item:selected {
+    background-color: %(accent)s;
+    color: %(bg_primary)s;
+}
+
+QListWidget#configList::item:hover:!selected {
+    background-color: %(bg_tertiary)s;
+}
+
+/* 特殊按钮 */
+QPushButton#smallButton {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+QPushButton#primaryButton {
+    background-color: %(btn_primary)s;
+    border-color: rgba(46, 160, 67, 0.4);
+    font-weight: bold;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: %(btn_primary_hover)s;
+}
+
+QPushButton#dangerButton {
+    background-color: %(btn_danger)s;
+    border-color: rgba(248, 81, 73, 0.4);
+}
+
+QPushButton#dangerButton:hover {
+    background-color: %(btn_danger_hover)s;
+}
+
+QWidget#configContent {
+    background-color: transparent;
+}
 """
 
 # 状态卡片样式
