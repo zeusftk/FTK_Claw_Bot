@@ -59,39 +59,8 @@ class StatusCard(QFrame):
         self.info_label.setText(info)
 
     def set_running_style(self):
-        self.setStyleSheet("""
-            QFrame#statusCard {
-                background-color: #2d2d30;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-            }
-            QLabel#cardTitle {
-                color: #ffffff;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QLabel#statusLabel {
-                color: #cccccc;
-                font-size: 12px;
-            }
-            QLabel#infoLabel {
-                color: #888888;
-                font-size: 11px;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-            QPushButton:pressed {
-                background-color: #0d5a8a;
-            }
-        """)
+        from ..styles import get_status_card_style, COLORS
+        self.setStyleSheet(get_status_card_style())
 
 
 class OverviewPanel(QWidget):
@@ -162,38 +131,7 @@ class OverviewPanel(QWidget):
 
         layout.addWidget(activity_group, 1)
 
-        self.setStyleSheet("""
-            QLabel#panelTitle {
-                color: #ffffff;
-            }
-            QGroupBox {
-                color: #ffffff;
-                font-weight: bold;
-                border: 1px solid #3c3c3c;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-            QPushButton:pressed {
-                background-color: #0d5a8a;
-            }
-        """)
+        # 样式已在全局样式表中定义
 
     def _init_connections(self):
         self.wsl_card.start_btn.clicked.connect(self._start_wsl)

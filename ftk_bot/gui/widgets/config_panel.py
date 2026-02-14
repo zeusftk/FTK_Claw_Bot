@@ -180,72 +180,8 @@ class ConfigPanel(QWidget):
         self._apply_styles()
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QLabel#configTitle {
-                color: #ffffff;
-            }
-            QFrame {
-                background-color: #1e1e1e;
-            }
-            QListWidget {
-                background-color: #2d2d30;
-                color: #cccccc;
-                border: 1px solid #3c3c3c;
-                border-radius: 4px;
-            }
-            QListWidget::item {
-                padding: 10px;
-                border-radius: 4px;
-            }
-            QListWidget::item:selected {
-                background-color: #094771;
-            }
-            QListWidget::item:hover:!selected {
-                background-color: #2a2d2e;
-            }
-            QLineEdit, QComboBox {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #5c5c5c;
-                border-radius: 4px;
-                padding: 6px 10px;
-            }
-            QLineEdit:focus, QComboBox:focus {
-                border-color: #007acc;
-            }
-            QGroupBox {
-                color: #ffffff;
-                font-weight: bold;
-                border: 1px solid #3c3c3c;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QCheckBox {
-                color: #cccccc;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-            QPushButton:pressed {
-                background-color: #0d5a8a;
-            }
-            QScrollArea {
-                border: none;
-            }
-        """)
+        # 样式已在全局样式表中定义
+        pass
 
     def _load_configs(self):
         self.config_list.clear()

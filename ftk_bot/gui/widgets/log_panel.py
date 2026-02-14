@@ -83,51 +83,8 @@ class LogPanel(QWidget):
         self._apply_styles()
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QLabel {
-                color: #ffffff;
-            }
-            QFrame {
-                background-color: #1e1e1e;
-            }
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                border: 1px solid #3c3c3c;
-                border-radius: 4px;
-            }
-            QComboBox {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #5c5c5c;
-                border-radius: 4px;
-                padding: 5px 10px;
-            }
-            QComboBox::drop-down {
-                border: none;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                selection-background-color: #094771;
-            }
-            QCheckBox {
-                color: #cccccc;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-            QPushButton:pressed {
-                background-color: #0d5a8a;
-            }
-        """)
+        # 样式已在全局样式表中定义
+        pass
 
     def _start_timer(self):
         self._timer = QTimer(self)

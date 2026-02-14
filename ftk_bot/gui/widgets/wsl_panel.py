@@ -97,69 +97,8 @@ class WSLPanel(QWidget):
         self._apply_styles()
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QLabel#panelTitle {
-                color: #ffffff;
-            }
-            QLabel#detailsName {
-                color: #ffffff;
-            }
-            QTableWidget {
-                background-color: #1e1e1e;
-                color: #cccccc;
-                border: 1px solid #3c3c3c;
-                gridline-color: #3c3c3c;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #094771;
-            }
-            QHeaderView::section {
-                background-color: #2d2d30;
-                color: #ffffff;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #3c3c3c;
-            }
-            QGroupBox {
-                color: #ffffff;
-                font-weight: bold;
-                border: 1px solid #3c3c3c;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-            QPushButton:pressed {
-                background-color: #0d5a8a;
-            }
-            QProgressBar {
-                border: 1px solid #3c3c3c;
-                border-radius: 4px;
-                text-align: center;
-                background-color: #2d2d30;
-            }
-            QProgressBar::chunk {
-                background-color: #0e639c;
-                border-radius: 3px;
-            }
-        """)
+        # 样式已在全局样式表中定义
+        pass
 
     def _init_connections(self):
         self.refresh_btn.clicked.connect(self._refresh_list)

@@ -87,37 +87,8 @@ class SkillEditorDialog(QDialog):
         self._apply_styles()
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e1e1e;
-            }
-            QLabel {
-                color: #cccccc;
-            }
-            QLineEdit {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #5c5c5c;
-                border-radius: 4px;
-                padding: 8px;
-            }
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                border: 1px solid #3c3c3c;
-                border-radius: 4px;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-        """)
+        # 样式已在全局样式表中定义
+        pass
 
     def _load_skill(self, skill: Skill):
         self.name_edit.setText(skill.name)

@@ -118,48 +118,8 @@ class MainWindow(QMainWindow):
         self._apply_styles()
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #1e1e1e;
-            }
-            QFrame#navFrame {
-                background-color: #252526;
-                border-right: 1px solid #3c3c3c;
-            }
-            QLabel#navTitle {
-                color: #ffffff;
-                padding: 20px 0px;
-            }
-            QLabel#versionLabel {
-                color: #6e6e6e;
-                padding: 10px 0px;
-            }
-            QListWidget#navList {
-                background-color: transparent;
-                border: none;
-                outline: none;
-            }
-            QListWidget#navList::item {
-                color: #cccccc;
-                padding: 12px 15px;
-                border-radius: 5px;
-                margin: 2px 5px;
-            }
-            QListWidget#navList::item:selected {
-                background-color: #094771;
-                color: #ffffff;
-            }
-            QListWidget#navList::item:hover:!selected {
-                background-color: #2a2d2e;
-            }
-            QStatusBar {
-                background-color: #007acc;
-                color: #ffffff;
-            }
-            QStatusBar QLabel {
-                color: #ffffff;
-            }
-        """)
+        from .styles import get_stylesheet
+        self.setStyleSheet(get_stylesheet())
 
     def _init_managers(self):
         distros = self._wsl_manager.list_distros()

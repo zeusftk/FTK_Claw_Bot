@@ -192,62 +192,8 @@ class SettingsDialog(QDialog):
         return tab
 
     def _apply_styles(self):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e1e1e;
-            }
-            QLabel {
-                color: #cccccc;
-            }
-            QLineEdit {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #5c5c5c;
-                border-radius: 4px;
-                padding: 8px;
-            }
-            QSpinBox {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #5c5c5c;
-                border-radius: 4px;
-                padding: 8px;
-            }
-            QComboBox {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #5c5c5c;
-                border-radius: 4px;
-                padding: 8px;
-            }
-            QCheckBox {
-                color: #cccccc;
-            }
-            QPushButton {
-                background-color: #0e639c;
-                color: #ffffff;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #1177bb;
-            }
-            QTabWidget::pane {
-                background-color: #2d2d30;
-                border: 1px solid #3c3c3c;
-            }
-            QTabBar::tab {
-                background-color: #2d2d30;
-                color: #cccccc;
-                padding: 8px 16px;
-                border: 1px solid #3c3c3c;
-            }
-            QTabBar::tab:selected {
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-        """)
+        # 样式已在全局样式表中定义
+        pass
 
     def _browse_workspace(self):
         path = QFileDialog.getExistingDirectory(self, "选择工作空间")
