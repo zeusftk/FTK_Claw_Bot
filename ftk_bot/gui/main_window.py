@@ -162,15 +162,14 @@ class MainWindow(QMainWindow):
 
     def _init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.style().standardIcon(
-            self.style().StandardPixmap.SP_ComputerIcon
-        ))
+        # 使用默认应用图标
         self.tray_icon.setToolTip("FTK_Bot")
 
         tray_menu = QMenu()
 
         show_action = QAction("显示主窗口", self)
-        show_action.triggered.connect(self.show)
+        show_action.triggered.connect(self.showNormal)
+        show_action.triggered.connect(self.activateWindow)
         tray_menu.addAction(show_action)
 
         quit_action = QAction("退出", self)

@@ -134,35 +134,44 @@ class OverviewPanel(QWidget):
         # 样式已在全局样式表中定义
 
     def _init_connections(self):
-        self.wsl_card.start_btn.clicked.connect(self._start_wsl)
+        # WSL 状态卡片按钮
+        self.wsl_card.start_btn.clicked.connect(self._on_wsl_start_clicked)
         self.wsl_card.stop_btn.clicked.connect(self._stop_wsl)
+        
+        # Nanobot 状态卡片按钮
         self.nanobot_card.start_btn.clicked.connect(self._start_nanobot)
         self.nanobot_card.stop_btn.clicked.connect(self._stop_nanobot)
 
+        # 快速操作按钮
+        self.send_msg_btn.clicked.connect(self._send_message)
         self.view_log_btn.clicked.connect(self._show_log_panel)
+        self.open_workspace_btn.clicked.connect(self._open_workspace)
         self.edit_config_btn.clicked.connect(self._show_config_panel)
+    
+    def _on_wsl_start_clicked(self):
+        """根据当前按钮文本决定操作"""
+        btn_text = self.wsl_card.start_btn.text()
+        if btn_text == "启动":
+            self._start_wsl()
+        elif btn_text == "安装 WSL":
+            self._install_wsl()
+        elif btn_text == "安装分发":
+            self._install_distro()
 
     def _refresh_status(self):
+        # 始终确保按钮连接正确，不断开重连
+        btn_text = self.wsl_card.start_btn.text()
+        
         if not self._wsl_manager.is_wsl_installed():
             self.wsl_card.set_status(False, "WSL 未安装")
-            try:
-                self.wsl_card.start_btn.clicked.disconnect()
-            except TypeError:
-                pass
             self.wsl_card.start_btn.setText("安装 WSL")
-            self.wsl_card.start_btn.clicked.connect(self._install_wsl)
             self.nanobot_card.set_status(False, "需要 WSL")
             return
         
         distros = self._wsl_manager.list_distros()
         if not distros:
             self.wsl_card.set_status(False, "无 WSL 分发")
-            try:
-                self.wsl_card.start_btn.clicked.disconnect()
-            except TypeError:
-                pass
             self.wsl_card.start_btn.setText("安装分发")
-            self.wsl_card.start_btn.clicked.connect(self._install_distro)
             self.nanobot_card.set_status(False, "需要 WSL 分发")
             return
         
@@ -360,14 +369,65 @@ class OverviewPanel(QWidget):
         self.update_nanobot_status(config.name, False)
 
     def _show_log_panel(self):
-        parent = self.parent()
-        if hasattr(parent, 'setCurrentIndex'):
-            parent.setCurrentIndex(4)
+        self._navigate_to_panel(4)  # 日志面板索引
 
     def _show_config_panel(self):
+        self._navigate_to_panel(2)  # 配置面板索引
+    
+    def _send_message(self):
+        """发送消息到 Nanobot"""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+        config = self._config_manager.get_default()
+        if not config:
+            QMessageBox.warning(self, "错误", "请先创建配置")
+            return
+        
+        if not self._nanobot_controller.is_running(config.name):
+            QMessageBox.warning(self, "错误", "Nanobot 未运行")
+            return
+        
+        text, ok = QInputDialog.getMultiLineText(
+            self, "发送消息", "输入要发送的消息:"
+        )
+        if ok and text.strip():
+            self.add_activity(f"发送消息: {text[:50]}...")
+            # 这里可以扩展为实际发送消息的功能
+    
+    def _open_workspace(self):
+        """打开工作空间目录"""
+        import subprocess
+        config = self._config_manager.get_default()
+        if not config or not config.windows_workspace:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "错误", "请先配置工作空间路径")
+            return
+        
+        try:
+            subprocess.Popen(["explorer", config.windows_workspace])
+            self.add_activity(f"打开工作空间: {config.windows_workspace}")
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "错误", f"无法打开目录: {e}")
+    
+    def _navigate_to_panel(self, index: int):
+        """导航到指定面板"""
+        # 查找父窗口中的 content_stack
         parent = self.parent()
-        if hasattr(parent, 'setCurrentIndex'):
-            parent.setCurrentIndex(2)
+        while parent:
+            if hasattr(parent, 'content_stack'):
+                parent.content_stack.setCurrentIndex(index)
+                return
+            if hasattr(parent, 'setCurrentIndex'):
+                parent.setCurrentIndex(index)
+                return
+            parent = parent.parent()
+        
+        # 尝试通过祖父窗口查找
+        grandparent = self.parent().parent() if self.parent() else None
+        if grandparent and hasattr(grandparent, 'content_stack'):
+            grandparent.content_stack.setCurrentIndex(index)
+        elif grandparent and hasattr(grandparent, 'setCurrentIndex'):
+            grandparent.setCurrentIndex(index)
 
     def add_activity(self, message: str):
         current = self.activity_list.text()
