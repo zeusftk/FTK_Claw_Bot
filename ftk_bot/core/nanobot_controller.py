@@ -86,7 +86,7 @@ class NanobotController:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                encoding="utf-8",
+                encoding="utf-16-le",
                 errors="replace"
             )
 
@@ -97,7 +97,12 @@ class NanobotController:
             def read_output(pipe, log_type):
                 for line in iter(pipe.readline, ""):
                     if line:
-                        self._notify_log(instance_name, log_type, line.strip())
+                        cleaned_line = line.replace('\x00', '').strip()
+                        if cleaned_line:
+                            # Store log in instance
+                            instance.add_log(log_type, cleaned_line)
+                            # Notify external callbacks
+                            self._notify_log(instance_name, log_type, cleaned_line)
 
             stdout_thread = threading.Thread(
                 target=read_output,
@@ -165,6 +170,18 @@ class NanobotController:
         return instance is not None and instance.status == NanobotStatus.RUNNING
 
     def get_logs(self, config_name: str, lines: int = 100) -> List[str]:
+        """Get logs for a specific nanobot instance.
+
+        Args:
+            config_name: The configuration name
+            lines: Number of log lines to retrieve (default: 100)
+
+        Returns:
+            List of log lines
+        """
+        instance = self._instances.get(config_name)
+        if instance:
+            return instance.get_logs(lines)
         return []
 
     def register_log_callback(self, callback):
@@ -190,3 +207,54 @@ class NanobotController:
                     callback(instance_name, instance.status)
                 except Exception:
                     pass
+
+    def install_systemd_service(self, distro_name: str) -> bool:
+        """Install nanobot as systemd service in WSL2."""
+        try:
+            service_content = """[Unit]
+Description=Nanobot Gateway Service
+After=network.target
+
+[Service]
+Type=simple
+User=%I
+ExecStart=/usr/bin/nanobot gateway
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+"""
+            result = self._wsl_manager.execute_command(
+                distro_name,
+                f"cat > /etc/systemd/system/nanobot-gateway.service << 'EOF'\n{service_content}\nEOF"
+            )
+            if not result.success:
+                return False
+
+            self._wsl_manager.execute_command(distro_name, "sudo systemctl daemon-reload")
+            self._wsl_manager.execute_command(distro_name, "sudo systemctl enable nanobot-gateway")
+            return True
+        except Exception:
+            return False
+
+    def uninstall_systemd_service(self, distro_name: str) -> bool:
+        """Uninstall nanobot systemd service."""
+        try:
+            self._wsl_manager.execute_command(distro_name, "sudo systemctl stop nanobot-gateway")
+            self._wsl_manager.execute_command(distro_name, "sudo systemctl disable nanobot-gateway")
+            self._wsl_manager.execute_command(
+                distro_name, "sudo rm -f /etc/systemd/system/nanobot-gateway.service"
+            )
+            self._wsl_manager.execute_command(distro_name, "sudo systemctl daemon-reload")
+            return True
+        except Exception:
+            return False
+
+    def is_systemd_service_installed(self, distro_name: str) -> bool:
+        """Check if systemd service is installed."""
+        result = self._wsl_manager.execute_command(
+            distro_name, "test -f /etc/systemd/system/nanobot-gateway.service"
+        )
+        return result.success

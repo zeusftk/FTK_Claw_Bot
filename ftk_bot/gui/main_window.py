@@ -149,11 +149,15 @@ class MainWindow(QMainWindow):
         self.nav_list.currentRowChanged.connect(self._on_nav_changed)
 
         self._monitor_service.register_callback("wsl_status", self._on_wsl_status_changed)
+        self._monitor_service.register_callback("nanobot_status", self._on_nanobot_status_changed)
         self._monitor_service.register_callback("resources", self._on_resources_updated)
 
         self.wsl_panel.distro_started.connect(self._on_distro_started)
         self.wsl_panel.distro_stopped.connect(self._on_distro_stopped)
         self.config_panel.config_saved.connect(self._on_config_saved)
+
+        # Register log callback to forward nanobot logs to log panel
+        self._nanobot_controller.register_log_callback(self._on_nanobot_log)
 
     def _init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
@@ -234,3 +238,27 @@ class MainWindow(QMainWindow):
         self._wsl_manager.stop_monitoring()
         self.tray_icon.hide()
         QApplication.quit()
+
+    def _on_nanobot_status_changed(self, data: dict):
+        """Handle nanobot status changes from monitor service."""
+        instance_name = data.get("instance_name", "")
+        status = data.get("status", "unknown")
+        is_running = data.get("is_running", False)
+
+        self.nanobot_status_label.setText(f"Nanobot ({instance_name}): {status}")
+
+        if is_running:
+            self.overview_panel.update_nanobot_status(instance_name, True)
+            self.log_panel.add_log("INFO", "Nanobot", f"Instance '{instance_name}' started")
+        else:
+            self.overview_panel.update_nanobot_status(instance_name, False)
+            error = data.get("last_error")
+            if error:
+                self.log_panel.add_log("ERROR", "Nanobot", f"Instance '{instance_name}' error: {error}")
+            else:
+                self.log_panel.add_log("INFO", "Nanobot", f"Instance '{instance_name}' stopped")
+
+    def _on_nanobot_log(self, instance_name: str, log_type: str, message: str):
+        """Handle nanobot log messages."""
+        level = "INFO" if log_type == "stdout" else "DEBUG"
+        self.log_panel.add_log(level, f"Nanobot:{instance_name}", message)

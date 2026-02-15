@@ -62,7 +62,30 @@ class MonitorService:
                 })
 
     def _check_nanobot_status(self):
-        pass
+        """Check nanobot instance status and notify callbacks of changes."""
+        from ..models import NanobotStatus
+
+        try:
+            # Get all instances from controller
+            instances = getattr(self._nanobot_controller, '_instances', {})
+
+            for instance_name, instance in instances.items():
+                old_status = self._last_nanobot_status.get(instance_name)
+                current_status = instance.status
+
+                # Only notify if status changed
+                if old_status != current_status:
+                    self._last_nanobot_status[instance_name] = current_status
+                    self._notify_callbacks("nanobot_status", {
+                        "instance_name": instance_name,
+                        "status": current_status.value,
+                        "is_running": current_status == NanobotStatus.RUNNING,
+                        "pid": instance.pid,
+                        "last_error": instance.last_error,
+                    })
+        except Exception:
+            # Silently handle errors to prevent monitor loop from crashing
+            pass
 
     def _check_resources(self):
         for distro_name, status in self._last_distro_status.items():

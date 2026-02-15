@@ -115,6 +115,8 @@ class NanobotInstance:
     started_at: Optional[datetime] = None
     message_count: int = 0
     last_error: Optional[str] = None
+    logs: List[dict] = field(default_factory=list)
+    max_logs: int = 1000
 
     @property
     def running_duration(self) -> Optional[str]:
@@ -129,3 +131,23 @@ class NanobotInstance:
             return f"{minutes}m {seconds}s"
         else:
             return f"{seconds}s"
+
+    def add_log(self, log_type: str, message: str) -> None:
+        """Add a log entry to the instance."""
+        self.logs.append({
+            "timestamp": datetime.now().isoformat(),
+            "type": log_type,
+            "message": message
+        })
+        # Keep only the last max_logs entries
+        if len(self.logs) > self.max_logs:
+            self.logs = self.logs[-self.max_logs:]
+
+    def get_logs(self, lines: int = 100) -> List[str]:
+        """Get the last N log lines formatted as strings."""
+        recent_logs = self.logs[-lines:] if lines < len(self.logs) else self.logs
+        return [f"[{log['type']}] {log['timestamp']}: {log['message']}" for log in recent_logs]
+
+    def clear_logs(self) -> None:
+        """Clear all logs."""
+        self.logs.clear()
