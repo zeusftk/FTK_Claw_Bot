@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QLineEdit, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QTextCursor
+from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat
 
 
 class ChatMessage:
