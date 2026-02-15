@@ -9,9 +9,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QIcon, QAction, QFont
 
-from ..core import WSLManager, NanobotController, SkillManager, ConfigManager
-from ..services import WindowsBridge, MonitorService
-from .widgets import WSLPanel, ConfigPanel, SkillPanel, LogPanel, OverviewPanel
+from ..core import (
+    WSLManager, NanobotController, SkillManager, ConfigManager,
+    NanobotGatewayManager, BridgeManager, GatewayStatus, AgentStatus
+)
+from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus
+from .widgets import WSLPanel, ConfigPanel, SkillPanel, LogPanel, OverviewPanel, ChatPanel
 
 
 class MainWindow(QMainWindow):
@@ -24,6 +27,10 @@ class MainWindow(QMainWindow):
         self._skill_manager: Optional[SkillManager] = None
         self._windows_bridge = WindowsBridge()
         self._monitor_service = MonitorService(self._wsl_manager, self._nanobot_controller)
+
+        self._gateway_manager: Optional[NanobotGatewayManager] = None
+        self._bridge_manager: Optional[BridgeManager] = None
+        self._chat_client: Optional[NanobotChatClient] = None
 
         self._init_ui()
         self._init_managers()
@@ -64,6 +71,7 @@ class MainWindow(QMainWindow):
         self.nav_list.addItem(QListWidgetItem("WSL 管理"))
         self.nav_list.addItem(QListWidgetItem("配置管理"))
         self.nav_list.addItem(QListWidgetItem("技能管理"))
+        self.nav_list.addItem(QListWidgetItem("聊天"))
         self.nav_list.addItem(QListWidgetItem("日志查看"))
         self.nav_list.setCurrentRow(0)
         nav_layout.addWidget(self.nav_list)
@@ -91,12 +99,14 @@ class MainWindow(QMainWindow):
             self._wsl_manager
         )
         self.skill_panel = SkillPanel(self._skill_manager)
+        self.chat_panel = ChatPanel()
         self.log_panel = LogPanel()
 
         self.content_stack.addWidget(self.overview_panel)
         self.content_stack.addWidget(self.wsl_panel)
         self.content_stack.addWidget(self.config_panel)
         self.content_stack.addWidget(self.skill_panel)
+        self.content_stack.addWidget(self.chat_panel)
         self.content_stack.addWidget(self.log_panel)
 
         main_layout.addWidget(self.content_stack, 1)
@@ -160,6 +170,12 @@ class MainWindow(QMainWindow):
         # Register log callback to forward nanobot logs to log panel
         self._nanobot_controller.register_log_callback(self._on_nanobot_log)
 
+        # Chat panel connections (简化版，暂时不连接复杂功能)
+        # self.chat_panel.message_sent.connect(self._on_chat_message_sent)
+        # self.chat_panel.connect_clicked.connect(self._on_chat_connect)
+        # self.chat_panel.disconnect_clicked.connect(self._on_chat_disconnect)
+        # self.chat_panel.clear_clicked.connect(self._on_chat_clear)
+
     def _init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
         # 使用默认应用图标
@@ -179,6 +195,99 @@ class MainWindow(QMainWindow):
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
+
+    def _init_chat(self):
+        default_config = self._config_manager.get_default()
+        if default_config:
+            self._gateway_manager = NanobotGatewayManager(
+                self._wsl_manager,
+                port=18790
+            )
+            self._gateway_manager.register_status_callback(self._on_gateway_status)
+
+            self._bridge_manager = BridgeManager(
+                self._wsl_manager,
+                windows_port=9527
+            )
+            self._bridge_manager.register_status_callback(self._on_agent_status)
+
+    def _on_gateway_status(self, status: GatewayStatus):
+        pass
+
+    def _on_agent_status(self, status: AgentStatus):
+        pass
+
+    def _on_chat_connect(self):
+        default_config = self._config_manager.get_default()
+        if not default_config:
+            self.chat_panel.show_error("请先配置 nanobot")
+            return
+
+        distro_name = default_config.distro_name
+        if not distro_name:
+            self.chat_panel.show_error("未设置 WSL 分发")
+            return
+
+        self.chat_panel.set_connecting()
+
+        if not self._gateway_manager:
+            self.chat_panel.show_error("Gateway 管理器未初始化")
+            return
+
+        if self._gateway_manager.start_gateway(distro_name):
+            import time
+            time.sleep(3)
+
+            gateway_url = self._gateway_manager.get_gateway_url()
+            if gateway_url:
+                self._chat_client = NanobotChatClient(
+                    gateway_url,
+                    on_message=self._on_chat_message_received,
+                    on_status_changed=self._on_chat_status_changed
+                )
+                if self._chat_client.connect():
+                    self.chat_panel.set_connection_status(True, self._gateway_manager.port)
+                    self._start_bridge_agent(distro_name)
+                else:
+                    self.chat_panel.show_error("无法连接到 gateway")
+            else:
+                self.chat_panel.show_error("无法获取 gateway URL")
+        else:
+            self.chat_panel.show_error("无法启动 gateway")
+
+    def _start_bridge_agent(self, distro_name: str):
+        if self._bridge_manager:
+            self._bridge_manager.start_agent(distro_name)
+
+    def _on_chat_disconnect(self):
+        if self._chat_client:
+            self._chat_client.disconnect()
+            self._chat_client = None
+
+        if self._bridge_manager:
+            self._bridge_manager.stop_agent()
+
+        self.chat_panel.set_connection_status(False)
+
+    def _on_chat_clear(self):
+        self.chat_panel.clear_messages()
+
+    def _on_chat_message_sent(self, message: str):
+        if self._chat_client and self._chat_client.is_connected:
+            self._chat_client.send_message(message)
+
+    def _on_chat_message_received(self, message: str):
+        self.chat_panel.add_message("assistant", message)
+
+    def _on_chat_status_changed(self, status: ConnectionStatus):
+        if status == ConnectionStatus.CONNECTED:
+            self.chat_panel.set_connection_status(True)
+        elif status == ConnectionStatus.DISCONNECTED:
+            self.chat_panel.set_connection_status(False, "连接已断开")
+        elif status == ConnectionStatus.RECONNECTING:
+            self.chat_panel.set_connection_status(False, "正在重连...")
+        elif status == ConnectionStatus.ERROR:
+            self.chat_panel.show_error("连接错误")
 
     def _on_nav_changed(self, index: int):
         self.content_stack.setCurrentIndex(index)
