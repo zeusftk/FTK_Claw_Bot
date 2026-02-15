@@ -2,7 +2,8 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QLineEdit, QComboBox,
-    QCheckBox, QFrame, QScrollArea, QSizePolicy
+    QCheckBox, QFrame, QScrollArea, QSizePolicy, QFileDialog,
+    QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -317,6 +318,10 @@ class ConfigPanel(QWidget):
         self.distro_combo.clear()
         for distro in distros:
             self.distro_combo.addItem(distro.name)
+
+    def refresh_distros(self):
+        """Refresh the distro list (public method for external calls)."""
+        self._load_distros()
 
     def _update_models(self):
         provider = self.provider_combo.currentText()

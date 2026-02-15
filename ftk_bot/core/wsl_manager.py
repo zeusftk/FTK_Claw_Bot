@@ -4,6 +4,10 @@ import threading
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from dataclasses import dataclass
+from pathlib import Path
+import os
+
+from loguru import logger
 
 from ..models import WSLDistro, DistroStatus
 
@@ -14,6 +18,11 @@ class CommandResult:
     stdout: str
     stderr: str
     return_code: int
+
+
+def _validate_distro_name(name: str) -> bool:
+    """验证分发名称是否有效"""
+    return bool(re.match(r'^[a-zA-Z0-9_.-]+$', name))
 
 
 class WSLManager:
@@ -33,6 +42,61 @@ class WSLManager:
         self._distros = {d.name: d for d in distros}
         return distros
 
+    def is_wsl_installed(self) -> bool:
+        try:
+            result = subprocess.run(
+                ["wsl.exe", "--status"],
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=10
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def get_available_distros(self) -> List[str]:
+        try:
+            result = subprocess.run(
+                ["wsl.exe", "--list", "--online"],
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=30
+            )
+            if result.returncode != 0:
+                return []
+            
+            output = result.stdout.replace('\x00', '').strip()
+            distros = []
+            lines = output.split("\n")
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith("NAME") and not line.startswith("以下是") and not line.startswith("The following"):
+                    parts = re.split(r"\s+", line, 1)
+                    if parts and parts[0]:
+                        distros.append(parts[0])
+            return distros
+        except Exception:
+            return []
+
+    def install_distro(self, distro_name: str) -> bool:
+        try:
+            subprocess.run(
+                ["wsl.exe", "--install", "-d", distro_name],
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=300
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to install distro {distro_name}: {e}")
+            return False
+
     def _run_wsl_command(self, args: List[str], distro: Optional[str] = None) -> CommandResult:
         cmd = ["wsl.exe"]
         if distro:
@@ -44,13 +108,15 @@ class WSLManager:
                 cmd,
                 capture_output=True,
                 text=True,
-                encoding="utf-8",
+                encoding="utf-16-le",
                 errors="replace"
             )
+            stdout = result.stdout.replace('\x00', '').strip()
+            stderr = result.stderr.replace('\x00', '').strip()
             return CommandResult(
                 success=result.returncode == 0,
-                stdout=result.stdout,
-                stderr=result.stderr,
+                stdout=stdout,
+                stderr=stderr,
                 return_code=result.returncode
             )
         except Exception as e:
@@ -65,25 +131,28 @@ class WSLManager:
         distros = []
         lines = output.strip().split("\n")
 
-        for line in lines[1:]:
+        for line in lines:
             line = line.strip()
-            if not line:
+            if not line or line.startswith("NAME"):
                 continue
+
+            is_default = line.startswith("*")
+            if is_default:
+                line = line[1:].strip()
 
             parts = re.split(r"\s+", line)
             if len(parts) >= 3:
                 name = parts[0]
-                is_default = name.startswith("*")
-                if is_default:
-                    name = name[1:].strip()
+                if not name:
+                    continue
 
-                version_str = parts[1]
+                version_str = parts[-1]
                 try:
                     version = int(version_str)
                 except ValueError:
                     version = 2
 
-                status_str = parts[2].lower() if len(parts) > 2 else "stopped"
+                status_str = parts[-2].lower() if len(parts) > 1 else "stopped"
                 if "running" in status_str:
                     status = DistroStatus.RUNNING
                 elif "stopped" in status_str:
@@ -103,25 +172,64 @@ class WSLManager:
         return distros
 
     def start_distro(self, distro_name: str) -> bool:
-        result = self._run_wsl_command(["--"], distro=distro_name)
-        if result.success:
-            self.list_distros()
-            self._notify_callbacks()
-        return result.success
+        try:
+            cmd = ["wsl.exe", "-d", distro_name, "--exec", "echo", "started"]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=30
+            )
+            success = result.returncode == 0
+            if success:
+                self.list_distros()
+                self._notify_callbacks()
+            return success
+        except Exception as e:
+            logger.error(f"Failed to start distro {distro_name}: {e}")
+            return False
 
     def stop_distro(self, distro_name: str) -> bool:
-        result = self._run_wsl_command(["--terminate", distro_name])
-        if result.success:
-            self.list_distros()
-            self._notify_callbacks()
-        return result.success
+        try:
+            cmd = ["wsl.exe", "--terminate", distro_name]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=30
+            )
+            success = result.returncode == 0
+            if success:
+                self.list_distros()
+                self._notify_callbacks()
+            return success
+        except Exception as e:
+            logger.error(f"Failed to stop distro {distro_name}: {e}")
+            return False
 
     def shutdown_all(self) -> bool:
-        result = self._run_wsl_command(["--shutdown"])
-        if result.success:
-            self.list_distros()
-            self._notify_callbacks()
-        return result.success
+        try:
+            cmd = ["wsl.exe", "--shutdown"]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=30
+            )
+            success = result.returncode == 0
+            if success:
+                self.list_distros()
+                self._notify_callbacks()
+            return success
+        except Exception as e:
+            logger.error(f"Failed to shutdown all distros: {e}")
+            return False
 
     def get_distro(self, distro_name: str) -> Optional[WSLDistro]:
         if distro_name not in self._distros:
@@ -144,15 +252,14 @@ class WSLManager:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
                 timeout=timeout
             )
+            stdout = result.stdout.decode("utf-8", errors="replace").replace('\x00', '').strip()
+            stderr = result.stderr.decode("utf-8", errors="replace").replace('\x00', '').strip()
             return CommandResult(
                 success=result.returncode == 0,
-                stdout=result.stdout,
-                stderr=result.stderr,
+                stdout=stdout,
+                stderr=stderr,
                 return_code=result.returncode
             )
         except subprocess.TimeoutExpired:
@@ -268,3 +375,134 @@ class WSLManager:
                 rest_windows = rest.replace("/", "\\")
                 return f"{drive}:\\{rest_windows}"
         return wsl_path
+
+    def get_distro_kernel_version(self, distro_name: str) -> Optional[str]:
+        """Get kernel version of a distribution."""
+        result = self.execute_command(distro_name, "uname -r")
+        if result.success:
+            return result.stdout.strip()
+        return None
+
+    def get_distro_uptime(self, distro_name: str) -> Optional[str]:
+        """Get uptime of a distribution."""
+        result = self.execute_command(
+            distro_name, "cat /proc/uptime | awk '{print int($1)}'"
+        )
+        if result.success and result.stdout.strip():
+            try:
+                seconds = int(result.stdout.strip())
+                hours = seconds // 3600
+                minutes = (seconds % 3600) // 60
+                return f"{hours}h {minutes}m"
+            except ValueError:
+                pass
+        return None
+
+    def get_resource_usage(self, distro_name: str) -> Dict:
+        """Get resource usage for a running distribution."""
+        result = self.execute_command(
+            distro_name,
+            "cat /proc/meminfo | grep -E 'MemTotal|MemAvailable' && df -h / | tail -1 | awk '{print $5}' | tr -d '%'",
+        )
+
+        resources = {
+            "cpu_percent": 0.0,
+            "memory_used_mb": 0.0,
+            "memory_total_mb": 0.0,
+            "disk_percent": 0.0,
+        }
+
+        if result.success:
+            try:
+                lines = result.stdout.strip().split("\n")
+                for line in lines:
+                    if "MemTotal" in line:
+                        kb = int(line.split()[1])
+                        resources["memory_total_mb"] = kb / 1024
+                    elif "MemAvailable" in line:
+                        kb = int(line.split()[1])
+                        resources["memory_used_mb"] = resources["memory_total_mb"] - (kb / 1024)
+                    elif line.strip().isdigit():
+                        resources["disk_percent"] = float(line.strip())
+            except Exception:
+                pass
+
+        return resources
+
+    def import_distro(
+        self,
+        tar_path: str,
+        distro_name: str,
+        install_location: Optional[str] = None
+    ) -> CommandResult:
+        """从 tar 文件导入 WSL 分发。
+        
+        Args:
+            tar_path: tar 文件的完整路径
+            distro_name: 要创建的分发名称
+            install_location: 分发安装目录（默认: %LOCALAPPDATA%\WSL\installed)
+        
+        Returns:
+            CommandResult: 包含执行结果的 CommandResult 对象
+        """
+        if not _validate_distro_name(distro_name):
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr=f"Invalid distro name: {distro_name}. Use only letters, numbers, underscore, and hyphen.",
+                return_code=-1
+            )
+
+        if not Path(tar_path).exists():
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr=f"Tar file not found: {tar_path}",
+                return_code=-1
+            )
+        
+        if install_location is None:
+            install_location = str(Path(os.environ.get('LOCALAPPDATA', '')) / "WSL" / "installed")
+        
+        Path(install_location).mkdir(parents=True, exist_ok=True)
+        
+        cmd = [
+            "wsl.exe",
+            "--import",
+            distro_name,
+            install_location,
+            tar_path,
+            "--version", "2"
+        ]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=300
+            )
+            stdout = result.stdout.replace('\x00', '').strip()
+            stderr = result.stderr.replace('\x00', '').strip()
+            return CommandResult(
+                success=result.returncode == 0,
+                stdout=stdout,
+                stderr=stderr,
+                return_code=result.returncode
+            )
+        except subprocess.TimeoutExpired:
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr="Import timed out (300s)",
+                return_code=-1
+            )
+        except Exception as e:
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr=str(e),
+                return_code=-1
+            )

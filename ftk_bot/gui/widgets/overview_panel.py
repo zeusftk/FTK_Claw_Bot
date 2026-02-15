@@ -143,18 +143,84 @@ class OverviewPanel(QWidget):
         self.edit_config_btn.clicked.connect(self._show_config_panel)
 
     def _refresh_status(self):
+        if not self._wsl_manager.is_wsl_installed():
+            self.wsl_card.set_status(False, "WSL 未安装")
+            try:
+                self.wsl_card.start_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self.wsl_card.start_btn.setText("安装 WSL")
+            self.wsl_card.start_btn.clicked.connect(self._install_wsl)
+            self.nanobot_card.set_status(False, "需要 WSL")
+            return
+        
         distros = self._wsl_manager.list_distros()
-        if distros:
-            default_distro = next(
-                (d for d in distros if d.is_default),
-                distros[0]
-            )
-            self.update_wsl_status(default_distro.name, default_distro.is_running)
+        if not distros:
+            self.wsl_card.set_status(False, "无 WSL 分发")
+            try:
+                self.wsl_card.start_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self.wsl_card.start_btn.setText("安装分发")
+            self.wsl_card.start_btn.clicked.connect(self._install_distro)
+            self.nanobot_card.set_status(False, "需要 WSL 分发")
+            return
+        
+        self._reset_wsl_buttons()
+        
+        default_distro = next(
+            (d for d in distros if d.is_default),
+            distros[0]
+        )
+        self.update_wsl_status(default_distro.name, default_distro.is_running)
 
         config = self._config_manager.get_default()
         if config:
             is_running = self._nanobot_controller.is_running(config.name)
             self.update_nanobot_status(config.name, is_running)
+        else:
+            self.nanobot_card.set_status(False, "无配置\n点击启动创建")
+
+    def _install_wsl(self):
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self, "安装 WSL",
+            "是否安装 WSL？\n这将运行 'wsl --install' 命令。\n安装后需要重启计算机。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            import subprocess
+            try:
+                subprocess.run(["wsl.exe", "--install"], check=True)
+                QMessageBox.information(self, "提示", "WSL 安装命令已执行，请重启计算机后继续。")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"安装失败: {e}")
+
+    def _install_distro(self):
+        from PyQt6.QtWidgets import QMessageBox, QInputDialog
+        available = self._wsl_manager.get_available_distros()
+        if not available:
+            available = ["Ubuntu", "Debian", "kali-linux", "openSUSE-42", "SLES-12"]
+        
+        distro, ok = QInputDialog.getItem(
+            self, "安装 WSL 分发",
+            "选择要安装的分发:", available, 0, False
+        )
+        if ok and distro:
+            reply = QMessageBox.question(
+                self, "确认安装",
+                f"是否安装 {distro}？\n这可能需要几分钟时间。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.add_activity(f"正在安装 {distro}...")
+                success = self._wsl_manager.install_distro(distro)
+                if success:
+                    QMessageBox.information(self, "成功", f"{distro} 安装完成！")
+                    self.add_activity(f"{distro} 安装完成")
+                    self._refresh_status()
+                else:
+                    QMessageBox.warning(self, "错误", f"安装 {distro} 失败")
 
     def update_wsl_status(self, distro_name: str, is_running: bool):
         distros = self._wsl_manager.list_distros()
@@ -179,31 +245,119 @@ class OverviewPanel(QWidget):
 
     def _start_wsl(self):
         distros = self._wsl_manager.list_distros()
-        if distros:
-            default_distro = next(
-                (d for d in distros if d.is_default),
-                distros[0]
-            )
-            self._wsl_manager.start_distro(default_distro.name)
+        if not distros:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "警告", "未检测到 WSL 分发，请先安装 WSL 并创建分发。")
+            self._refresh_status()
+            return
+        default_distro = next(
+            (d for d in distros if d.is_default),
+            distros[0]
+        )
+        success = self._wsl_manager.start_distro(default_distro.name)
+        if success:
+            self.update_wsl_status(default_distro.name, True)
+            self.add_activity(f"已启动 WSL: {default_distro.name}")
+        else:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "错误", f"无法启动 WSL 分发: {default_distro.name}")
 
     def _stop_wsl(self):
         distros = self._wsl_manager.list_distros()
-        if distros:
-            default_distro = next(
-                (d for d in distros if d.is_default),
-                distros[0]
-            )
-            self._wsl_manager.stop_distro(default_distro.name)
+        if not distros:
+            return
+        default_distro = next(
+            (d for d in distros if d.is_default),
+            distros[0]
+        )
+        success = self._wsl_manager.stop_distro(default_distro.name)
+        if success:
+            self.update_wsl_status(default_distro.name, False)
+            self.add_activity(f"已停止 WSL: {default_distro.name}")
+
+    def _reset_wsl_buttons(self):
+        try:
+            self.wsl_card.start_btn.clicked.disconnect()
+        except TypeError:
+            pass
+        self.wsl_card.start_btn.setText("启动")
+        self.wsl_card.start_btn.clicked.connect(self._start_wsl)
 
     def _start_nanobot(self):
+        from PyQt6.QtWidgets import QMessageBox
+        
         config = self._config_manager.get_default()
-        if config:
-            self._nanobot_controller.start(config)
+        if not config:
+            reply = QMessageBox.question(
+                self, "创建配置",
+                "没有找到默认配置，是否创建一个新配置？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._create_default_config()
+            return
+        
+        distros = self._wsl_manager.list_distros()
+        if not distros:
+            QMessageBox.warning(self, "错误", "请先启动 WSL 分发。")
+            return
+        
+        if not config.distro_name:
+            default_distro = next((d for d in distros if d.is_default), distros[0])
+            config.distro_name = default_distro.name
+            self._config_manager.save(config)
+        
+        distro = self._wsl_manager.get_distro(config.distro_name)
+        if not distro or not distro.is_running:
+            reply = QMessageBox.question(
+                self, "启动 WSL",
+                f"WSL 分发 '{config.distro_name}' 未运行，是否启动？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                success = self._wsl_manager.start_distro(config.distro_name)
+                if not success:
+                    QMessageBox.warning(self, "错误", f"无法启动 WSL 分发: {config.distro_name}")
+                    return
+            else:
+                return
+        
+        self.add_activity(f"正在启动 Nanobot: {config.name}...")
+        success = self._nanobot_controller.start(config)
+        if success:
+            self.add_activity(f"Nanobot {config.name} 启动成功")
+            self.update_nanobot_status(config.name, True)
+        else:
+            QMessageBox.warning(self, "错误", f"无法启动 Nanobot: {config.name}")
 
     def _stop_nanobot(self):
+        from PyQt6.QtWidgets import QMessageBox
+        
         config = self._config_manager.get_default()
-        if config:
-            self._nanobot_controller.stop(config.name)
+        if not config:
+            QMessageBox.warning(self, "错误", "没有找到默认配置。")
+            return
+        
+        self.add_activity(f"正在停止 Nanobot: {config.name}...")
+        success = self._nanobot_controller.stop(config.name)
+        if success:
+            self.add_activity(f"Nanobot {config.name} 已停止")
+            self.update_nanobot_status(config.name, False)
+        else:
+            QMessageBox.warning(self, "错误", f"无法停止 Nanobot: {config.name}")
+
+    def _create_default_config(self):
+        from PyQt6.QtWidgets import QInputDialog
+        
+        distros = self._wsl_manager.list_distros()
+        distro_name = ""
+        if distros:
+            default_distro = next((d for d in distros if d.is_default), distros[0])
+            distro_name = default_distro.name
+        
+        config = self._config_manager.create_default_config(distro_name)
+        self.add_activity(f"已创建默认配置: {config.name}")
+        self.update_nanobot_status(config.name, False)
 
     def _show_log_panel(self):
         parent = self.parent()

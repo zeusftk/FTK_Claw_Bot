@@ -39,6 +39,8 @@ class ConfigManager:
                         with open(file_path, "r", encoding="utf-8") as f:
                             data = json.load(f)
                         config = NanobotConfig.from_dict(data)
+                        if config.distro_name and ('\x00' in config.distro_name or config.distro_name == '*'):
+                            config.distro_name = ""
                         self._configs[config.name] = config
                     except Exception:
                         continue
@@ -141,6 +143,8 @@ class ConfigManager:
         return True
 
     def create_default_config(self, distro_name: str = "") -> NanobotConfig:
+        if not distro_name or distro_name == "*":
+            distro_name = ""
         config = NanobotConfig(
             name=self.DEFAULT_CONFIG_NAME,
             distro_name=distro_name,

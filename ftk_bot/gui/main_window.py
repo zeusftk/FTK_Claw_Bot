@@ -154,6 +154,7 @@ class MainWindow(QMainWindow):
 
         self.wsl_panel.distro_started.connect(self._on_distro_started)
         self.wsl_panel.distro_stopped.connect(self._on_distro_stopped)
+        self.wsl_panel.distro_imported.connect(self._on_distro_imported)
         self.config_panel.config_saved.connect(self._on_config_saved)
 
         # Register log callback to forward nanobot logs to log panel
@@ -210,6 +211,10 @@ class MainWindow(QMainWindow):
 
     def _on_distro_stopped(self, distro_name: str):
         self.status_bar.showMessage(f"已停止 WSL 分发: {distro_name}", 3000)
+
+    def _on_distro_imported(self, distro_name: str):
+        self.config_panel.refresh_distros()
+        self.status_bar.showMessage(f"已导入 WSL 分发: {distro_name}", 3000)
 
     def _on_config_saved(self, config_name: str):
         config = self._config_manager.get(config_name)
