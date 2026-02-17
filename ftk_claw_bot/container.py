@@ -100,6 +100,14 @@ class Container:
     @windows_bridge.setter
     def windows_bridge(self, value):
         self.register("windows_bridge", value)
+    
+    @property
+    def plugin_manager(self):
+        return self.get("plugin_manager")
+    
+    @plugin_manager.setter
+    def plugin_manager(self, value):
+        self.register("plugin_manager", value)
 
 
 container = Container()

@@ -7,6 +7,7 @@ from loguru import logger
 from .constants import VERSION, APP_NAME, APP_AUTHOR, UI
 from .container import container
 from .events import event_bus, EventType
+from .plugins import PluginManager
 
 
 class Application:
@@ -109,10 +110,22 @@ class Application:
         windows_bridge = WindowsBridge()
         container.windows_bridge = windows_bridge
         
+        if progress_callback:
+            progress_callback("正在初始化插件管理器...", 90)
+        
+        plugin_manager = PluginManager()
+        container.plugin_manager = plugin_manager
+        
+        # 加载内置插件
+        plugin_manager.load_from_dir(os.path.join(os.path.dirname(__file__), "plugins"))
+        
+        # 初始化所有插件
+        plugin_manager.initialize_all(self)
+        
         monitor_service.start()
         windows_bridge.start()
         
-        event_bus.publish(EventType.APP_STARTED, {"distros": len(distros) if distros else 0})
+        event_bus.publish(EventType.APP_STARTED, {"distros": len(distros) if distros else 0, "plugins": len(plugin_manager.get_all())})
     
     def create_main_window(self):
         from .gui import MainWindow
@@ -150,6 +163,9 @@ class Application:
     
     def shutdown(self):
         event_bus.publish(EventType.APP_SHUTDOWN, {})
+        
+        if container.plugin_manager:
+            container.plugin_manager.shutdown_all()
         
         if container.monitor_service:
             container.monitor_service.stop()
