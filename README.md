@@ -29,13 +29,7 @@ FTK_Claw_Bot - Windows 平台最强 openclaw 平替工具，专注 WSL2 环境�
 
 ## 安装
 
-### 方式一：pip 安装
-
-```bash
-pip install ftkclawbot
-```
-
-### 方式二：源码安装
+### 源码安装
 
 ```bash
 git clone https://github.com/zeusftk/FTK_Claw_Bot.git
