@@ -4,14 +4,14 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="ftk-bot",
-    version="0.1.0",
-    author="FTK_Bot Team",
-    author_email="ftk-bot@example.com",
-    description="Windows桌面应用，用于管理WSL2中的Nanobot AI助手",
+    name="ftkclawbot",
+    version="1.0.1",
+    author="FTK Team",
+    author_email="zeusftk@gmail.com",
+    description="Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/your-org/FTK_Bot",
+    url="https://github.com/zeusftk/FTK_Claw_Bot",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -37,7 +37,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "ftk-bot=ftk_bot.main:main",
+            "ftkclawbot=ftk_claw_bot.main:main",
         ],
     },
     include_package_data=True,

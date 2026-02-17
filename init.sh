@@ -1,9 +1,9 @@
 #!/bin/bash
-# FTK_Bot 开发环境初始化脚本
+# FTK_Claw_Bot 开发环境初始化脚本
 
 set -e
 
-echo "=== FTK_Bot 开发环境初始化 ==="
+echo "=== FTK_Claw_Bot 开发环境初始化 ==="
 
 # 检查 Python 版本
 python_version=$(python3 --version 2>&1 | awk '{print $2}')
@@ -37,10 +37,10 @@ fi
 # 运行基本测试
 echo "运行基本测试..."
 python3 -c "
-from ftk_bot.models import WSLDistro, DistroStatus, NanobotConfig
-from ftk_bot.core import WSLManager, ConfigManager
+from ftk_claw_bot.models import WSLDistro, DistroStatus, NanobotConfig
+from ftk_claw_bot.core import WSLManager, ConfigManager
 print('核心模块导入成功')
 "
 
 echo "=== 初始化完成 ==="
-echo "运行 'python -m ftk_bot.main' 启动应用"
+echo "运行 'python -m ftk_claw_bot.main' 启动应用"

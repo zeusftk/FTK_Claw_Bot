@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ftk-bot"
-version = "0.1.0"
-description = "Windows桌面应用，用于管理WSL2中的Nanobot AI助手"
+name = "ftk-claw-bot"
+version = "1.0.1"
+description = "Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
-    {name = "FTK_Bot Team", email = "ftk-bot@example.com"}
+    {name = "FTK Team", email = "zeusftk@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -35,8 +35,8 @@ dependencies = [
 ]
 
 [project.scripts]
-ftk-bot = "ftk_bot.main:main"
+ftkclawbot = "ftk_claw_bot.main:main"
 
 [project.urls]
-Homepage = "https://github.com/your-org/FTK_Bot"
-Repository = "https://github.com/your-org/FTK_Bot"
+Homepage = "https://github.com/your-org/FTK_Claw_Bot"
+Repository = "https://github.com/your-org/FTK_Claw_Bot"
