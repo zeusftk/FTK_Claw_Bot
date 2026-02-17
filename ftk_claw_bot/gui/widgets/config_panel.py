@@ -271,7 +271,8 @@ class ConfigPanel(QWidget):
         self.provider_combo.addItems([
             "custom", "anthropic", "openai", "openrouter",
             "deepseek", "groq", "zhipu", "dashscope",
-            "vllm", "gemini", "moonshot", "minimax", "aihubmix"
+            "vllm", "gemini", "moonshot", "minimax", "aihubmix",
+            "qwen_portal"
         ])
         self.provider_combo.currentTextChanged.connect(self._update_models)
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
@@ -302,6 +303,23 @@ class ConfigPanel(QWidget):
         key_row.addWidget(show_key_btn)
         key_row.addWidget(copy_key_btn)
         llm_card.add_row("API Key", key_row)
+
+        oauth_row = QHBoxLayout()
+        oauth_row.setSpacing(8)
+        self.oauth_status_label = QLabel("未登录")
+        self.oauth_status_label.setObjectName("oauthStatusLabel")
+        self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
+        self.oauth_login_btn = QPushButton("OAuth 登录")
+        self.oauth_login_btn.setObjectName("smallButton")
+        self.oauth_login_btn.setToolTip("使用 OAuth 登录 Qwen Portal")
+        self.oauth_login_btn.clicked.connect(self._on_oauth_login)
+        oauth_row.addWidget(self.oauth_status_label)
+        oauth_row.addWidget(self.oauth_login_btn)
+        oauth_row.addStretch()
+        llm_card.add_row("OAuth", oauth_row)
+        
+        self.oauth_status_label.setVisible(False)
+        self.oauth_login_btn.setVisible(False)
 
         url_row = QHBoxLayout()
         url_row.setSpacing(8)
@@ -594,17 +612,31 @@ class ConfigPanel(QWidget):
                 "abab6",
             ],
             "aihubmix": [],
+            "qwen_portal": [
+                "qwen-portal/coder-model",
+                "qwen-portal/qwen-max",
+            ],
         }
         self.model_combo.clear()
         self.model_combo.addItems(models.get(provider, []))
 
     def _on_provider_changed(self, provider: str):
         """当提供商变更时显示/隐藏 URL 输入框"""
+        oauth_providers = {"qwen_portal", "openai_codex"}
+        is_oauth = provider in oauth_providers
+        
+        self.apiKey_edit.setVisible(not is_oauth)
+        self.oauth_status_label.setVisible(is_oauth)
+        self.oauth_login_btn.setVisible(is_oauth)
+        
         if provider == "custom":
             self.base_url_edit.setEnabled(True)
         else:
             self.base_url_edit.setEnabled(False)
             self.base_url_edit.setText("")
+        
+        if is_oauth:
+            self._check_oauth_status()
 
     def _on_config_selected(self, current, previous):
         if not current:
@@ -746,7 +778,18 @@ class ConfigPanel(QWidget):
         logger.info(f"WSL 工作空间: {wsl_ws}")
         logger.info(f"提供商: {self.provider_combo.currentText()}")
         logger.info(f"模型: {self.model_combo.currentText()}")
-        logger.info(f"API Key: {self.apiKey_edit.text()[:10] if self.apiKey_edit.text() else 'None'}...")
+        
+        oauth_providers = {"qwen_portal", "openai_codex"}
+        current_provider = self.provider_combo.currentText()
+        is_oauth = current_provider in oauth_providers
+        
+        if is_oauth:
+            api_key = ""
+            logger.info(f"API Key: (OAuth provider, no API key needed)")
+        else:
+            api_key = self.apiKey_edit.text()
+            logger.info(f"API Key: {api_key[:10] if api_key else 'None'}...")
+        
         logger.info(f"Base URL: {self.base_url_edit.text()}")
         logger.info(f"Enable Memory: {self.memory_check.isChecked()}")
         logger.info(f"Enable Web Search: {self.web_search_check.isChecked()}")
@@ -758,9 +801,9 @@ class ConfigPanel(QWidget):
             workspace=wsl_ws,
             windows_workspace=windows_ws,
             sync_to_mnt=self.sync_mnt_check.isChecked(),
-            provider=self.provider_combo.currentText(),
+            provider=current_provider,
             model=self.model_combo.currentText(),
-            apiKey=self.apiKey_edit.text(),
+            apiKey=api_key,
             base_url=self.base_url_edit.text(),
             enable_memory=self.memory_check.isChecked(),
             enable_web_search=self.web_search_check.isChecked(),
@@ -1069,6 +1112,77 @@ class ConfigPanel(QWidget):
         elif tools.get("web"):
             self.web_search_check.setChecked(True)
             logger.info(f"设置 enable_web_search=True")
+    
+    def _on_oauth_login(self):
+        """触发 OAuth 登录流程"""
+        import threading
+        
+        provider = self.provider_combo.currentText()
+        distro_name = self._current_config.distro_name if self._current_config else None
+        
+        if not distro_name:
+            QMessageBox.warning(self, "错误", "请先选择 WSL 分发")
+            return
+        
+        distro = self._wsl_manager.get_distro(distro_name)
+        if not distro or not distro.is_running:
+            if not self._wsl_manager.start_distro(distro_name):
+                QMessageBox.warning(self, "错误", f"无法启动 WSL 分发: {distro_name}")
+                return
+        
+        self.oauth_login_btn.setEnabled(False)
+        self.oauth_status_label.setText("正在登录...")
+        self.oauth_status_label.setStyleSheet("color: #58a6ff; font-size: 12px;")
+        
+        def run_login():
+            result = self._wsl_manager.execute_command(
+                distro_name,
+                "nanobot provider login qwen-portal",
+                timeout=180
+            )
+            from PyQt6.QtCore import QMetaObject, Qt
+            QMetaObject.invokeMethod(
+                self, "_on_oauth_login_finished",
+                Qt.ConnectionType.QueuedConnection,
+                result.success, result.stdout, result.stderr
+            )
+        
+        thread = threading.Thread(target=run_login, daemon=True)
+        thread.start()
+    
+    def _on_oauth_login_finished(self, success: bool, stdout: str, stderr: str):
+        """OAuth 登录完成回调"""
+        self.oauth_login_btn.setEnabled(True)
+        
+        if success:
+            self.oauth_status_label.setText("已登录")
+            self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
+            QMessageBox.information(self, "成功", "Qwen Portal OAuth 登录成功！")
+        else:
+            self.oauth_status_label.setText("登录失败")
+            self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
+            error_msg = stderr if stderr else stdout
+            QMessageBox.warning(self, "登录失败", f"OAuth 登录失败:\n{error_msg}")
+    
+    def _check_oauth_status(self):
+        """检查 OAuth 认证状态"""
+        provider = self.provider_combo.currentText()
+        distro_name = self._current_config.distro_name if self._current_config else None
+        
+        if not distro_name or provider != "qwen_portal":
+            return
+        
+        result = self._wsl_manager.execute_command(
+            distro_name,
+            "test -f ~/.qwen/oauth_creds.json && echo 'exists' || echo 'not_found'"
+        )
+        
+        if result.success and "exists" in result.stdout:
+            self.oauth_status_label.setText("已登录")
+            self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
+        else:
+            self.oauth_status_label.setText("未登录")
+            self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
     
     def _delete_config(self):
         if not self._current_config:

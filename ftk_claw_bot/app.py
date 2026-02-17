@@ -107,7 +107,10 @@ class Application:
         monitor_service = MonitorService(wsl_manager, nanobot_controller)
         container.monitor_service = monitor_service
         
-        windows_bridge = WindowsBridge()
+        default_config = config_manager.get_default()
+        bridge_port = default_config.bridge_port if default_config else None
+        
+        windows_bridge = WindowsBridge(port=bridge_port)
         container.windows_bridge = windows_bridge
         
         if progress_callback:

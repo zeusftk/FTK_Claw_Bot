@@ -240,11 +240,32 @@ class WindowsAutomation:
 
 
 class WindowsBridge:
-    def __init__(self, port: int = 9527):
+    DEFAULT_PORT = 9527
+    
+    def __init__(self, port: int = None):
         from .ipc_server import IPCServer
-        self._ipc_server = IPCServer(port=port)
+        self._port = port or self.DEFAULT_PORT
+        self._ipc_server = IPCServer(port=self._port)
         self._automation = WindowsAutomation()
         self._register_handlers()
+
+    @property
+    def port(self) -> int:
+        return self._port
+
+    def update_port(self, port: int) -> bool:
+        """Update the bridge port. Requires restart to take effect."""
+        if port == self._port:
+            return True
+        was_running = self.is_running
+        if was_running:
+            self.stop()
+        self._port = port
+        self._ipc_server = IPCServer(port=self._port)
+        self._register_handlers()
+        if was_running:
+            return self.start()
+        return True
 
     def _register_handlers(self):
         self._ipc_server.register_handler("mouse_click", self._handle_mouse_click)
@@ -366,3 +387,20 @@ class WindowsBridge:
     @property
     def is_running(self) -> bool:
         return self._ipc_server.is_running
+
+    @property
+    def connected_clients(self) -> int:
+        return self._ipc_server.connected_clients
+
+    def get_status(self) -> dict:
+        return {
+            "running": self.is_running,
+            "port": self._port,
+            "connected_clients": self.connected_clients
+        }
+
+    def get_connected_clients_info(self) -> list:
+        return self._ipc_server.get_connected_clients_info()
+
+    def notify_port_change(self, new_port: int) -> None:
+        self._ipc_server.notify_port_change(new_port)

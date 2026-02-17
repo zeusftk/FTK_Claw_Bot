@@ -1,5 +1,5 @@
 """
-FTK_Bot 统一样式主题
+FTK_Claw_Bot 统一样式主题
 Modern Dark Theme with High Contrast
 """
 

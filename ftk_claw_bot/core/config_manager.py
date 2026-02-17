@@ -6,6 +6,7 @@ from pathlib import Path
 from loguru import logger
 
 from ..models import NanobotConfig, ChannelsConfig, SkillsConfig
+from ..constants import Paths
 
 
 class ConfigManager:
@@ -13,11 +14,11 @@ class ConfigManager:
 
     def __init__(self, config_dir: Optional[str] = None):
         if config_dir is None:
-            config_dir = os.path.join(os.environ.get("APPDATA", ""), "FTK_Bot")
+            config_dir = str(Path.cwd() / "config")
 
         self._config_dir = config_dir
-        self._main_config_path = os.path.join(config_dir, "config.json")
-        self._nanobot_configs_dir = os.path.join(config_dir, "nanobot_configs")
+        self._main_config_path = str(Path(config_dir) / "config.json")
+        self._nanobot_configs_dir = str(Path(config_dir) / "nanobot_configs")
         self._configs: Dict[str, NanobotConfig] = {}
         self._default_config_name: str = self.DEFAULT_CONFIG_NAME
         self._main_config: dict = {}
@@ -141,6 +142,10 @@ class ConfigManager:
         elif tools.get("web"):
             ftk_config.enable_web_search = True
         
+        windows_bridge = tools.get("windowsBridge", {})
+        if windows_bridge.get("port"):
+            ftk_config.bridge_port = windows_bridge["port"]
+        
         channels = wsl_config.get("channels", {})
         if channels:
             self._apply_channels_config(ftk_config, channels)
@@ -204,6 +209,9 @@ class ConfigManager:
 
         with open(self._main_config_path, "w", encoding="utf-8") as f:
             json.dump(self._main_config, f, indent=2, ensure_ascii=False)
+
+    def save_main_config(self):
+        self._save_main_config()
 
     def save(self, config: NanobotConfig) -> bool:
         try:

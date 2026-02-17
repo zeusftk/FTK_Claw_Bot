@@ -2,10 +2,11 @@ import sys
 from pathlib import Path
 from loguru import logger
 from datetime import datetime
+from ..constants import Paths
 
 
 def setup_logger(app_name: str = "ftk_claw_bot", console: bool = True, level: str = "INFO"):
-    log_dir = Path.home() / "AppData" / "Roaming" / "FTK_Bot" / "logs"
+    log_dir = Paths.get_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     
     logger.remove()

@@ -60,7 +60,7 @@ class LogPanel(QWidget):
 
         source_label = QLabel("来源:")
         self.source_combo = QComboBox()
-        self.source_combo.addItems(["全部", "Nanobot", "Bridge", "WSL", "FTK_Bot"])
+        self.source_combo.addItems(["全部", "Nanobot", "Bridge", "WSL", "FTK_Claw_Bot"])
         self.source_combo.currentTextChanged.connect(self._on_filter_changed)
         
         time_label = QLabel("时间范围:")

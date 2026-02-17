@@ -36,7 +36,7 @@ class SplashScreen(QWidget):
         
         layout.addStretch()
         
-        title_label = QLabel("FTK_Bot")
+        title_label = QLabel("FTK_Claw_Bot")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
         title_font.setPointSize(28)
@@ -44,7 +44,7 @@ class SplashScreen(QWidget):
         title_label.setFont(title_font)
         layout.addWidget(title_label)
         
-        subtitle_label = QLabel("WSL Nanobot 管理工具")
+        subtitle_label = QLabel("WSL ClawBot 管理工具")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_font = QFont()
         subtitle_font.setPointSize(12)

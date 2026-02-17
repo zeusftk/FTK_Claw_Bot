@@ -1,7 +1,6 @@
 from enum import Enum
 from typing import Dict, Any, Optional
 from pathlib import Path
-import os
 
 
 VERSION = "1.0.0"
@@ -20,21 +19,15 @@ class Network:
 
 
 class Paths:
-    CONFIG_DIR_NAME = "FTK_Bot"
     LOG_DIR_NAME = "logs"
     
     @classmethod
-    def get_config_dir(cls) -> Path:
-        appdata = os.environ.get("APPDATA", "")
-        return Path(appdata) / cls.CONFIG_DIR_NAME
-    
-    @classmethod
     def get_log_dir(cls) -> Path:
-        return cls.get_config_dir() / cls.LOG_DIR_NAME
+        return Path.cwd() / cls.LOG_DIR_NAME
     
     @classmethod
     def get_nanobot_configs_dir(cls) -> Path:
-        return cls.get_config_dir() / "nanobot_configs"
+        return Path.cwd() / "nanobot_configs"
 
 
 class UI:
@@ -51,6 +44,10 @@ class WSL:
     LIST_TIMEOUT = 10
     START_TIMEOUT = 60
     STOP_TIMEOUT = 30
+
+
+class Bridge:
+    DEFAULT_WINDOWS_PORT = 9527
 
 
 class Nanobot:

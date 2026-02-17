@@ -6,15 +6,16 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QListWidget, QListWidgetItem, QLabel, QPushButton,
     QStatusBar, QSystemTrayIcon, QMenu, QSplitter, QFrame
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter
 
 from ..core import (
     WSLManager, NanobotController, ConfigManager,
-    NanobotGatewayManager, BridgeManager, GatewayStatus, AgentStatus
+    NanobotGatewayManager, BridgeManager, GatewayStatus
 )
 from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus
 from ..utils import make_thread_safe
+from ..constants import Bridge
 from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel, NanobotPanel
 
 
@@ -39,6 +40,8 @@ class MainWindow(QMainWindow):
             self._gateway_manager: Optional[NanobotGatewayManager] = None
             self._bridge_manager: Optional[BridgeManager] = None
             self._chat_clients: dict[str, NanobotChatClient] = {}
+            self._client_count_timer = QTimer()
+            self._client_count_timer.timeout.connect(self._update_client_count)
             
             self._init_ui()
             self._init_managers_skip()
@@ -55,6 +58,8 @@ class MainWindow(QMainWindow):
             self._gateway_manager: Optional[NanobotGatewayManager] = None
             self._bridge_manager: Optional[BridgeManager] = None
             self._chat_clients: dict[str, NanobotChatClient] = {}
+            self._client_count_timer = QTimer()
+            self._client_count_timer.timeout.connect(self._update_client_count)
             
             self._init_ui()
             self._init_managers()
@@ -63,7 +68,7 @@ class MainWindow(QMainWindow):
             self._init_chat()
 
     def _init_ui(self):
-        self.setWindowTitle("FTK_Bot")
+        self.setWindowTitle("FTK_Claw_Bot")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
 
@@ -80,7 +85,7 @@ class MainWindow(QMainWindow):
         nav_layout = QVBoxLayout(nav_frame)
         nav_layout.setContentsMargins(10, 10, 10, 10)
 
-        title_label = QLabel("FTK_Bot")
+        title_label = QLabel("FTK_Claw_Bot")
         title_label.setObjectName("navTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
@@ -130,7 +135,10 @@ class MainWindow(QMainWindow):
         )
         self.command_panel = CommandPanel(self._wsl_manager)
         self.chat_panel = ChatPanel(self._config_manager, self._nanobot_controller, self._wsl_manager)
-        self.bridge_panel = WindowsBridgePanel(windows_bridge=self._windows_bridge)
+        self.bridge_panel = WindowsBridgePanel(
+            windows_bridge=self._windows_bridge,
+            wsl_manager=self._wsl_manager
+        )
         self.log_panel = LogPanel()
 
         self.content_stack.addWidget(self.overview_panel)
@@ -154,7 +162,7 @@ class MainWindow(QMainWindow):
         self.status_bar.addWidget(self.nanobot_status_label)
         self.status_bar.addWidget(QLabel(" | "))
         self.status_bar.addWidget(self.resource_label)
-        self.status_bar.addPermanentWidget(QLabel("FTK_Bot v0.1.0"))
+        self.status_bar.addPermanentWidget(QLabel("FTK_Claw_Bot v0.1.0"))
 
         self._apply_styles()
 
@@ -231,6 +239,12 @@ class MainWindow(QMainWindow):
         # Bridge panel connections
         self.bridge_panel.start_bridge.connect(self._on_start_bridge)
         self.bridge_panel.stop_bridge.connect(self._on_stop_bridge)
+        self.bridge_panel.port_changed.connect(self._on_bridge_port_changed)
+        self.bridge_panel.restart_wsl.connect(self._on_restart_wsl)
+        self.bridge_panel.refresh_distros.connect(self._on_refresh_distros)
+        self.bridge_panel.start_wsl_distro.connect(self._on_start_wsl_distro)
+        self.bridge_panel.stop_wsl_distro.connect(self._on_stop_wsl_distro)
+        self.bridge_panel.refresh_wsl_status.connect(self._on_refresh_wsl_status)
 
     def _init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
@@ -251,7 +265,7 @@ class MainWindow(QMainWindow):
         painter.end()
 
         self.tray_icon.setIcon(QIcon(pixmap))
-        self.tray_icon.setToolTip("FTK_Bot")
+        self.tray_icon.setToolTip("FTK_Claw_Bot")
 
         tray_menu = QMenu()
 
@@ -277,17 +291,27 @@ class MainWindow(QMainWindow):
             )
             self._gateway_manager.register_status_callback(self._on_gateway_status)
 
+            bridge_port = default_config.bridge_port or Bridge.DEFAULT_WINDOWS_PORT
+
             self._bridge_manager = BridgeManager(
                 self._wsl_manager,
-                windows_port=9527
+                windows_port=bridge_port
             )
-            self._bridge_manager.register_status_callback(self._on_agent_status)
+            self.bridge_panel.set_bridge_port(bridge_port)
 
     def _on_gateway_status(self, status: GatewayStatus):
         pass
 
-    def _on_agent_status(self, status: AgentStatus):
-        pass
+    def _update_client_count(self):
+        from loguru import logger
+        if self._windows_bridge and self._windows_bridge.is_running:
+            clients_info = self._windows_bridge.get_connected_clients_info()
+            distros = self._wsl_manager.list_distros()
+            logger.debug(f"[Bridge] 客户端信息: {clients_info}")
+            self.bridge_panel.update_clients_info(clients_info)
+            self.bridge_panel.update_wsl_connection_status(distros, clients_info)
+        else:
+            logger.debug(f"[Bridge] 桥接未运行: windows_bridge={self._windows_bridge is not None}, is_running={self._windows_bridge.is_running if self._windows_bridge else False}")
 
     def _on_start_bridge(self):
         """处理启动桥接服务"""
@@ -299,6 +323,7 @@ class MainWindow(QMainWindow):
                 success = self._windows_bridge.start()
                 if success:
                     logger.info("✅ 桥接服务启动成功")
+                    self._client_count_timer.start(2000)
                 else:
                     logger.error("❌ 桥接服务启动失败")
             else:
@@ -311,6 +336,8 @@ class MainWindow(QMainWindow):
         from loguru import logger
         logger.info("=== 开始停止桥接服务 ===")
         
+        self._client_count_timer.stop()
+        
         if self._windows_bridge:
             if self._windows_bridge.is_running:
                 self._windows_bridge.stop()
@@ -319,6 +346,102 @@ class MainWindow(QMainWindow):
                 logger.info("桥接服务已经停止")
         else:
             logger.error("桥接服务未初始化")
+
+    def _on_bridge_port_changed(self, port: int):
+        """处理桥接端口变更 - 自动同步配置并重启 IPC Server"""
+        from loguru import logger
+        logger.info(f"桥接端口变更为: {port}")
+        
+        default_config = self._config_manager.get_default()
+        if default_config:
+            default_config.bridge_port = port
+            self._config_manager.save(default_config)
+            
+            from ..core.config_sync_manager import ConfigSyncManager
+            sync_manager = ConfigSyncManager(self._wsl_manager)
+            
+            for config in self._config_manager.get_all().values():
+                config.bridge_port = port
+                self._config_manager.save(config)
+                sync_manager.sync_ftk_to_wsl(config)
+            
+            logger.info("配置已同步到所有 WSL 发行版")
+        
+        if self._bridge_manager:
+            self._bridge_manager.update_port(port)
+        
+        if self._windows_bridge and self._windows_bridge.is_running:
+            logger.info("通知已连接的客户端端口变更...")
+            self._windows_bridge.notify_port_change(port)
+            
+            logger.info("重启 IPC Server...")
+            self._windows_bridge.stop()
+            self._windows_bridge = WindowsBridge(port=port)
+            self._windows_bridge.start()
+            logger.info(f"IPC Server 已重启，监听端口: {port}")
+
+    def _on_restart_wsl(self, distro_name: str):
+        """处理重启 WSL 分发"""
+        from loguru import logger
+        logger.info(f"重启 WSL 分发: {distro_name}")
+        
+        distro = self._wsl_manager.get_distro(distro_name)
+        if distro:
+            if distro.is_running:
+                self._wsl_manager.stop_distro(distro_name)
+            self._wsl_manager.start_distro(distro_name)
+            logger.info(f"✅ WSL 分发已重启: {distro_name}")
+        else:
+            logger.error(f"❌ 未找到 WSL 分发: {distro_name}")
+
+    def _on_refresh_distros(self):
+        """处理刷新 WSL 分发列表"""
+        from loguru import logger
+        logger.info("刷新 WSL 分发列表")
+        
+        distros = self._wsl_manager.list_distros()
+        self.bridge_panel.update_distro_list(distros)
+        logger.info(f"✅ 已刷新分发列表，共 {len(distros)} 个")
+
+    def _on_start_wsl_distro(self, distro_name: str):
+        """处理启动 WSL 分发"""
+        from loguru import logger
+        logger.info(f"启动 WSL 分发: {distro_name}")
+        
+        success = self._wsl_manager.start_distro(distro_name)
+        if success:
+            logger.info(f"✅ WSL 分发已启动: {distro_name}")
+            distros = self._wsl_manager.list_distros()
+            self.bridge_panel.update_distro_list(distros)
+        else:
+            logger.error(f"❌ WSL 分发启动失败: {distro_name}")
+
+    def _on_stop_wsl_distro(self, distro_name: str):
+        """处理停止 WSL 分发"""
+        from loguru import logger
+        logger.info(f"停止 WSL 分发: {distro_name}")
+        
+        success = self._wsl_manager.stop_distro(distro_name)
+        if success:
+            logger.info(f"✅ WSL 分发已停止: {distro_name}")
+            distros = self._wsl_manager.list_distros()
+            self.bridge_panel.update_distro_list(distros)
+        else:
+            logger.error(f"❌ WSL 分发停止失败: {distro_name}")
+
+    def _on_refresh_wsl_status(self):
+        """刷新 WSL 连通状态"""
+        from loguru import logger
+        logger.info("刷新 WSL 连通状态")
+        
+        distros = self._wsl_manager.list_distros()
+        clients_info = []
+        if self._windows_bridge and self._windows_bridge.is_running:
+            clients_info = self._windows_bridge.get_connected_clients_info()
+        
+        self.bridge_panel.update_wsl_connection_status(distros, clients_info)
+        self.bridge_panel.update_clients_info(clients_info)
+        self.bridge_panel._add_log(f"✓ WSL 连通状态已刷新，共 {len(distros)} 个分发")
 
     def _on_chat_connect(self):
         from PyQt6.QtWidgets import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
@@ -476,18 +599,6 @@ class MainWindow(QMainWindow):
             logger.error("❌ 没有成功连接任何 nanobot")
             self.chat_panel.show_error(f"无法连接到 gateways，请检查每个 Bot 的 gateway 是否正在运行")
 
-    def _start_bridge_agent(self, distro_name: str):
-        """启动 Bridge Agent"""
-        if self._bridge_manager:
-            from loguru import logger
-            logger.info(f"启动 Bridge Agent: {distro_name}")
-            success = self._bridge_manager.start_agent(distro_name)
-            if success:
-                wsl_ip = self._wsl_manager.get_distro_ip(distro_name)
-                self.bridge_panel.set_agent_status("running", distro_name, wsl_ip)
-            return success
-        return False
-
     def _on_single_nanobot_connect(self, nanobot_name: str):
         """处理单个bot的连接请求"""
         from PyQt6.QtWidgets import QMessageBox
@@ -515,10 +626,6 @@ class MainWindow(QMainWindow):
             self.chat_panel.show_error(f"无法获取 {config.distro_name} 的 IP 地址")
             self.chat_panel.set_connection_status(nanobot_name, False)
             return
-        
-        if not self._bridge_manager or not self._bridge_manager.is_running:
-            logger.info(f"自动启动 Bridge Agent for {config.distro_name}")
-            self._start_bridge_agent(config.distro_name)
         
         if nanobot_name in self._chat_clients:
             logger.info(f"{nanobot_name} 已经连接，跳过")
@@ -568,11 +675,6 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.error(f"[MainWindow] 断开 {nanobot_name} 连接时出错: {e}")
                 self.chat_panel.set_connection_status(nanobot_name, False)
-        
-        if not self._chat_clients and self._bridge_manager:
-            logger.info("[MainWindow] 所有连接已断开，停止 Bridge Agent")
-            self._bridge_manager.stop_agent()
-            self.bridge_panel.set_agent_status("stopped")
     
     def _on_chat_disconnect(self, bot_name: str = ""):
         from loguru import logger
@@ -588,11 +690,6 @@ class MainWindow(QMainWindow):
                     self.chat_panel.set_connection_status(bot_name, False)
                 except Exception as e:
                     logger.error(f"[MainWindow] 断开 {bot_name} 连接时出错: {e}")
-            
-            if not self._chat_clients and self._bridge_manager:
-                logger.info("[MainWindow] 所有连接已断开，停止 Bridge Agent")
-                self._bridge_manager.stop_agent()
-                self.bridge_panel.set_agent_status("stopped")
         else:
             logger.info("[MainWindow] 断开所有连接")
             for nanobot_name, chat_client in list(self._chat_clients.items()):
@@ -604,10 +701,6 @@ class MainWindow(QMainWindow):
                     logger.error(f"[MainWindow] 断开 {nanobot_name} 连接时出错: {e}")
             
             self._chat_clients.clear()
-
-        if not self._chat_clients and self._bridge_manager:
-            logger.info("[MainWindow] 所有连接已断开，停止 Bridge Agent")
-            self._bridge_manager.stop_agent()
 
     def _on_chat_clear(self):
         self.chat_panel.clear_messages()
@@ -741,7 +834,7 @@ class MainWindow(QMainWindow):
             if self.windowState() & Qt.WindowState.WindowMinimized:
                 self.hide()
                 self.tray_icon.showMessage(
-                    "FTK_Bot",
+                    "FTK_Claw_Bot",
                     "程序已最小化到系统托盘",
                     QSystemTrayIcon.MessageIcon.Information,
                     2000
@@ -753,16 +846,12 @@ class MainWindow(QMainWindow):
         event.accept()
 
     def _quit_app(self):
-        # 断开所有聊天客户端连接
         for nanobot_name, chat_client in list(self._chat_clients.items()):
             try:
                 chat_client.disconnect()
             except Exception:
                 pass
         self._chat_clients.clear()
-
-        if self._bridge_manager:
-            self._bridge_manager.stop_agent()
 
         if self._gateway_manager:
             self._gateway_manager.stop_gateway()

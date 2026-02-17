@@ -109,6 +109,10 @@ class ConfigSyncManager:
             result["enable_web_search"] = True
             result["brave_apiKey"] = web_search["apiKey"]
         
+        windows_bridge = tools.get("windowsBridge", {})
+        if windows_bridge.get("port"):
+            result["bridge_port"] = windows_bridge["port"]
+        
         return result
     
     def read_from_wsl(self, distro_name: str, config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
