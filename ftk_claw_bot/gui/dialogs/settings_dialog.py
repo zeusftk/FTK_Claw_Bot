@@ -87,7 +87,7 @@ class SettingsDialog(QDialog):
         workspace_layout = QHBoxLayout()
         workspace_layout.addWidget(QLabel("工作空间:"))
         self.workspace_edit = QLineEdit()
-        self.workspace_edit.setPlaceholderText("D:\\nanobot_workspace")
+        self.workspace_edit.setPlaceholderText("D:\\clawbot_workspace")
         browse_btn = QPushButton("浏览...")
         browse_btn.clicked.connect(self._browse_workspace)
         workspace_layout.addWidget(self.workspace_edit)

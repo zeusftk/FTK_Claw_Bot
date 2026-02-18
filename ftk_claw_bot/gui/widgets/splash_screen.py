@@ -2,6 +2,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QApplica
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPainter
 
+from ...constants import VERSION
+
 
 class SplashScreen(QWidget):
     """启动画面，显示初始化进度"""
@@ -69,7 +71,7 @@ class SplashScreen(QWidget):
         
         layout.addStretch()
         
-        version_label = QLabel("v0.1.0")
+        version_label = QLabel(f"v{VERSION}")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_font = QFont()
         version_font.setPointSize(9)

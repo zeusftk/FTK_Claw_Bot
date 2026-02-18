@@ -97,10 +97,10 @@ class WSLManager:
             logger.error(f"Failed to install distro {distro_name}: {e}")
             return False
 
-    def _run_wsl_command(self, args: List[str], distro: Optional[str] = None) -> CommandResult:
+    def _run_wsl_command(self, args: List[str], distro: Optional[str] = None, timeout: int = 30) -> CommandResult:
         cmd = ["wsl.exe"]
         if distro:
-            cmd.extend(["-d", distro])
+            cmd.extend(["-d", distro, "-u", "root"])
         cmd.extend(args)
 
         try:
@@ -109,7 +109,8 @@ class WSLManager:
                 capture_output=True,
                 text=True,
                 encoding="utf-16-le",
-                errors="replace"
+                errors="replace",
+                timeout=timeout
             )
             stdout = result.stdout.replace('\x00', '').strip()
             stderr = result.stderr.replace('\x00', '').strip()
@@ -118,6 +119,13 @@ class WSLManager:
                 stdout=stdout,
                 stderr=stderr,
                 return_code=result.returncode
+            )
+        except subprocess.TimeoutExpired:
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr=f"Command timed out after {timeout}s",
+                return_code=-1
             )
         except Exception as e:
             return CommandResult(
@@ -173,7 +181,7 @@ class WSLManager:
 
     def start_distro(self, distro_name: str) -> bool:
         try:
-            cmd = ["wsl.exe", "-d", distro_name, "--exec", "echo", "started"]
+            cmd = ["wsl.exe", "-d", distro_name, "-u", "root", "--exec", "echo", "started"]
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -266,7 +274,7 @@ class WSLManager:
         command: str,
         timeout: int = 30
     ) -> CommandResult:
-        cmd = ["wsl.exe", "-d", distro_name, "--", "bash", "-c", command]
+        cmd = ["wsl.exe", "-d", distro_name, "-u", "root", "--", "bash", "-c", command]
 
         try:
             result = subprocess.run(

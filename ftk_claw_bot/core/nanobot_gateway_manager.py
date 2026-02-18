@@ -84,7 +84,7 @@ class NanobotGatewayManager:
                 return False
 
         cmd = [
-            "wsl.exe", "-d", distro_name, "--",
+            "wsl.exe", "-d", distro_name, "-u", "root", "--",
             "bash", "-c",
             f"nanobot gateway --port {self._port}" + (" --verbose" if verbose else "") + (" --no-guardian" if no_guardian else "")
         ]

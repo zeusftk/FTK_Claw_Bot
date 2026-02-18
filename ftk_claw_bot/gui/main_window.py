@@ -15,7 +15,7 @@ from ..core import (
 )
 from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
 from ..utils import make_thread_safe
-from ..constants import Bridge
+from ..constants import Bridge, VERSION
 from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel
 
 
@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
 
         nav_layout.addStretch()
 
-        version_label = QLabel("v0.1.0")
+        version_label = QLabel(f"v{VERSION}")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setObjectName("versionLabel")
         nav_layout.addWidget(version_label)
@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
 
         self.wsl_status_label = QLabel("WSL: 未检测")
-        self.nanobot_status_label = QLabel("Nanobot: 未运行")
+        self.nanobot_status_label = QLabel("Clawbot: 未运行")
         self.resource_label = QLabel("CPU: -- | MEM: --")
 
         self.status_bar.addWidget(self.wsl_status_label)
@@ -471,7 +471,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(dialog)
         
         # 构建连接信息显示
-        info_text = "即将连接到以下 Nanobot:\n\n"
+        info_text = "即将连接到以下 Clawbot:\n\n"
         valid_bots = []
         
         for nanobot_name in selected_nanobots:
@@ -505,7 +505,7 @@ class MainWindow(QMainWindow):
             info_text += f"   Port: {config.gateway_port}\n\n"
         
         if not valid_bots:
-            self.chat_panel.show_error("没有可连接的 Nanobot，请确保 WSL 分发正在运行")
+            self.chat_panel.show_error("没有可连接的 Clawbot，请确保 WSL 分发正在运行")
             self.chat_panel.set_connection_status(False)
             return
         

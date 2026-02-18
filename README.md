@@ -37,6 +37,17 @@ cd FTK_Claw_Bot
 pip install -e .
 ```
 
+## 初始化 WSL 分发
+
+使用 `init_wsl` 目录中的脚本可快速配置 WSL 分发：
+
+```bash
+cd init_wsl
+make_nanobot_distro.bat
+```
+
+详细说明请参阅 [init_wsl/README.md](init_wsl/README.md)。
+
 ## 运行
 
 ```bash

@@ -3,7 +3,7 @@ import threading
 import os
 import json
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
@@ -103,7 +103,7 @@ class NanobotController:
             return
 
         try:
-            full_cmd = ["wsl.exe", "-d", distro_name, "--"] + cmd
+            full_cmd = ["wsl.exe", "-d", distro_name, "-u", "root", "--"] + cmd
 
             process = subprocess.Popen(
                 full_cmd,
@@ -281,6 +281,42 @@ class NanobotController:
             return success
         except Exception:
             return False
+
+    def check_gateway_connectivity_async(self, distro_name: str, gateway_port: int, callback: Callable[[bool], None]):
+        """异步检查 Gateway 连通性
+        
+        Args:
+            distro_name: WSL 分发名称
+            gateway_port: Gateway 端口
+            callback: 结果回调函数，接收 bool 参数表示是否连通
+        """
+        import threading
+        
+        def check():
+            if not WEBSOCKETS_AVAILABLE:
+                return False
+            
+            distro = self._wsl_manager.get_distro(distro_name)
+            if not distro or not distro.is_running:
+                return False
+            
+            ip = self._wsl_manager.get_distro_ip(distro_name)
+            if not ip:
+                return False
+            
+            gateway_url = f"ws://{ip}:{gateway_port}/ws"
+            
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                success = loop.run_until_complete(self._async_check_connectivity(gateway_url))
+                loop.close()
+                return success
+            except Exception:
+                return False
+        
+        thread = threading.Thread(target=lambda: callback(check()), daemon=True)
+        thread.start()
 
     def get_logs(self, config_name: str, lines: int = 100) -> List[str]:
         """Get logs for a specific nanobot instance.

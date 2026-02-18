@@ -635,7 +635,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
     
     def _start_timer(self):
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._refresh_nanobot_status)
+        self._timer.timeout.connect(self._refresh_nanobot_status_async)
         self._timer.start(3000)
     
     def _load_nanobots(self):
@@ -742,6 +742,62 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                         nanobot_status = "running"
             
             card.set_nanobot_status(nanobot_status)
+    
+    def _refresh_nanobot_status_async(self):
+        """异步刷新 Nanobot 状态，避免阻塞主线程"""
+        if not self._wsl_manager:
+            return
+        
+        from ...utils.async_ops import AsyncOperation, AsyncResult
+        
+        def refresh_operation():
+            results = {}
+            if self._wsl_manager:
+                self._wsl_manager.list_distros()
+            
+            for config_name, card in self._nanobot_cards.items():
+                wsl_status = "stopped"
+                if card.config and self._wsl_manager:
+                    distro = self._wsl_manager.get_distro(card.config.distro_name)
+                    if distro:
+                        wsl_status = "running" if distro.is_running else "stopped"
+                
+                nanobot_status = "stopped"
+                if wsl_status == "running" and self._nanobot_controller:
+                    status = self._nanobot_controller.get_status(config_name)
+                    if status:
+                        nanobot_status = status.value
+                    
+                    if nanobot_status != "running" and card.config:
+                        is_connected = self._nanobot_controller.check_gateway_connectivity(
+                            card.config.distro_name,
+                            card.config.gateway_port
+                        )
+                        if is_connected:
+                            nanobot_status = "running"
+                
+                results[config_name] = {
+                    "wsl_status": wsl_status,
+                    "nanobot_status": nanobot_status
+                }
+            
+            return results
+        
+        def on_result(results):
+            # 检查是否为错误结果
+            if isinstance(results, AsyncResult) and not results.success:
+                from loguru import logger
+                logger.error(f"刷新 Nanobot 状态失败: {results.error}")
+                return
+            
+            if results:
+                for config_name, status in results.items():
+                    if config_name in self._nanobot_cards:
+                        self._nanobot_cards[config_name].set_wsl_status(status["wsl_status"])
+                        self._nanobot_cards[config_name].set_nanobot_status(status["nanobot_status"])
+        
+        op = AsyncOperation(self)
+        op.execute(refresh_operation, on_result)
     
     def on_wsl_status_changed(self, distros: List[Dict], running_count: int, stopped_count: int):
         self._update_cards_wsl_status(distros)

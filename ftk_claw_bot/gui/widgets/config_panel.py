@@ -87,6 +87,10 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self._load_configs()
         self._load_distros()
 
+        # 加载状态管理
+        self._is_loading = False
+        self._loading_overlay = None
+
     def _init_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -255,7 +259,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         ws_row = QHBoxLayout()
         ws_row.setSpacing(8)
         self.windows_ws_edit = QLineEdit()
-        self.windows_ws_edit.setPlaceholderText("D:\\nanobot_workspace")
+        self.windows_ws_edit.setPlaceholderText("D:\\clawbot_workspace")
         browse_btn = QPushButton("浏览")
         browse_btn.setObjectName("smallButton")
         browse_btn.clicked.connect(self._browse_workspace)
@@ -859,16 +863,16 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             if need_restart:
                 reply = QMessageBox.question(
                     self, "重启提示",
-                    f"配置 '{name}' 对应的 nanobot 正在运行，是否需要重启以应用新配置？{sync_message}",
+                    f"配置 '{name}' 对应的 clawbot 正在运行，是否需要重启以应用新配置？{sync_message}",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     logger.info(f"正在重启 nanobot: {name}")
                     success = self._nanobot_controller.restart(name)
                     if success:
-                        QMessageBox.information(self, "成功", f"已保存配置并重启 nanobot: {name}{sync_message}")
+                        QMessageBox.information(self, "成功", f"已保存配置并重启 clawbot: {name}{sync_message}")
                     else:
-                        QMessageBox.warning(self, "警告", f"配置已保存，但重启 nanobot 失败{sync_message}")
+                        QMessageBox.warning(self, "警告", f"配置已保存，但重启 clawbot 失败{sync_message}")
                 else:
                     QMessageBox.information(self, "成功", f"已保存配置: {name}{sync_message}")
             else:
@@ -971,46 +975,97 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         else:
             QMessageBox.information(self, "配置验证通过", full_message)
 
+    def _show_loading(self, message: str = "加载中..."):
+        """显示加载状态"""
+        if self._loading_overlay is None:
+            self._loading_overlay = QLabel(self)
+            self._loading_overlay.setStyleSheet("""
+                QLabel {
+                    background-color: rgba(0, 0, 0, 150);
+                    color: white;
+                    font-size: 14px;
+                    padding: 20px;
+                    border-radius: 8px;
+                }
+            """)
+            self._loading_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._loading_overlay.setText(message)
+        self._loading_overlay.setGeometry(self.rect())
+        self._loading_overlay.show()
+        self._loading_overlay.raise_()
+        self._is_loading = True
+
+    def _hide_loading(self):
+        """隐藏加载状态"""
+        if self._loading_overlay:
+            self._loading_overlay.hide()
+        self._is_loading = False
+
     def _reset_form(self):
-        """重置表单 - 从选择配置的WSL分发读取配置"""
+        """重置表单 - 异步从 WSL 读取配置"""
         from loguru import logger
-        
+        from ...utils.async_ops import AsyncOperation, AsyncResult
+
+        # 防止重复操作
+        if self._is_loading:
+            return
+
         if not self._current_config:
             QMessageBox.warning(self, "错误", "请先选择一个配置")
             return
         
         distro_name = self._current_config.distro_name
         logger.info(f"重置配置，从 WSL 分发 '{distro_name}' 读取")
-        
-        # 检查 WSL 分发是否运行
-        distro = self._wsl_manager.get_distro(distro_name)
-        distro_running = distro and distro.is_running
-        
-        if not distro_running:
-            logger.info(f"WSL 分发 '{distro_name}' 未运行，尝试启动")
-            start_success = self._wsl_manager.start_distro(distro_name)
-            if not start_success:
-                QMessageBox.warning(
-                    self, 
-                    "WSL 分发未运行", 
-                    f"WSL 分发 '{distro_name}' 无法启动，请手动启动后再尝试重置。"
-                )
-                return
-        
-        # 更新提供商选项，从 WSL 配置同步
-        if self._nanobot_controller:
-            self._sync_providers_from_wsl(distro_name)
-        
-            # 从 WSL 读取配置
-            wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
+
+        # 显示加载状态
+        self._show_loading("正在从 WSL 读取配置...")
+
+        def reset_operation():
+            distro = self._wsl_manager.get_distro(distro_name)
+            distro_running = distro and distro.is_running
             
-            if wsl_config and wsl_config != {}:
-                logger.info(f"从 WSL 读取到配置: {wsl_config}")
-                self._populate_from_nanobot_config(wsl_config)
-                QMessageBox.information(self, "成功", f"已从 WSL 分发 '{distro_name}' 重置配置")
+            if not distro_running:
+                logger.info(f"WSL 分发 '{distro_name}' 未运行，尝试启动")
+                start_success = self._wsl_manager.start_distro(distro_name)
+                if not start_success:
+                    return {"success": False, "error": f"WSL 分发 '{distro_name}' 无法启动"}
+            
+            if self._nanobot_controller:
+                # 不在这里调用 _sync_providers_from_wsl，避免在后台线程修改 UI
+                wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
+                
+                if wsl_config and wsl_config != {}:
+                    return {"success": True, "config": wsl_config, "distro_name": distro_name}
+                else:
+                    return {"success": False, "error": "WSL 中没有配置或配置为空"}
+            
+            return {"success": False, "error": "Clawbot 控制器未初始化"}
+        
+        def on_result(result):
+            # 隐藏加载状态
+            self._hide_loading()
+
+            # 检查错误结果
+            if isinstance(result, AsyncResult) and not result.success:
+                logger.error(f"重置配置失败: {result.error}")
+                QMessageBox.warning(self, "错误", f"重置配置失败: {result.error}")
+                return
+
+            if result.get("success"):
+                # 在主线程中同步提供商
+                self._sync_providers_from_wsl(result["distro_name"])
+                self._populate_from_nanobot_config(result["config"])
+                QMessageBox.information(self, "成功", f"已从 WSL 分发 '{result['distro_name']}' 重置配置")
             else:
-                logger.info(f"WSL 中没有配置或配置为空")
-                QMessageBox.information(self, "提示", f"WSL 分发 '{distro_name}' 中没有找到配置")
+                error_msg = result.get("error", "未知错误")
+                if "无法启动" in error_msg:
+                    QMessageBox.warning(self, "WSL 分发未运行", error_msg)
+                else:
+                    QMessageBox.information(self, "提示", error_msg)
+        
+        op = AsyncOperation(self)
+        op.execute(reset_operation, on_result)
 
     def save_current_config(self):
         self._save_config()
@@ -1063,7 +1118,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 logger.info(f"添加新提供商: {provider_name}")
     
     def _populate_from_nanobot_config(self, nanobot_config: dict):
-        """从 nanobot 配置填充表单"""
+        """从 clawbot 配置填充表单"""
         from loguru import logger
         logger.info(f"_populate_from_nanobot_config: {nanobot_config}")
         
@@ -1173,24 +1228,40 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             QMessageBox.warning(self, "登录失败", f"OAuth 登录失败:\n{error_msg}")
     
     def _check_oauth_status(self):
-        """检查 OAuth 认证状态"""
+        """异步检查 OAuth 认证状态"""
+        from ...utils.async_ops import AsyncOperation, AsyncResult
+        
         provider = self.provider_combo.currentText()
         distro_name = self._current_config.distro_name if self._current_config else None
         
         if not distro_name or provider != "qwen_portal":
             return
         
-        result = self._wsl_manager.execute_command(
-            distro_name,
-            "test -f ~/.qwen/oauth_creds.json && echo 'exists' || echo 'not_found'"
-        )
+        def check_operation():
+            result = self._wsl_manager.execute_command(
+                distro_name,
+                "test -f ~/.qwen/oauth_creds.json && echo 'exists' || echo 'not_found'"
+            )
+            if not result.success:
+                return AsyncResult(success=False, error=result.stderr or "命令执行失败")
+            return "exists" in result.stdout
         
-        if result.success and "exists" in result.stdout:
-            self.oauth_status_label.setText("已登录")
-            self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
-        else:
-            self.oauth_status_label.setText("未登录")
-            self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
+        def on_result(exists):
+            # 检查错误结果
+            if isinstance(exists, AsyncResult) and not exists.success:
+                from loguru import logger
+                logger.error(f"检查 OAuth 状态失败: {exists.error}")
+                return
+            
+            if exists:
+                self.oauth_status_label.setText("已登录")
+                self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
+            else:
+                self.oauth_status_label.setText("未登录")
+                self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
+        
+        op = AsyncOperation(self)
+        op.execute(check_operation, on_result)
     
     def _delete_config(self):
         if not self._current_config:

@@ -18,73 +18,76 @@ from ...gui.dialogs import show_info, show_critical, show_question, show_warning
 
 
 class ImportProgressDialog(QDialog):
-    """简单美观的 WSL 导入进度对话框"""
+    """WSL 导入进度对话框"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self._progress_value = 0
         self._timer = QTimer()
         self._init_ui()
-        self._apply_style()
+        self._apply_styles()
     
     def _init_ui(self):
         self.setWindowTitle("导入 WSL 分发")
-        self.setFixedSize(450, 280)
+        self.setFixedSize(450, 200)
         self.setWindowFlags(Qt.WindowType.Dialog)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(20)
         
-        icon_label = QLabel("🐧")
-        icon_label.setStyleSheet("font-size: 64px;")
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon_label)
+        layout.addStretch()
         
-        title_label = QLabel("正在导入 WSL 分发")
-        title_label.setStyleSheet("color: #f0f6fc; font-size: 20px; font-weight: bold;")
+        title_label = QLabel("导入 WSL 分发")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_font = QFont()
+        title_font.setPointSize(20)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
         layout.addWidget(title_label)
         
+        layout.addStretch()
+        
         self.status_label = QLabel("准备导入...")
-        self.status_label.setStyleSheet("color: #8b949e; font-size: 14px;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_font = QFont()
+        status_font.setPointSize(10)
+        self.status_label.setFont(status_font)
         layout.addWidget(self.status_label)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(10)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                border-radius: 5px;
-                background-color: #21262d;
-            }
-            QProgressBar::chunk {
-                background-color: #2ea043;
-                border-radius: 5px;
-            }
-        """)
+        self.progress_bar.setFixedHeight(6)
         layout.addWidget(self.progress_bar)
         
-        self.progress_text = QLabel("0%")
-        self.progress_text.setStyleSheet("color: #58a6ff; font-size: 16px; font-weight: bold;")
-        self.progress_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.progress_text)
+        layout.addStretch()
         
         hint_label = QLabel("请稍候，这可能需要几分钟时间...")
-        hint_label.setStyleSheet("color: #6e7681; font-size: 12px;")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_font = QFont()
+        hint_font.setPointSize(9)
+        hint_label.setFont(hint_font)
         layout.addWidget(hint_label)
     
-    def _apply_style(self):
+    def _apply_styles(self):
         self.setStyleSheet("""
             QDialog {
-                background-color: #161b22;
-                border: 1px solid #30363d;
-                border-radius: 12px;
+                background-color: #0d1117;
+                color: #f0f6fc;
+            }
+            QLabel {
+                color: #f0f6fc;
+            }
+            QProgressBar {
+                background-color: #21262d;
+                border: none;
+                border-radius: 3px;
+            }
+            QProgressBar::chunk {
+                background-color: #238636;
+                border-radius: 3px;
             }
         """)
     
@@ -100,23 +103,21 @@ class ImportProgressDialog(QDialog):
         if self._progress_value > 90:
             self._progress_value = 90
         self.progress_bar.setValue(self._progress_value)
-        self.progress_text.setText(f"{self._progress_value}%")
         
         if self._progress_value < 25:
-            self.status_label.setText("📦 正在读取 tar 文件...")
+            self.status_label.setText("正在读取 tar 文件...")
         elif self._progress_value < 50:
-            self.status_label.setText("📂 正在解压文件...")
+            self.status_label.setText("正在解压文件...")
         elif self._progress_value < 75:
-            self.status_label.setText("🔧 正在注册 WSL 分发...")
+            self.status_label.setText("正在注册 WSL 分发...")
         else:
-            self.status_label.setText("✅ 正在完成导入...")
+            self.status_label.setText("正在完成导入...")
     
     def stop_animation(self):
         """停止进度动画"""
         self._timer.stop()
         self.progress_bar.setValue(100)
-        self.progress_text.setText("100%")
-        self.status_label.setText("🎉 导入完成！")
+        self.status_label.setText("导入完成！")
     
     def closeEvent(self, event):
         """关闭事件 - 停止定时器"""
@@ -610,7 +611,7 @@ class OverviewPanel(QWidget):
         name_layout.addWidget(QLabel("分发名称:"))
 
         name_edit = QLineEdit()
-        name_edit.setPlaceholderText("nanobot")
+        name_edit.setPlaceholderText("clawbot")
         name_layout.addWidget(name_edit, 1)
 
         layout.addLayout(name_layout)
