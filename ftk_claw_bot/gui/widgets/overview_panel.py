@@ -1,6 +1,7 @@
 import os
 import time
 import subprocess
+import threading
 from typing import Optional
 
 from PyQt6.QtWidgets import (
@@ -15,6 +16,7 @@ from PyQt6.QtGui import QFont, QColor
 from ...core import WSLManager, NanobotController, ConfigManager
 from ...models import DistroStatus, WSLDistro
 from ...gui.dialogs import show_info, show_critical, show_question, show_warning
+from ...utils.thread_safe import ThreadSafeSignal
 
 
 class ImportProgressDialog(QDialog):
@@ -712,11 +714,37 @@ class OverviewPanel(QWidget):
         progress.show()
         progress.start_animation()
 
-        try:
+        if not hasattr(self, '_import_callback_signal'):
+            self._import_callback_signal = ThreadSafeSignal(self._on_import_complete)
+
+        self._import_progress = progress
+        self._import_distro_name = distro_name
+        self._import_tar_path = tar_path
+        self._import_install_location = install_location
+
+        def run_import():
             result = self._wsl_manager.import_distro(tar_path, distro_name, install_location)
-        finally:
-            progress.stop_animation()
-            QTimer.singleShot(300, progress.close)
+            self._import_callback_signal.emit(result)
+
+        thread = threading.Thread(target=run_import, daemon=True)
+        thread.start()
+
+    def _on_import_complete(self, result):
+        if not hasattr(self, '_import_progress'):
+            return
+
+        progress = self._import_progress
+        distro_name = self._import_distro_name
+
+        progress.stop_animation()
+        progress.close()
+
+        del self._import_progress
+        del self._import_distro_name
+        if hasattr(self, '_import_tar_path'):
+            del self._import_tar_path
+        if hasattr(self, '_import_install_location'):
+            del self._import_install_location
 
         if result.success:
             message = f"WSL 分发 '{distro_name}' 导入成功！"

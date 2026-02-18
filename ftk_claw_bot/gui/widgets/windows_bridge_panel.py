@@ -150,11 +150,21 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(12)
         
-        layout.addWidget(self._create_wsl_connection_group())
-        layout.addWidget(self._create_port_settings_group())
-        layout.addWidget(self._create_quick_actions_group())
-        layout.addWidget(self._create_log_group())
-        layout.addStretch()
+        layout.addWidget(self._create_wsl_connection_group(), 1)
+        
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(12)
+        
+        left_panel = QVBoxLayout()
+        left_panel.setSpacing(12)
+        left_panel.addWidget(self._create_port_settings_group())
+        left_panel.addWidget(self._create_quick_actions_group())
+        left_panel.addStretch()
+        
+        bottom_layout.addLayout(left_panel, 1)
+        bottom_layout.addWidget(self._create_log_group(), 3)
+        
+        layout.addLayout(bottom_layout)
         
         return tab
     
@@ -221,7 +231,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         self._wsl_status_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._wsl_status_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._wsl_status_table.verticalHeader().setVisible(False)
-        self._wsl_status_table.setMaximumHeight(150)
+        self._wsl_status_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._wsl_status_table.setStyleSheet("""
             QTableWidget {
                 background-color: #0d1117;
@@ -309,10 +319,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         port_layout.addStretch()
         
         layout.addLayout(port_layout)
-        
-        hint_label = QLabel("提示: 修改端口将同步到所有 WSL 并重启服务")
-        hint_label.setStyleSheet("color: #8b949e; font-size: 11px;")
-        layout.addWidget(hint_label)
+        layout.addStretch()
         
         return group
     
@@ -341,8 +348,8 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             }
         """)
         
-        layout = QHBoxLayout(group)
-        layout.setSpacing(12)
+        layout = QGridLayout(group)
+        layout.setSpacing(8)
         
         actions = [
             ("📸 截图", self._on_quick_screenshot),
@@ -351,9 +358,9 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             ("🪟 窗口列表", self._on_list_windows),
         ]
         
-        for text, callback in actions:
+        for i, (text, callback) in enumerate(actions):
             btn = QPushButton(text)
-            btn.setMinimumHeight(44)
+            btn.setMinimumHeight(36)
             btn.setStyleSheet("""
                 QPushButton {
                     background-color: #21262d;
@@ -361,7 +368,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
                     border-radius: 8px;
                     color: #c9d1d9;
                     font-size: 13px;
-                    padding: 8px 16px;
+                    padding: 8px 12px;
                 }
                 QPushButton:hover {
                     background-color: #30363d;
@@ -372,9 +379,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
                 }
             """)
             btn.clicked.connect(callback)
-            layout.addWidget(btn)
-        
-        layout.addStretch()
+            layout.addWidget(btn, i // 2, i % 2)
         
         return group
     

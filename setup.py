@@ -1,11 +1,12 @@
 from setuptools import setup, find_packages
+from ftk_claw_bot.constants import VERSION
 
 with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
     name="ftkclawbot",
-    version="1.0.1",
+    version=VERSION,
     author="FTK Team",
     author_email="zeusftk@gmail.com",
     description="Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作",

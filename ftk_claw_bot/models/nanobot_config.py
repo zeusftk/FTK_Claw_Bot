@@ -21,8 +21,8 @@ class NanobotConfig:
     distro_name: str
     workspace: str = ""
     config_path: str = ""
-    provider: str = "openrouter"
-    model: str = "anthropic/claude-sonnet-4-20250529"
+    provider: str = "qwen_portal"
+    model: str = "qwen-portal/coder-model"
     apiKey: str = ""
     base_url: str = ""
     skills_dir: str = ""
@@ -178,8 +178,8 @@ class NanobotConfig:
             distro_name=data["distro_name"],
             workspace=data.get("workspace", ""),
             config_path=data.get("config_path", ""),
-            provider=data.get("provider", "openrouter"),
-            model=data.get("model", "anthropic/claude-sonnet-4-20250529"),
+            provider=data.get("provider", "qwen_portal"),
+            model=data.get("model", "qwen-portal/coder-model"),
             apiKey=data.get("apiKey", ""),
             base_url=data.get("base_url", ""),
             skills_dir=data.get("skills_dir", ""),

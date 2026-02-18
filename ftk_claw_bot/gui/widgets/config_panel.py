@@ -164,11 +164,11 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self._tab_widget = QTabWidget()
         self._tab_widget.setObjectName("configTabWidget")
         
-        skills_tab = self._create_skills_tab()
-        self._tab_widget.addTab(skills_tab, "技能配置")
-        
         basic_tab = self._create_basic_settings_tab()
         self._tab_widget.addTab(basic_tab, "基础设置")
+        
+        skills_tab = self._create_skills_tab()
+        self._tab_widget.addTab(skills_tab, "技能配置")
         
         layout.addWidget(self._tab_widget, 1)
 
@@ -282,10 +282,9 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([
-            "custom", "anthropic", "openai", "openrouter",
+            "qwen_portal", "custom", "anthropic", "openai", "openrouter",
             "deepseek", "groq", "zhipu", "dashscope",
-            "vllm", "gemini", "moonshot", "minimax", "aihubmix",
-            "qwen_portal"
+            "vllm", "gemini", "moonshot", "minimax", "aihubmix"
         ])
         self.provider_combo.currentTextChanged.connect(self._update_models)
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)

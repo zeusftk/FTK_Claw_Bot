@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 
-VERSION = "1.0.0"
+VERSION = "1.0.2"
 APP_NAME = "FTK_Claw_Bot"
 APP_AUTHOR = "FTK Team"
 APP_EMAIL = "zeusftk@gmail.com"
@@ -52,8 +52,8 @@ class Bridge:
 
 class Nanobot:
     DEFAULT_WORKSPACE = "/home/user/nanobot"
-    DEFAULT_PROVIDER = "openrouter"
-    DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250529"
+    DEFAULT_PROVIDER = "qwen_portal"
+    DEFAULT_MODEL = "qwen-portal/coder-model"
     DEFAULT_LOG_LEVEL = "INFO"
     DEFAULT_GATEWAY_HOST = "0.0.0.0"
     DEFAULT_GATEWAY_PORT = 18888

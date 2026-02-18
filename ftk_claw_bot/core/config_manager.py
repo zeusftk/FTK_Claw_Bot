@@ -6,7 +6,7 @@ from pathlib import Path
 from loguru import logger
 
 from ..models import NanobotConfig, ChannelsConfig, SkillsConfig
-from ..constants import Paths
+from ..constants import Paths, VERSION
 
 
 class ConfigManager:
@@ -205,7 +205,7 @@ class ConfigManager:
 
     def _save_main_config(self):
         self._main_config["default_config"] = self._default_config_name
-        self._main_config["version"] = "1.0.0"
+        self._main_config["version"] = VERSION
 
         with open(self._main_config_path, "w", encoding="utf-8") as f:
             json.dump(self._main_config, f, indent=2, ensure_ascii=False)

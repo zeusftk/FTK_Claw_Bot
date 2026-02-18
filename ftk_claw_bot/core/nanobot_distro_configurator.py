@@ -40,7 +40,7 @@ class NanobotDistroConfigurator:
         # 完整配置
         python nanobot_distro_configurator.py Ubuntu-22.04 \\
             --api-key YOUR_KEY \\
-            --model anthropic/claude-sonnet-4-20250529 \\
+            --model qwen-portal/coder-model \\
             --port 18790
     """
     
@@ -280,12 +280,12 @@ EOF'''
     def write_config(
         self, 
         api_key: str, 
-        model: str = "anthropic/claude-sonnet-4-20250529",
+        model: str = "qwen-portal/coder-model",
         port: int = 18790
     ) -> Tuple[bool, str]:
         config = {
             "providers": {
-                "openrouter": {
+                "qwen_portal": {
                     "apiKey": api_key
                 }
             },
@@ -351,7 +351,7 @@ def main():
 示例:
   %(prog)s Ubuntu-22.04
   %(prog)s Ubuntu-22.04 --api-key YOUR_KEY
-  %(prog)s Ubuntu-22.04 --api-key YOUR_KEY --model anthropic/claude-sonnet-4-20250529
+  %(prog)s Ubuntu-22.04 --api-key YOUR_KEY --model qwen-portal/coder-model
   %(prog)s Ubuntu-22.04 --verify-only
         """
     )
@@ -371,8 +371,8 @@ def main():
     
     parser.add_argument(
         "--model",
-        default="anthropic/claude-sonnet-4-20250529",
-        help="默认模型 (默认: anthropic/claude-sonnet-4-20250529)"
+        default="qwen-portal/coder-model",
+        help="默认模型 (默认: qwen-portal/coder-model)"
     )
     
     parser.add_argument(
