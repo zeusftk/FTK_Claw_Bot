@@ -13,10 +13,10 @@ from ..core import (
     WSLManager, NanobotController, ConfigManager,
     NanobotGatewayManager, BridgeManager, GatewayStatus
 )
-from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus
+from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
 from ..utils import make_thread_safe
 from ..constants import Bridge
-from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel, NanobotPanel
+from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel
 
 
 class MainWindow(QMainWindow):
@@ -128,11 +128,6 @@ class MainWindow(QMainWindow):
             self._wsl_manager,
             self._nanobot_controller
         )
-        self.nanobot_panel = NanobotPanel(
-            self._wsl_manager,
-            self._nanobot_controller,
-            self._config_manager
-        )
         self.command_panel = CommandPanel(self._wsl_manager)
         self.chat_panel = ChatPanel(self._config_manager, self._nanobot_controller, self._wsl_manager)
         self.bridge_panel = WindowsBridgePanel(
@@ -192,6 +187,9 @@ class MainWindow(QMainWindow):
 
         self._monitor_service.start()
         self._windows_bridge.start()
+        
+        self._wsl_state_service = init_wsl_state_service(self._wsl_manager)
+        self._wsl_state_service.start_monitoring(3000)
     
     def _init_managers_skip(self):
         all_configs = self._config_manager.get_all()
@@ -220,10 +218,6 @@ class MainWindow(QMainWindow):
         self.overview_panel.distro_imported.connect(self._on_distro_imported)
         self.config_panel.config_saved.connect(self._on_config_saved)
         
-        self.nanobot_panel.instance_started.connect(self._on_nanobot_instance_started)
-        self.nanobot_panel.instance_stopped.connect(self._on_nanobot_instance_stopped)
-        self.nanobot_panel.instance_restarted.connect(self._on_nanobot_instance_restarted)
-
         # Register log callback to forward nanobot logs to log panel
         self._nanobot_controller.register_log_callback(self._on_nanobot_log)
 
@@ -855,6 +849,9 @@ class MainWindow(QMainWindow):
 
         if self._gateway_manager:
             self._gateway_manager.stop_gateway()
+        
+        if hasattr(self, '_wsl_state_service') and self._wsl_state_service:
+            self._wsl_state_service.stop_monitoring()
 
         self._monitor_service.stop()
         self._windows_bridge.stop()
@@ -871,12 +868,8 @@ class MainWindow(QMainWindow):
         self.nanobot_status_label.setText(f"Nanobot ({instance_name}): {status}")
 
         if is_running:
-            self.overview_panel.update_nanobot_status(instance_name, True)
-            self.nanobot_panel.update_nanobot_status(instance_name, True)
             self.log_panel.add_log("INFO", "Nanobot", f"Instance '{instance_name}' started")
         else:
-            self.overview_panel.update_nanobot_status(instance_name, False)
-            self.nanobot_panel.update_nanobot_status(instance_name, False)
             error = data.get("last_error")
             if error:
                 self.log_panel.add_log("ERROR", "Nanobot", f"Instance '{instance_name}' error: {error}")

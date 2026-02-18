@@ -8,6 +8,7 @@ from .message_dialog import (
     show_question,
     show_question_yes_no_cancel
 )
+from .waiting_dialog import WaitingDialog
 
 __all__ = [
     "SkillEditorDialog", 
@@ -17,5 +18,6 @@ __all__ = [
     "show_warning",
     "show_critical",
     "show_question",
-    "show_question_yes_no_cancel"
+    "show_question_yes_no_cancel",
+    "WaitingDialog"
 ]

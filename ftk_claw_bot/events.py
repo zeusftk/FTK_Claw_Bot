@@ -8,6 +8,9 @@ class EventType(Enum):
     WSL_STATUS_CHANGED = "wsl_status_changed"
     WSL_DISTRO_STARTED = "wsl_distro_started"
     WSL_DISTRO_STOPPED = "wsl_distro_stopped"
+    WSL_DISTRO_REMOVED = "wsl_distro_removed"
+    WSL_DISTRO_IMPORTED = "wsl_distro_imported"
+    WSL_LIST_CHANGED = "wsl_list_changed"
     
     NANOBOT_STARTED = "nanobot_started"
     NANOBOT_STOPPED = "nanobot_stopped"

@@ -18,7 +18,7 @@ from ...gui.dialogs import show_info, show_critical, show_question, show_warning
 
 
 class ImportProgressDialog(QDialog):
-    """自定义导入进度对话框"""
+    """简单美观的 WSL 导入进度对话框"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -28,51 +28,55 @@ class ImportProgressDialog(QDialog):
         self._apply_style()
     
     def _init_ui(self):
-        self.setWindowTitle("导入中")
-        self.setMinimumWidth(500)
-        self.setMaximumWidth(600)
-        self.setWindowFlags(
-            Qt.WindowType.Dialog | 
-            Qt.WindowType.WindowTitleHint
-        )
+        self.setWindowTitle("导入 WSL 分发")
+        self.setFixedSize(450, 280)
+        self.setWindowFlags(Qt.WindowType.Dialog)
         
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
-        layout.setContentsMargins(24, 24, 24, 24)
         
-        title_label = QLabel("正在导入 WSL 分发...")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #f0f6fc;
-                font-size: 18px;
-                font-weight: bold;
-            }
-        """)
+        icon_label = QLabel("🐧")
+        icon_label.setStyleSheet("font-size: 64px;")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_label)
+        
+        title_label = QLabel("正在导入 WSL 分发")
+        title_label.setStyleSheet("color: #f0f6fc; font-size: 20px; font-weight: bold;")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
         self.status_label = QLabel("准备导入...")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                color: #8b949e;
-                font-size: 14px;
-            }
-        """)
+        self.status_label.setStyleSheet("color: #8b949e; font-size: 14px;")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("导入中... %p%")
-        layout.addWidget(self.progress_bar)
-        
-        hint_label = QLabel("请稍候，WSL 分发正在导入中...")
-        hint_label.setStyleSheet("""
-            QLabel {
-                color: #6e7681;
-                font-size: 12px;
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(10)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                border-radius: 5px;
+                background-color: #21262d;
+            }
+            QProgressBar::chunk {
+                background-color: #2ea043;
+                border-radius: 5px;
             }
         """)
+        layout.addWidget(self.progress_bar)
+        
+        self.progress_text = QLabel("0%")
+        self.progress_text.setStyleSheet("color: #58a6ff; font-size: 16px; font-weight: bold;")
+        self.progress_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.progress_text)
+        
+        hint_label = QLabel("请稍候，这可能需要几分钟时间...")
+        hint_label.setStyleSheet("color: #6e7681; font-size: 12px;")
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(hint_label)
     
     def _apply_style(self):
@@ -80,20 +84,7 @@ class ImportProgressDialog(QDialog):
             QDialog {
                 background-color: #161b22;
                 border: 1px solid #30363d;
-                border-radius: 8px;
-            }
-            QProgressBar {
-                border: 1px solid #30363d;
-                border-radius: 6px;
-                text-align: center;
-                background-color: #21262d;
-                color: #c9d1d9;
-                font-size: 14px;
-                height: 24px;
-            }
-            QProgressBar::chunk {
-                background-color: #238636;
-                border-radius: 5px;
+                border-radius: 12px;
             }
         """)
     
@@ -109,21 +100,23 @@ class ImportProgressDialog(QDialog):
         if self._progress_value > 90:
             self._progress_value = 90
         self.progress_bar.setValue(self._progress_value)
+        self.progress_text.setText(f"{self._progress_value}%")
         
-        if self._progress_value < 30:
-            self.status_label.setText("正在读取 tar 文件...")
-        elif self._progress_value < 60:
-            self.status_label.setText("正在解压文件...")
-        elif self._progress_value < 85:
-            self.status_label.setText("正在注册 WSL 分发...")
+        if self._progress_value < 25:
+            self.status_label.setText("📦 正在读取 tar 文件...")
+        elif self._progress_value < 50:
+            self.status_label.setText("📂 正在解压文件...")
+        elif self._progress_value < 75:
+            self.status_label.setText("🔧 正在注册 WSL 分发...")
         else:
-            self.status_label.setText("正在完成导入...")
+            self.status_label.setText("✅ 正在完成导入...")
     
     def stop_animation(self):
         """停止进度动画"""
         self._timer.stop()
         self.progress_bar.setValue(100)
-        self.status_label.setText("导入完成！")
+        self.progress_text.setText("100%")
+        self.status_label.setText("🎉 导入完成！")
     
     def closeEvent(self, event):
         """关闭事件 - 停止定时器"""
@@ -379,11 +372,10 @@ class OverviewPanel(QWidget):
     def _update_stats(self):
         distros = self._wsl_manager.list_distros()
         running = sum(1 for d in distros if d.is_running)
-        configs = len(self._config_manager._configs)
-
+        
         self.distro_count_card.set_value(str(len(distros)))
         self.running_card.set_value(str(running))
-        self.config_card.set_value(str(configs))
+        self.config_card.set_value(str(len(distros)))
 
     def _refresh_distro_list(self):
         distros = self._wsl_manager.list_distros()
@@ -804,12 +796,3 @@ class OverviewPanel(QWidget):
             is_running: 是否正在运行
         """
         self._refresh_distro_list()
-    
-    def update_nanobot_status(self, instance_name: str, is_running: bool):
-        """更新 clawbot 实例状态（保留接口）
-        
-        Args:
-            instance_name: 实例名称
-            is_running: 是否正在运行
-        """
-        pass

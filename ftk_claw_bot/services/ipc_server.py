@@ -178,10 +178,14 @@ class IPCServer:
             pass
 
     def _process_message_with_client(self, message_str: str, client_socket: socket.socket) -> str:
+        from loguru import logger
         try:
             message = IPCMessage.from_json(message_str)
             action = message.payload.get("action", "")
             params = message.payload.get("params", {})
+
+            # Log all requests for debugging
+            logger.info(f"[IPC] Received request - action: {action}, params: {params}")
 
             if action == "identify":
                 return self._handle_identify(client_socket, message, params)

@@ -7,11 +7,14 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPixmap
-from typing import Optional
+from typing import Optional, List, Dict
 from datetime import datetime
 
+from ..mixins import WSLStateAwareMixin
+from ..dialogs import WaitingDialog
 
-class WindowsBridgePanel(QWidget):
+
+class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
     start_bridge = pyqtSignal()
     stop_bridge = pyqtSignal()
     port_changed = pyqtSignal(int)
@@ -23,6 +26,7 @@ class WindowsBridgePanel(QWidget):
     
     def __init__(self, bridge_manager=None, windows_bridge=None, wsl_manager=None, parent=None):
         super().__init__(parent)
+        WSLStateAwareMixin._init_wsl_state_aware(self)
         self._bridge_manager = bridge_manager
         self._windows_bridge = windows_bridge
         self._wsl_manager = wsl_manager
@@ -54,19 +58,31 @@ class WindowsBridgePanel(QWidget):
                 f"端口将从 {self._bridge_port} 更改为 {new_port}\n\n"
                 f"这将：\n"
                 f"1. 保存配置\n"
-                f"2. 同步配置到 WSL\n"
+                f"2. 同步配置到所有 WSL\n"
                 f"3. 重启 IPC Server\n\n"
                 f"是否继续？",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes
             )
             if reply == QMessageBox.StandardButton.Yes:
-                old_port = self._bridge_port
-                self._bridge_port = new_port
-                self.port_changed.emit(new_port)
-                self._add_log(f"✓ 监听端口已更改为: {new_port}")
+                self._show_port_change_progress(new_port)
         else:
             self._add_log("端口未变更")
+    
+    def _show_port_change_progress(self, new_port: int):
+        dialog = WaitingDialog("修改端口", "正在更新端口配置...", self)
+        dialog.show()
+        
+        old_port = self._bridge_port
+        self._bridge_port = new_port
+        
+        self._bridge_status_label.setText(f"Windows Bridge: ● 运行中 (端口: {new_port})")
+        
+        self.port_changed.emit(new_port)
+        
+        dialog.close_with_result(True, f"端口已更改为 {new_port}")
+        
+        self._add_log(f"✓ 监听端口已更改为: {new_port}")
     
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -134,8 +150,8 @@ class WindowsBridgePanel(QWidget):
         layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(12)
         
-        layout.addWidget(self._create_status_card())
-        layout.addWidget(self._create_wsl_status_group())
+        layout.addWidget(self._create_wsl_connection_group())
+        layout.addWidget(self._create_port_settings_group())
         layout.addWidget(self._create_quick_actions_group())
         layout.addWidget(self._create_log_group())
         layout.addStretch()
@@ -161,49 +177,8 @@ class WindowsBridgePanel(QWidget):
         
         return tab
     
-    def _create_status_card(self) -> QFrame:
-        card = QFrame()
-        card.setObjectName("statusCard")
-        card.setStyleSheet("""
-            QFrame#statusCard {
-                background-color: #161b22;
-                border: 1px solid #30363d;
-                border-radius: 12px;
-                padding: 16px;
-            }
-        """)
-        
-        main_layout = QVBoxLayout(card)
-        main_layout.setSpacing(12)
-        
-        title = QLabel("📡 连接状态")
-        title.setStyleSheet("color: #f0f6fc; font-weight: 600; font-size: 14px;")
-        main_layout.addWidget(title)
-        
-        status_layout = QHBoxLayout()
-        status_layout.setSpacing(16)
-        
-        windows_card = self._create_mini_status_card("Windows 端", "● 未运行", "#8b949e")
-        self._windows_status_label = windows_card.findChild(QLabel, "statusValue")
-        status_layout.addWidget(windows_card)
-        
-        wsl_card = self._create_mini_status_card("WSL 端", "● 无连接", "#8b949e")
-        self._wsl_status_label = wsl_card.findChild(QLabel, "statusValue")
-        status_layout.addWidget(wsl_card)
-        
-        port_card = self._create_port_card()
-        status_layout.addWidget(port_card)
-        
-        main_layout.addLayout(status_layout)
-        
-        self._last_activity_label = QLabel("最后活动: --")
-        self._last_activity_label.setStyleSheet("color: #8b949e; font-size: 11px;")
-        main_layout.addWidget(self._last_activity_label)
-        
-        return card
-    
-    def _create_wsl_status_group(self) -> QGroupBox:
-        group = QGroupBox("WSL 连通状态")
+    def _create_wsl_connection_group(self) -> QGroupBox:
+        group = QGroupBox("📡 WSL 连通状态")
         group.setStyleSheet("""
             QGroupBox {
                 color: #f0f6fc;
@@ -237,14 +212,12 @@ class WindowsBridgePanel(QWidget):
         layout.addLayout(header_layout)
         
         self._wsl_status_table = QTableWidget()
-        self._wsl_status_table.setColumnCount(4)
-        self._wsl_status_table.setHorizontalHeaderLabels(["分发名称", "WSL状态", "Bridge连接", "IP 地址"])
+        self._wsl_status_table.setColumnCount(3)
+        self._wsl_status_table.setHorizontalHeaderLabels(["分发名称", "WSL状态", "Bridge连接"])
         self._wsl_status_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._wsl_status_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self._wsl_status_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self._wsl_status_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self._wsl_status_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self._wsl_status_table.setColumnWidth(1, 80)
-        self._wsl_status_table.setColumnWidth(2, 90)
         self._wsl_status_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._wsl_status_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._wsl_status_table.verticalHeader().setVisible(False)
@@ -273,60 +246,42 @@ class WindowsBridgePanel(QWidget):
         """)
         layout.addWidget(self._wsl_status_table)
         
+        status_layout = QHBoxLayout()
+        self._bridge_status_label = QLabel("Windows Bridge: ○ 未运行")
+        self._bridge_status_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+        status_layout.addWidget(self._bridge_status_label)
+        status_layout.addStretch()
+        layout.addLayout(status_layout)
+        
         return group
     
-    def _on_refresh_wsl_status(self):
-        self.refresh_wsl_status.emit()
-    
-    def _create_mini_status_card(self, title: str, value: str, color: str) -> QFrame:
-        card = QFrame()
-        card.setStyleSheet("""
-            QFrame {
-                background-color: #0d1117;
-                border: 1px solid #21262d;
-                border-radius: 8px;
-                padding: 12px;
+    def _create_port_settings_group(self) -> QGroupBox:
+        group = QGroupBox("⚙ 端口设置")
+        group.setStyleSheet("""
+            QGroupBox {
+                color: #f0f6fc;
+                font-weight: 600;
+                font-size: 14px;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                margin-top: 12px;
+                padding: 16px;
+                padding-top: 24px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 16px;
+                top: 4px;
+                padding: 0 8px;
+                background-color: #161b22;
             }
         """)
-        card.setMinimumWidth(140)
         
-        layout = QVBoxLayout(card)
-        layout.setSpacing(6)
-        layout.setContentsMargins(12, 10, 12, 10)
-        
-        title_label = QLabel(title)
-        title_label.setStyleSheet("color: #8b949e; font-size: 11px;")
-        layout.addWidget(title_label)
-        
-        value_label = QLabel(value)
-        value_label.setObjectName("statusValue")
-        value_label.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: 500;")
-        layout.addWidget(value_label)
-        
-        return card
-    
-    def _create_port_card(self) -> QFrame:
-        card = QFrame()
-        card.setStyleSheet("""
-            QFrame {
-                background-color: #0d1117;
-                border: 1px solid #21262d;
-                border-radius: 8px;
-                padding: 12px;
-            }
-        """)
-        card.setMinimumWidth(180)
-        
-        layout = QVBoxLayout(card)
-        layout.setSpacing(6)
-        layout.setContentsMargins(12, 10, 12, 10)
-        
-        title_label = QLabel("监听端口")
-        title_label.setStyleSheet("color: #8b949e; font-size: 11px;")
-        layout.addWidget(title_label)
+        layout = QVBoxLayout(group)
+        layout.setSpacing(8)
         
         port_layout = QHBoxLayout()
-        port_layout.setSpacing(8)
+        port_layout.addWidget(QLabel("监听端口:"))
         
         self._port_spin = QSpinBox()
         self._port_spin.setRange(1024, 65535)
@@ -351,10 +306,18 @@ class WindowsBridgePanel(QWidget):
         self._apply_port_btn.setFixedWidth(50)
         self._apply_port_btn.clicked.connect(self._on_apply_port)
         port_layout.addWidget(self._apply_port_btn)
+        port_layout.addStretch()
         
         layout.addLayout(port_layout)
         
-        return card
+        hint_label = QLabel("提示: 修改端口将同步到所有 WSL 并重启服务")
+        hint_label.setStyleSheet("color: #8b949e; font-size: 11px;")
+        layout.addWidget(hint_label)
+        
+        return group
+    
+    def _on_refresh_wsl_status(self):
+        self.refresh_wsl_status.emit()
     
     def _create_quick_actions_group(self) -> QGroupBox:
         group = QGroupBox("⚡ 快速操作")
@@ -925,34 +888,19 @@ class WindowsBridgePanel(QWidget):
             self._status_label.setText("状态: 运行中")
             self._status_label.setStyleSheet("color: #3fb950; font-size: 14px;")
             self._toggle_btn.setText("停止桥接")
-            if self._windows_status_label:
-                self._windows_status_label.setText(f"● 运行中 (:{self._bridge_port})")
-                self._windows_status_label.setStyleSheet("color: #3fb950; font-size: 13px; font-weight: 500;")
+            self._bridge_status_label.setText(f"Windows Bridge: ● 运行中 (端口: {self._bridge_port})")
+            self._bridge_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
             self._add_log("✓ 桥接服务已启动")
         else:
             self._status_label.setText("状态: 未运行")
             self._status_label.setStyleSheet("color: #8b949e; font-size: 14px;")
             self._toggle_btn.setText("启动桥接")
-            if self._windows_status_label:
-                self._windows_status_label.setText("● 未运行")
-                self._windows_status_label.setStyleSheet("color: #8b949e; font-size: 13px; font-weight: 500;")
-            self._wsl_status_label.setText("● 无连接")
-            self._wsl_status_label.setStyleSheet("color: #8b949e; font-size: 13px; font-weight: 500;")
+            self._bridge_status_label.setText("Windows Bridge: ○ 未运行")
+            self._bridge_status_label.setStyleSheet("color: #8b949e; font-size: 12px;")
             self._add_log("桥接服务已停止")
 
     def update_clients_info(self, clients_info: list):
-        if clients_info:
-            names = [c.get("distro_name") for c in clients_info if c.get("distro_name")]
-            if names:
-                self._wsl_status_label.setText(f"● 已连接 ({', '.join(names)})")
-                self._wsl_status_label.setStyleSheet("color: #3fb950; font-size: 13px; font-weight: 500;")
-            else:
-                count = len(clients_info)
-                self._wsl_status_label.setText(f"● 已连接 ({count})")
-                self._wsl_status_label.setStyleSheet("color: #3fb950; font-size: 13px; font-weight: 500;")
-        else:
-            self._wsl_status_label.setText("● 无连接")
-            self._wsl_status_label.setStyleSheet("color: #8b949e; font-size: 13px; font-weight: 500;")
+        pass
 
     def update_wsl_connection_status(self, distros: list, connected_clients: list):
         """
@@ -963,13 +911,11 @@ class WindowsBridgePanel(QWidget):
             connected_clients: 已连接的客户端信息列表
         """
         connected_distro_names = set()
-        client_info_map = {}
         
         for client in connected_clients:
             distro_name = client.get("distro_name")
             if distro_name:
                 connected_distro_names.add(distro_name)
-                client_info_map[distro_name] = client
         
         self._wsl_status_table.setRowCount(len(distros))
         
@@ -984,56 +930,22 @@ class WindowsBridgePanel(QWidget):
                 is_connected = distro.name in connected_distro_names
                 bridge_status_item = QTableWidgetItem("● 已连接" if is_connected else "○ 未连接")
                 bridge_status_item.setForeground(QColor("#3fb950") if is_connected else QColor("#f85149"))
-                
-                if is_connected and distro.name in client_info_map:
-                    client_info = client_info_map[distro.name]
-                    address = client_info.get("address")
-                    if address and isinstance(address, tuple):
-                        ip = address[0]
-                    else:
-                        ip = ""
-                else:
-                    ip = "--"
             else:
                 bridge_status_item = QTableWidgetItem("--")
                 bridge_status_item.setForeground(QColor("#8b949e"))
-                ip = "--"
-            
-            ip_item = QTableWidgetItem(ip)
-            ip_item.setForeground(QColor("#8b949e"))
             
             self._wsl_status_table.setItem(row, 0, name_item)
             self._wsl_status_table.setItem(row, 1, wsl_status_item)
             self._wsl_status_table.setItem(row, 2, bridge_status_item)
-            self._wsl_status_table.setItem(row, 3, ip_item)
-        
-        connected_count = len(connected_distro_names)
-        running_count = sum(1 for d in distros if d.is_running)
-        
-        if running_count > 0:
-            self._wsl_status_label.setText(f"● {connected_count}/{running_count} 已连接")
-            if connected_count > 0:
-                self._wsl_status_label.setStyleSheet("color: #3fb950; font-size: 13px; font-weight: 500;")
-            else:
-                self._wsl_status_label.setStyleSheet("color: #f85149; font-size: 13px; font-weight: 500;")
-        else:
-            self._wsl_status_label.setText("● 无运行中的 WSL")
-            self._wsl_status_label.setStyleSheet("color: #8b949e; font-size: 13px; font-weight: 500;")
 
     def update_client_count(self, count: int):
-        if count > 0:
-            self._wsl_status_label.setText(f"● 已连接 ({count})")
-            self._wsl_status_label.setStyleSheet("color: #3fb950; font-size: 13px; font-weight: 500;")
-        else:
-            self._wsl_status_label.setText("● 无连接")
-            self._wsl_status_label.setStyleSheet("color: #8b949e; font-size: 13px; font-weight: 500;")
+        pass
     
     def update_distro_list(self, distros: list):
         self._add_log(f"✓ WSL 分发列表已更新，共 {len(distros)} 个")
     
     def _update_last_activity(self):
-        self._last_activity = datetime.now()
-        self._last_activity_label.setText(f"最后活动: 刚刚")
+        pass
     
     def _add_log(self, message: str):
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -1042,3 +954,32 @@ class WindowsBridgePanel(QWidget):
         
         scrollbar = self._log_text.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+    
+    def on_wsl_status_changed(self, distros: List[Dict], running_count: int, stopped_count: int):
+        self._update_wsl_table_from_data(distros)
+
+    def on_wsl_distro_started(self, distro_name: str):
+        self._add_log(f"WSL '{distro_name}' 已启动")
+        self.refresh_wsl_status.emit()
+
+    def on_wsl_distro_stopped(self, distro_name: str):
+        self._add_log(f"WSL '{distro_name}' 已停止")
+        self.refresh_wsl_status.emit()
+
+    def _update_wsl_table_from_data(self, distros: List[Dict]):
+        self._wsl_status_table.setRowCount(len(distros))
+        
+        for row, distro in enumerate(distros):
+            name_item = QTableWidgetItem(distro.get("name", ""))
+            name_item.setForeground(QColor("#c9d1d9"))
+            
+            is_running = distro.get("is_running", False)
+            wsl_status_item = QTableWidgetItem("● 运行" if is_running else "○ 停止")
+            wsl_status_item.setForeground(QColor("#3fb950") if is_running else QColor("#8b949e"))
+            
+            bridge_status_item = QTableWidgetItem("--")
+            bridge_status_item.setForeground(QColor("#8b949e"))
+            
+            self._wsl_status_table.setItem(row, 0, name_item)
+            self._wsl_status_table.setItem(row, 1, wsl_status_item)
+            self._wsl_status_table.setItem(row, 2, bridge_status_item)

@@ -1,5 +1,5 @@
 from os import curdir
-from typing import Optional
+from typing import Optional, List, Dict
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QLineEdit, QComboBox,
@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont
 
 from ...core import ConfigManager, WSLManager
 from ...models import NanobotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
+from ..mixins import WSLStateAwareMixin
 from .channel_config_dialog import get_channel_dialog
 from .skills_config_widget import SkillsConfigWidget
 
@@ -71,11 +72,12 @@ class ConfigCard(QFrame):
         self.content_layout.addLayout(layout)
 
 
-class ConfigPanel(QWidget):
+class ConfigPanel(QWidget, WSLStateAwareMixin):
     config_saved = pyqtSignal(str)
 
     def __init__(self, config_manager: ConfigManager, wsl_manager: WSLManager, nanobot_controller=None, parent=None):
         super().__init__(parent)
+        WSLStateAwareMixin._init_wsl_state_aware(self)
         self._config_manager = config_manager
         self._wsl_manager = wsl_manager
         self._nanobot_controller = nanobot_controller
@@ -118,6 +120,13 @@ class ConfigPanel(QWidget):
         title.setFont(font)
         header.addWidget(title)
         header.addStretch()
+        
+        # 刷新按钮
+        refresh_btn = QPushButton("🔄")
+        refresh_btn.setObjectName("smallButton")
+        refresh_btn.setToolTip("刷新 WSL 分发列表")
+        refresh_btn.clicked.connect(self._refresh_data)
+        header.addWidget(refresh_btn)
 
         layout.addLayout(header)
 
@@ -1116,6 +1125,7 @@ class ConfigPanel(QWidget):
     def _on_oauth_login(self):
         """触发 OAuth 登录流程"""
         import threading
+        from ...utils.thread_safe import ThreadSafeSignal
         
         provider = self.provider_combo.currentText()
         distro_name = self._current_config.distro_name if self._current_config else None
@@ -1134,18 +1144,16 @@ class ConfigPanel(QWidget):
         self.oauth_status_label.setText("正在登录...")
         self.oauth_status_label.setStyleSheet("color: #58a6ff; font-size: 12px;")
         
+        if not hasattr(self, '_oauth_callback_signal'):
+            self._oauth_callback_signal = ThreadSafeSignal(self._on_oauth_login_finished)
+        
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
                 "nanobot provider login qwen-portal",
                 timeout=180
             )
-            from PyQt6.QtCore import QMetaObject, Qt
-            QMetaObject.invokeMethod(
-                self, "_on_oauth_login_finished",
-                Qt.ConnectionType.QueuedConnection,
-                result.success, result.stdout, result.stderr
-            )
+            self._oauth_callback_signal.emit(result.success, result.stdout, result.stderr)
         
         thread = threading.Thread(target=run_login, daemon=True)
         thread.start()
@@ -1199,3 +1207,31 @@ class ConfigPanel(QWidget):
                 self._current_config = None
                 self._load_configs()
                 QMessageBox.information(self, "成功", f"已删除配置: {name}")
+    
+    def on_wsl_status_changed(self, distros: List[Dict], running_count: int, stopped_count: int):
+        pass
+    
+    def on_wsl_distro_started(self, distro_name: str):
+        self._load_distros()
+    
+    def on_wsl_distro_stopped(self, distro_name: str):
+        self._load_distros()
+    
+    def on_wsl_distro_removed(self, distro_name: str):
+        self._load_configs()
+        self._load_distros()
+    
+    def on_wsl_distro_imported(self, distro_name: str):
+        self._load_configs()
+        self._load_distros()
+    
+    def on_wsl_list_changed(self, distros: List[Dict], added: List[str], removed: List[str]):
+        self._load_configs()
+        self._load_distros()
+    
+    def _refresh_data(self):
+        """刷新 WSL 分发列表和配置数据"""
+        from loguru import logger
+        logger.info("用户手动刷新 WSL 分发列表")
+        self._load_configs()
+        self._load_distros()

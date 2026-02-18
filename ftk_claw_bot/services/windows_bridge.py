@@ -184,13 +184,27 @@ class WindowsAutomation:
             return []
 
     def launch_app(self, app_path: str, args: Optional[List[str]] = None) -> bool:
+        from loguru import logger
+        import shlex
         try:
-            cmd = [app_path]
-            if args:
-                cmd.extend(args)
-            subprocess.Popen(cmd, shell=True)
-            return True
-        except Exception:
+            # Check if it's a URL (http:// or https://)
+            if app_path.startswith(('http://', 'https://')):
+                # Use start command with quoted URL to handle special characters like &
+                cmd = f'start "" "{app_path}"'
+                logger.info(f"[WindowsAutomation] Opening URL: {app_path}")
+                subprocess.Popen(cmd, shell=True)
+                return True
+            else:
+                # Regular application launch
+                cmd = [app_path]
+                if args:
+                    cmd.extend(args)
+                cmd_str = ' '.join(shlex.quote(str(arg)) for arg in cmd)
+                logger.info(f"[WindowsAutomation] Executing: {cmd_str}")
+                subprocess.Popen(cmd, shell=False)
+                return True
+        except Exception as e:
+            logger.error(f"[WindowsAutomation] Failed to launch: {e}")
             return False
 
     def get_clipboard(self) -> str:
@@ -362,9 +376,12 @@ class WindowsBridge:
         return {"success": False, "error": "Window not found"}
 
     def _handle_launch_app(self, params: dict) -> dict:
+        from loguru import logger
         app_path = params.get("app_path", "")
         args = params.get("args", [])
+        logger.info(f"[WindowsBridge] Launching app: {app_path}, args: {args}")
         success = self._automation.launch_app(app_path, args)
+        logger.info(f"[WindowsBridge] Launch result: {success}")
         return {"success": success}
 
     def _handle_get_clipboard(self, params: dict) -> dict:

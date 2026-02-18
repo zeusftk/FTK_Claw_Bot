@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem,
@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QEvent
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QCursor
+
+from ..mixins import WSLStateAwareMixin
 
 
 class ChatMessage:
@@ -357,7 +359,7 @@ class NanobotCard(QFrame):
         super().mousePressEvent(event)
 
 
-class ChatPanel(QWidget):
+class ChatPanel(QWidget, WSLStateAwareMixin):
     message_sent = pyqtSignal(str, list)
     connect_clicked = pyqtSignal(str)
     disconnect_clicked = pyqtSignal(str)
@@ -376,6 +378,7 @@ class ChatPanel(QWidget):
     
     def __init__(self, config_manager=None, nanobot_controller=None, wsl_manager=None, parent=None):
         super().__init__(parent)
+        WSLStateAwareMixin._init_wsl_state_aware(self)
         self._config_manager = config_manager
         self._nanobot_controller = nanobot_controller
         self._wsl_manager = wsl_manager
@@ -412,7 +415,7 @@ class ChatPanel(QWidget):
         layout.setSpacing(16)
         
         header = QHBoxLayout()
-        title = QLabel("Nanobot 选择")
+        title = QLabel("Clawbot 选择")
         font = QFont()
         font.setPointSize(16)
         font.setBold(True)
@@ -642,9 +645,16 @@ class ChatPanel(QWidget):
         self.nanobot_list.clear()
         self._nanobot_cards = {}
         
+        valid_distro_names = set()
+        if self._wsl_manager:
+            distros = self._wsl_manager.list_distros()
+            valid_distro_names = {d.name for d in distros}
+        
         configs = self._config_manager.get_all()
         for name in sorted(configs.keys()):
-            self._add_nanobot_card(name, configs[name])
+            config = configs[name]
+            if config.distro_name and config.distro_name in valid_distro_names:
+                self._add_nanobot_card(name, config)
         
         self._refresh_nanobot_status()
     
@@ -732,6 +742,48 @@ class ChatPanel(QWidget):
                         nanobot_status = "running"
             
             card.set_nanobot_status(nanobot_status)
+    
+    def on_wsl_status_changed(self, distros: List[Dict], running_count: int, stopped_count: int):
+        self._update_cards_wsl_status(distros)
+    
+    def on_wsl_distro_started(self, distro_name: str):
+        self._refresh_nanobot_status()
+    
+    def on_wsl_distro_stopped(self, distro_name: str):
+        self._refresh_nanobot_status()
+    
+    def on_wsl_distro_removed(self, distro_name: str):
+        self._refresh_nanobots()
+    
+    def on_wsl_distro_imported(self, distro_name: str):
+        self._refresh_nanobots()
+    
+    def on_wsl_list_changed(self, distros: List[Dict], added: List[str], removed: List[str]):
+        self._refresh_nanobots()
+    
+    def _update_cards_wsl_status(self, distros: List[Dict]):
+        distro_status = {d["name"]: d.get("is_running", False) for d in distros}
+        for config_name, card in self._nanobot_cards.items():
+            if card.config:
+                distro_name = card.config.distro_name
+                is_running = distro_status.get(distro_name, False)
+                card.set_wsl_status("running" if is_running else "stopped")
+                
+                nanobot_status = "stopped"
+                if is_running and self._nanobot_controller:
+                    status = self._nanobot_controller.get_status(config_name)
+                    if status:
+                        nanobot_status = status.value
+                    
+                    if nanobot_status != "running" and card.config:
+                        is_connected = self._nanobot_controller.check_gateway_connectivity(
+                            card.config.distro_name,
+                            card.config.gateway_port
+                        )
+                        if is_connected:
+                            nanobot_status = "running"
+                
+                card.set_nanobot_status(nanobot_status)
     
     def _select_all(self):
         for name, card in self._nanobot_cards.items():
