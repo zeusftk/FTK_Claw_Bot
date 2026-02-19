@@ -7,3 +7,5 @@ config/
 logs/
 debug.log
 opencode_client/
+nohup.out
+init_wsl/Ubuntu_22.tar

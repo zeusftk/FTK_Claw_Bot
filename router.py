@@ -2,14 +2,47 @@
 OpenAI-Compatible API Router
 提供完全兼容 OpenAI 规范的 API 接口，无需 API key
 支持 OpenAI SDK 直接调用
+
+Usage:
+    python router.py --opencode-port 4096 --router-port 8000
 """
+
+import sys
+import subprocess
+
+
+def check_and_install_deps():
+    required_packages = {
+        "fastapi": "fastapi",
+        "uvicorn": "uvicorn",
+        "pydantic": "pydantic",
+        "requests": "requests",
+    }
+    
+    missing = []
+    for import_name, pip_name in required_packages.items():
+        try:
+            __import__(import_name)
+        except ImportError:
+            missing.append(pip_name)
+    
+    if missing:
+        print(f"[router] Installing missing dependencies: {', '.join(missing)}")
+        import subprocess
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install", 
+            "--break-system-packages", *missing
+        ])
+        print("[router] Dependencies installed successfully")
+
+
+check_and_install_deps()
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List, Union, Literal
-import subprocess
 import time
 import json
 import requests
@@ -17,10 +50,10 @@ import os
 import signal
 import uuid
 
-
 OPENCODE_PORT = 4096
+ROUTER_PORT = 8000
 OPENCODE_URL = f"http://127.0.0.1:{OPENCODE_PORT}"
-_server_process: Optional[subprocess.Popen] = None
+_server_process = None
 
 FREE_MODELS = {
     "glm-5-free": {"id": "glm-5-free", "name": "GLM 5 Free", "provider": "opencode"},
@@ -95,9 +128,7 @@ def parse_model(model: str) -> tuple:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    start_opencode_server()
     yield
-    stop_opencode_server()
 
 
 app = FastAPI(
@@ -107,8 +138,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-
-# ============ OpenAI Schema Models ============
 
 class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
@@ -187,8 +216,6 @@ class ChatCompletionChunk(BaseModel):
     choices: List[StreamChoice]
 
 
-# ============ Helper Functions ============
-
 def _build_system_message(messages: List[ChatMessage]) -> Optional[str]:
     for msg in messages:
         if msg.role == "system":
@@ -220,8 +247,6 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-# ============ API Endpoints ============
-
 @app.get("/")
 async def root():
     return {
@@ -232,16 +257,16 @@ async def root():
             "chat": "/v1/chat/completions",
             "models": "/v1/models"
         },
-        "free_models": list(FREE_MODELS.keys())
+        "free_models": list(FREE_MODELS.keys()),
+        "opencode_port": OPENCODE_PORT,
+        "router_port": ROUTER_PORT
     }
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "opencode_running": is_server_running()}
+    return {"status": "ok", "opencode_running": is_server_running(), "opencode_port": OPENCODE_PORT, "router_port": ROUTER_PORT}
 
-
-# ============ OpenAI Compatible: Models ============
 
 @app.get("/v1/models", response_model=ModelList)
 @app.get("/models", response_model=ModelList)
@@ -274,8 +299,6 @@ async def get_model(model_id: str):
         owned_by=info["provider"]
     )
 
-
-# ============ OpenAI Compatible: Chat Completions ============
 
 @app.post("/v1/chat/completions")
 @app.post("/chat/completions")
@@ -414,8 +437,6 @@ async def _generate_stream(session_id: str, body: dict, model: str):
     yield "data: [DONE]\n\n"
 
 
-# ============ Legacy/Extended Endpoints ============
-
 @app.post("/v1/completions")
 async def completions():
     raise HTTPException(
@@ -433,13 +454,25 @@ async def embeddings():
 
 
 if __name__ == "__main__":
-    ##模型列表
-    """
-    glm-5-free
-    kimi-k2.5-free
-    minimax-m2.5-free
-    gpt-5-nano
-    big-pickle
-    """
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="OpenAI-Compatible API Router")
+    parser.add_argument("--opencode-port", type=int, default=4096,
+                        help="Port for opencode serve (default: 4096)")
+    parser.add_argument("--router-port", type=int, default=8000,
+                        help="Port for router API server (default: 8000)")
+    parser.add_argument("--host", type=str, default="0.0.0.0",
+                        help="Host to bind (default: 0.0.0.0)")
+    parser.add_argument("--skip-deps-check", action="store_true",
+                        help="Skip dependency check on startup")
+    
+    args = parser.parse_args()
+    
+    OPENCODE_PORT = args.opencode_port
+    ROUTER_PORT = args.router_port
+    OPENCODE_URL = f"http://127.0.0.1:{OPENCODE_PORT}"
+    
+    print(f"[router] Starting with opencode_port={OPENCODE_PORT}, router_port={ROUTER_PORT}")
+    
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=12312)
+    uvicorn.run(app, host=args.host, port=ROUTER_PORT)

@@ -553,6 +553,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self.tags_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.tags_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.tags_scroll.setFixedHeight(40)
+        self.tags_scroll.setStyleSheet("background-color: #238636;")
         layout.addWidget(self.tags_scroll)
         
         self.chat_text = QTextEdit()

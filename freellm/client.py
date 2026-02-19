@@ -1,6 +1,6 @@
 """
-OpenCode LLM Client - Python 封装
-通过 opencode 本地 server 调用 LLM，无需配置 API key
+FreeLLM Client - Python 封装
+通过 freellm 本地 server 调用 LLM，无需配置 API key
 """
 
 import subprocess
@@ -15,19 +15,19 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class OpenCodeError(Exception):
+class FreeLLMError(Exception):
     pass
 
 
-class ServerNotRunningError(OpenCodeError):
+class ServerNotRunningError(FreeLLMError):
     pass
 
 
-class ServerStartError(OpenCodeError):
+class ServerStartError(FreeLLMError):
     pass
 
 
-class APIError(OpenCodeError):
+class APIError(FreeLLMError):
     def __init__(self, message: str, status_code: int = None):
         super().__init__(message)
         self.status_code = status_code
@@ -61,17 +61,17 @@ class ChatResult:
     raw: Dict[str, Any]
 
 
-class OpenCodeClient:
-    DEFAULT_PORT = 4096
+class FreeLLMClient:
+    DEFAULT_PORT = 20100
     DEFAULT_HOSTNAME = "127.0.0.1"
-    DEFAULT_MODEL = "opencode/glm-5-free"
+    DEFAULT_MODEL = "freellm/glm-5-free"
     
     FREE_MODELS = [
-        "opencode/glm-5-free",
-        "opencode/kimi-k2.5-free", 
-        "opencode/minimax-m2.5-free",
-        "opencode/gpt-5-nano",
-        "opencode/big-pickle",
+        "freellm/glm-5-free",
+        "freellm/kimi-k2.5-free", 
+        "freellm/minimax-m2.5-free",
+        "freellm/gpt-5-nano",
+        "freellm/big-pickle",
     ]
     
     def __init__(
@@ -98,13 +98,13 @@ class OpenCodeClient:
     
     def _check_server(self):
         if not self.is_running():
-            raise ServerNotRunningError("OpenCode server is not running")
+            raise ServerNotRunningError("FreeLLM server is not running")
     
     def start_server(self, timeout: int = 30) -> bool:
         if self.is_running():
             return True
         
-        cmd = ["opencode", "serve", "--port", str(self.port), "--hostname", self.hostname]
+        cmd = ["freellm", "serve", "--port", str(self.port), "--hostname", self.hostname]
         
         try:
             self._server_process = subprocess.Popen(
@@ -115,7 +115,7 @@ class OpenCodeClient:
             )
             self._managed_server = True
         except FileNotFoundError:
-            raise ServerStartError("'opencode' command not found. Please install opencode first.")
+            raise ServerStartError("'freellm' command not found. Please install freellm first.")
         except Exception as e:
             raise ServerStartError(f"Failed to start server: {e}")
         
@@ -376,7 +376,7 @@ class OpenCodeClient:
         if "/" in model:
             provider, model_id = model.split("/", 1)
             return provider, model_id
-        return "opencode", model
+        return "freellm", model
     
     def __enter__(self):
         return self
@@ -388,15 +388,15 @@ class OpenCodeClient:
     
     def __repr__(self):
         status = "running" if self.is_running() else "stopped"
-        return f"<OpenCodeClient {self.base_url} ({status})>"
+        return f"<FreeLLMClient {self.base_url} ({status})>"
 
 
 def chat(
     message: str,
-    model: str = "opencode/glm-5-free",
+    model: str = "freellm/glm-5-free",
     **kwargs
 ) -> str:
-    with OpenCodeClient(auto_start=True, auto_stop=True) as client:
+    with FreeLLMClient(auto_start=True, auto_stop=True) as client:
         result = client.chat(message, model=model, **kwargs)
         return result.message.text
 
@@ -404,13 +404,13 @@ def chat(
 def chat_with_session(
     message: str,
     session_id: str,
-    model: str = "opencode/glm-5-free",
+    model: str = "freellm/glm-5-free",
     **kwargs
 ) -> ChatResult:
-    with OpenCodeClient(auto_start=True, auto_stop=True) as client:
+    with FreeLLMClient(auto_start=True, auto_stop=True) as client:
         return client.chat(message, model=model, session_id=session_id, **kwargs)
 
 
 def list_free_models() -> List[Model]:
-    with OpenCodeClient(auto_start=True, auto_stop=True) as client:
+    with FreeLLMClient(auto_start=True, auto_stop=True) as client:
         return client.get_free_models()
