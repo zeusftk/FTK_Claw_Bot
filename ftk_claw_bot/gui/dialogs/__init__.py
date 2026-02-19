@@ -9,6 +9,7 @@ from .message_dialog import (
     show_question_yes_no_cancel
 )
 from .waiting_dialog import WaitingDialog
+from .create_distro_wizard import CreateDistroWizard
 
 __all__ = [
     "SkillEditorDialog", 
@@ -19,5 +20,6 @@ __all__ = [
     "show_critical",
     "show_question",
     "show_question_yes_no_cancel",
-    "WaitingDialog"
+    "WaitingDialog",
+    "CreateDistroWizard"
 ]

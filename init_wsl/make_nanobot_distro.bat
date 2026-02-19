@@ -421,5 +421,4 @@ if !ERROR_COUNT! gtr 0 (
 )
 echo ============================================================
 echo.
-pause
 exit /b !ERROR_COUNT!

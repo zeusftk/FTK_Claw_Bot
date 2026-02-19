@@ -39,6 +39,7 @@ class WSLManager:
             return []
 
         distros = self._parse_distro_list(result.stdout)
+        distros.sort(key=lambda d: d.name.lower())
         self._distros = {d.name: d for d in distros}
         return distros
 

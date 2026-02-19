@@ -385,7 +385,14 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.gateway_port_edit = QLineEdit()
         self.gateway_port_edit.setPlaceholderText("18888")
         gateway_port_row.addWidget(self.gateway_port_edit)
+        
+        self.gateway_port_hint_label = QLabel("")
+        self.gateway_port_hint_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+        gateway_port_row.addWidget(self.gateway_port_hint_label)
+        
         gateway_card.add_row("Port", gateway_port_row)
+        
+        self.gateway_port_edit.textChanged.connect(self._validate_gateway_port)
         
         self.form_layout.addWidget(gateway_card)
 
@@ -650,6 +657,41 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if is_oauth:
             self._check_oauth_status()
 
+    def _validate_gateway_port(self):
+        """验证 Gateway 端口唯一性"""
+        port_text = self.gateway_port_edit.text().strip()
+        
+        if not port_text:
+            self.gateway_port_hint_label.setText("")
+            return True
+        
+        try:
+            port = int(port_text)
+        except ValueError:
+            self.gateway_port_hint_label.setText("⚠ 请输入有效数字")
+            self.gateway_port_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
+            return False
+        
+        if port < 1024 or port > 65535:
+            self.gateway_port_hint_label.setText("⚠ 端口范围: 1024-65535")
+            self.gateway_port_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
+            return False
+        
+        current_distro = self._current_config.distro_name if self._current_config else ""
+        existing_ports = {}
+        for config in self._config_manager.get_all().values():
+            if config.distro_name != current_distro and config.gateway_port:
+                existing_ports[config.gateway_port] = config.distro_name
+        
+        if port in existing_ports:
+            self.gateway_port_hint_label.setText(f"⚠ 已被 '{existing_ports[port]}' 使用")
+            self.gateway_port_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
+            return False
+        else:
+            self.gateway_port_hint_label.setText("✓ 端口可用")
+            self.gateway_port_hint_label.setStyleSheet("color: #3fb950; font-size: 12px;")
+            return True
+
     def _on_config_selected(self, current, previous):
         if not current:
             return
@@ -696,6 +738,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         self.gateway_host_edit.setText(config.gateway_host)
         self.gateway_port_edit.setText(str(config.gateway_port))
+        self._validate_gateway_port()
         
         self._load_channel_configs()
         self._load_skills_config()
@@ -1165,6 +1208,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if "port" in gateway:
             self.gateway_port_edit.setText(str(gateway["port"]))
             logger.info(f"设置 gateway_port: {gateway['port']}")
+            self._validate_gateway_port()
         
         tools = nanobot_config.get("tools", {})
         web_search = tools.get("web", {}).get("search", {})

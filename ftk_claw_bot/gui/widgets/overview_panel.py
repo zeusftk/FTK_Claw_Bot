@@ -232,13 +232,15 @@ class OverviewPanel(QWidget):
         self.refresh_btn = QPushButton("🔄 刷新")
         self.shutdown_all_btn = QPushButton("⏹ 关闭所有")
         self.import_btn = QPushButton("📥 导入分发")
+        self.create_btn = QPushButton("🆕 创建分发")
 
-        for btn in [self.refresh_btn, self.shutdown_all_btn, self.import_btn]:
+        for btn in [self.refresh_btn, self.shutdown_all_btn, self.import_btn, self.create_btn]:
             btn.setMinimumHeight(28)
 
         header_layout.addWidget(self.refresh_btn)
         header_layout.addWidget(self.shutdown_all_btn)
         header_layout.addWidget(self.import_btn)
+        header_layout.addWidget(self.create_btn)
         header_layout.addStretch()
 
         distro_layout.addLayout(header_layout)
@@ -361,6 +363,7 @@ class OverviewPanel(QWidget):
         self.refresh_btn.clicked.connect(self._refresh_list)
         self.shutdown_all_btn.clicked.connect(self._shutdown_all)
         self.import_btn.clicked.connect(self._import_distro)
+        self.create_btn.clicked.connect(self._create_distro)
         self.send_msg_btn.clicked.connect(self._send_message)
         self.view_log_btn.clicked.connect(self._show_log_panel)
         self.open_workspace_btn.clicked.connect(self._open_workspace)
@@ -616,6 +619,10 @@ class OverviewPanel(QWidget):
         name_edit.setPlaceholderText("clawbot")
         name_layout.addWidget(name_edit, 1)
 
+        name_hint_label = QLabel("")
+        name_hint_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+        name_layout.addWidget(name_hint_label)
+
         layout.addLayout(name_layout)
 
         dir_layout = QHBoxLayout()
@@ -649,12 +656,33 @@ class OverviewPanel(QWidget):
         import_btn = QPushButton("导入")
         import_btn.setObjectName("primary")
         import_btn.setDefault(True)
+        import_btn.setEnabled(False)
         btn_layout.addWidget(import_btn)
 
         layout.addLayout(btn_layout)
 
         last_auto_name = [""]
         tar_edit.textChanged.connect(lambda: self._auto_fill_distro_name(tar_edit.text(), name_edit, last_auto_name))
+
+        def validate_name():
+            name = name_edit.text().strip()
+            if not name:
+                name_hint_label.setText("")
+                name_hint_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+                import_btn.setEnabled(False)
+                return
+
+            existing_distros = self._wsl_manager.list_distros()
+            if any(d.name == name for d in existing_distros):
+                name_hint_label.setText("⚠ 名称已存在")
+                name_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
+                import_btn.setEnabled(False)
+            else:
+                name_hint_label.setText("✓ 名称可用")
+                name_hint_label.setStyleSheet("color: #3fb950; font-size: 12px;")
+                import_btn.setEnabled(True)
+
+        name_edit.textChanged.connect(validate_name)
 
         def do_import():
             tar_path = tar_edit.text().strip()
@@ -697,6 +725,24 @@ class OverviewPanel(QWidget):
             if name_edit.text() == "" or name_edit.text() == last_auto_name[0]:
                 name_edit.setText(name)
                 last_auto_name[0] = name
+
+    def _create_distro(self):
+        """打开创建分发向导"""
+        from ..dialogs.create_distro_wizard import CreateDistroWizard
+        wizard = CreateDistroWizard(
+            self._wsl_manager, 
+            self._config_manager,
+            self._nanobot_controller,
+            self
+        )
+        wizard.distro_created.connect(self._on_distro_created)
+        wizard.exec()
+
+    def _on_distro_created(self, distro_name: str):
+        """分发创建完成回调"""
+        self.distro_imported.emit(distro_name)
+        self.add_activity(f"WSL '{distro_name}' 创建成功")
+        self._refresh_status()
 
     def _do_import(self, tar_path: str, distro_name: str, install_location: Optional[str] = None):
         existing_distros = self._wsl_manager.list_distros()

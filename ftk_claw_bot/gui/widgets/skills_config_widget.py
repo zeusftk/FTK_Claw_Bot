@@ -206,6 +206,13 @@ class SkillsConfigWidget(QWidget):
         self.search_edit.textChanged.connect(self._filter_skills)
         search_row.addWidget(self.search_edit, 1)
 
+        refresh_btn = QPushButton("🔄")
+        refresh_btn.setToolTip("刷新技能列表")
+        refresh_btn.setObjectName("smallButton")
+        refresh_btn.setFixedSize(50, 32)
+        refresh_btn.clicked.connect(self._refresh_skills)
+        search_row.addWidget(refresh_btn)
+
         enable_all_btn = QPushButton("全部启用")
         enable_all_btn.setObjectName("smallButton")
         enable_all_btn.clicked.connect(self._enable_all)
@@ -295,6 +302,18 @@ class SkillsConfigWidget(QWidget):
             self.skills_layout.addWidget(widget)
 
         self.skills_layout.addStretch()
+
+    def _refresh_skills(self):
+        for widget in self._skill_widgets.values():
+            widget.deleteLater()
+        self._skill_widgets.clear()
+        
+        while self.skills_layout.count() > 0:
+            item = self.skills_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        self._load_skills()
 
     def _on_skill_selected(self, skill_name: str):
         if self._current_selected_skill and self._current_selected_skill in self._skill_widgets:

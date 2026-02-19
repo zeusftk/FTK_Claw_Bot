@@ -3,7 +3,7 @@ from typing import List, Optional, Set, Dict
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem,
-    QToolButton, QSizePolicy, QSpacerItem
+    QToolButton, QSizePolicy, QSpacerItem, QCheckBox, QSpinBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QEvent
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QCursor
@@ -135,7 +135,7 @@ class NanobotCard(QFrame):
     
     def _init_ui(self):
         self.setObjectName("nanobotCard")
-        self.setFixedHeight(120)
+        self.setFixedHeight(130)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         
         main_layout = QHBoxLayout(self)
@@ -176,6 +176,10 @@ class NanobotCard(QFrame):
         self.nanobot_status_text = QLabel("Bot: 已停止")
         self.nanobot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
         status_text_layout.addWidget(self.nanobot_status_text)
+        
+        self.model_text = QLabel("模型: --")
+        self.model_text.setStyleSheet("color: #8b949e; font-size: 10px;")
+        status_text_layout.addWidget(self.model_text)
         
         info_layout.addLayout(status_text_layout)
         
@@ -231,6 +235,9 @@ class NanobotCard(QFrame):
         main_layout.addLayout(info_layout, 1)
         main_layout.addStretch()
         
+        if self.config:
+            self.set_model(self.config.model, self.config.provider)
+        
         self._update_style()
     
     def set_selected(self, selected: bool):
@@ -271,6 +278,14 @@ class NanobotCard(QFrame):
             self.nanobot_status_dot.setText("⚪")
             self.nanobot_status_text.setText("Bot: 已停止")
             self.nanobot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
+    
+    def set_model(self, model: str, provider: str = None):
+        if model:
+            short_model = model.split("/")[-1] if "/" in model else model
+            display_text = f"模型: {short_model}"
+        else:
+            display_text = "模型: --"
+        self.model_text.setText(display_text)
     
     def set_connection_status(self, status: str):
         self.connection_status = status
@@ -389,6 +404,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self._connection_status = {}
         self._connected_bot_info = {}
         self._bot_color_map = {}
+        self._group_chat_enabled = False
         
         self._init_ui()
         self._start_timer()
@@ -557,6 +573,49 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         input_layout.setSpacing(8)
         
         tools_layout = QHBoxLayout()
+        tools_layout.setSpacing(8)
+        
+        self.group_chat_checkbox = QCheckBox("群聊模式")
+        self.group_chat_checkbox.setToolTip("开启后，Bot的回复会转发给其他选中的Bot进行持续对话")
+        self.group_chat_checkbox.setStyleSheet("""
+            QCheckBox {
+                color: #8b949e;
+                font-size: 12px;
+                spacing: 6px;
+            }
+            QCheckBox:checked {
+                color: #58a6ff;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+        """)
+        self.group_chat_checkbox.stateChanged.connect(self._on_group_chat_toggled)
+        tools_layout.addWidget(self.group_chat_checkbox)
+        
+        self.group_chat_interval_spin = QSpinBox()
+        self.group_chat_interval_spin.setRange(1, 60)
+        self.group_chat_interval_spin.setValue(5)
+        self.group_chat_interval_spin.setSuffix("秒")
+        self.group_chat_interval_spin.setToolTip("群聊转发间隔")
+        self.group_chat_interval_spin.setStyleSheet("""
+            QSpinBox {
+                background-color: #21262d;
+                border: 1px solid #30363d;
+                border-radius: 4px;
+                color: #c9d1d9;
+                font-size: 11px;
+                padding: 2px 4px;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                width: 16px;
+            }
+        """)
+        tools_layout.addWidget(self.group_chat_interval_spin)
+        
+        tools_layout.addStretch()
+        
         attach_btn = QToolButton()
         attach_btn.setText("📎")
         attach_btn.setStyleSheet("""
@@ -594,7 +653,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         
         tools_layout.addWidget(attach_btn)
         tools_layout.addWidget(voice_btn)
-        tools_layout.addStretch()
         
         input_layout.addLayout(tools_layout)
         
@@ -665,7 +723,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         card.connect_clicked.connect(self._on_nanobot_connect_requested)
         card.disconnect_clicked.connect(self._on_nanobot_disconnect_requested)
         self._nanobot_cards[config_name] = card
-        item.setSizeHint(QSize(0, 130))
+        item.setSizeHint(QSize(0, 140))
         self.nanobot_list.addItem(item)
         self.nanobot_list.setItemWidget(item, card)
     
@@ -709,6 +767,15 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             self.tags_label.show()
         else:
             self.tags_label.hide()
+    
+    def _on_group_chat_toggled(self, state):
+        self._group_chat_enabled = state == Qt.CheckState.Checked.value
+    
+    def is_group_chat_enabled(self) -> bool:
+        return self._group_chat_enabled
+    
+    def get_group_chat_interval(self) -> int:
+        return self.group_chat_interval_spin.value() * 1000
     
     def _refresh_nanobots(self):
         self._load_nanobots()
@@ -966,7 +1033,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self.chat_text.clear()
     
     def keyPressEvent(self, event):
-        from PyQt6.QtCore import Qt
         modifiers = event.modifiers()
         key = event.key()
         

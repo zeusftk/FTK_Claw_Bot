@@ -42,6 +42,10 @@ class MainWindow(QMainWindow):
             self._chat_clients: dict[str, NanobotChatClient] = {}
             self._client_count_timer = QTimer()
             self._client_count_timer.timeout.connect(self._update_client_count)
+            self._group_chat_forward_allowed = True
+            self._group_chat_timer = QTimer()
+            self._group_chat_timer.setSingleShot(True)
+            self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
             
             self._init_ui()
             self._init_managers_skip()
@@ -60,6 +64,10 @@ class MainWindow(QMainWindow):
             self._chat_clients: dict[str, NanobotChatClient] = {}
             self._client_count_timer = QTimer()
             self._client_count_timer.timeout.connect(self._update_client_count)
+            self._group_chat_forward_allowed = True
+            self._group_chat_timer = QTimer()
+            self._group_chat_timer.setSingleShot(True)
+            self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
             
             self._init_ui()
             self._init_managers()
@@ -722,8 +730,29 @@ class MainWindow(QMainWindow):
 
     def _on_chat_message_received(self, message: str, nanobot_name: Optional[str] = None):
         from loguru import logger
-        logger.info(f"[MainWindow] 收到聊天消息: {message[:100]}...")
+        # logger.info(f"[MainWindow] 收到聊天消息: {message[:100]}...")
         self.chat_panel.add_message("assistant", message, nanobot_name)
+        
+        if self.chat_panel.is_group_chat_enabled() and self._group_chat_forward_allowed:
+            self._group_chat_forward_allowed = False
+            self._forward_to_other_bots(message, nanobot_name)
+            interval = self.chat_panel.get_group_chat_interval()
+            self._group_chat_timer.start(interval)
+    
+    def _on_group_chat_timer(self):
+        self._group_chat_forward_allowed = True
+    
+    def _forward_to_other_bots(self, message: str, source_bot: str):
+        from loguru import logger
+        selected_bots = list(self.chat_panel._selected_nanobots)
+        
+        for bot_name in selected_bots:
+            if bot_name != source_bot and bot_name in self._chat_clients:
+                chat_client = self._chat_clients[bot_name]
+                if chat_client.is_connected:
+                    forward_msg = f"[{source_bot} 说]: {message}"
+                    # logger.info(f"[MainWindow] 群聊转发: {source_bot} -> {bot_name}")
+                    chat_client.send_message(forward_msg)
 
     def _on_chat_status_changed(self, status: ConnectionStatus, bot_name: str = ""):
         # 注意：此方法目前未使用，因为我们直接在连接/断开时更新状态
