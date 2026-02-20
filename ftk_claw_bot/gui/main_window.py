@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
             self._init_chat()
 
     def _init_ui(self):
-        self.setWindowTitle("FTK_Claw_Bot")
+        self.setWindowTitle(f"抓虾机器人_FTK_Claw_Bot {VERSION}")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
 
@@ -93,14 +93,29 @@ class MainWindow(QMainWindow):
         nav_layout = QVBoxLayout(nav_frame)
         nav_layout.setContentsMargins(10, 10, 10, 10)
 
-        title_label = QLabel("FTK_Claw_Bot")
-        title_label.setObjectName("navTitle")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        nav_layout.addWidget(title_label)
+        title_container = QWidget()
+        title_layout = QVBoxLayout(title_container)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(2)
+
+        title_main = QLabel("抓虾")
+        title_main.setObjectName("navTitleMain")
+        title_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_main_font = QFont()
+        title_main_font.setPointSize(24)
+        title_main_font.setBold(True)
+        title_main.setFont(title_main_font)
+        title_layout.addWidget(title_main)
+
+        title_sub = QLabel("FTK_Claw_Bot")
+        title_sub.setObjectName("navTitleSub")
+        title_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_sub_font = QFont()
+        title_sub_font.setPointSize(14)
+        title_sub.setFont(title_sub_font)
+        title_layout.addWidget(title_sub)
+
+        nav_layout.addWidget(title_container)
 
         self.nav_list = QListWidget()
         self.nav_list.setObjectName("navList")

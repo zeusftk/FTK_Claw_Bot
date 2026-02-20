@@ -25,7 +25,7 @@ class SplashScreen(QWidget):
         self.move(x, y)
     
     def _init_ui(self):
-        self.setFixedSize(500, 300)
+        self.setFixedSize(500, 350)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint
@@ -38,13 +38,22 @@ class SplashScreen(QWidget):
         
         layout.addStretch()
         
-        title_label = QLabel("FTK_Claw_Bot")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_font = QFont()
-        title_font.setPointSize(28)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        layout.addWidget(title_label)
+        title_main = QLabel("抓虾机器人")
+        title_main.setObjectName("titleMain")
+        title_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_main_font = QFont()
+        title_main_font.setPointSize(32)
+        title_main_font.setBold(True)
+        title_main.setFont(title_main_font)
+        layout.addWidget(title_main)
+        
+        title_sub = QLabel("FTK_Claw_Bot")
+        title_sub.setObjectName("titleSub")
+        title_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_sub_font = QFont()
+        title_sub_font.setPointSize(16)
+        title_sub.setFont(title_sub_font)
+        layout.addWidget(title_sub)
         
         subtitle_label = QLabel("WSL ClawBot 管理工具")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -86,6 +95,12 @@ class SplashScreen(QWidget):
             }
             QLabel {
                 color: #f0f6fc;
+            }
+            QLabel#titleMain {
+                color: #58a6ff;
+            }
+            QLabel#titleSub {
+                color: #8b949e;
             }
             QProgressBar {
                 background-color: #21262d;

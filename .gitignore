@@ -7,5 +7,22 @@ config/
 logs/
 debug.log
 opencode_client/
-nohup.out
 init_wsl/Ubuntu_22.tar
+
+# Nuitka 打包相关
+build_nuitka.py
+run.py
+*.build/
+*.dist/
+*.onefile-*
+*.exe
+*.dll
+*.pyd
+run.build/
+run.dist/
+run.onefile-build/
+
+# 其他构建产物
+build/
+dist/
+*.spec

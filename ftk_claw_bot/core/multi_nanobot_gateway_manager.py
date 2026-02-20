@@ -111,4 +111,149 @@ class MultiNanobotGatewayManager:
         if not distro:
             logger.error(f"Distro {distro_name} not found")
             gateway.set_status(GatewayStatus.ERROR)
-            self._notify_global_status(distro_name, Gateway
+            self._notify_global_status(distro_name, GatewayStatus.ERROR)
+            return False
+
+        if not distro.is_running:
+            if not self._wsl_manager.start_distro(distro_name):
+                logger.error(f"Failed to start distro {distro_name}")
+                gateway.set_status(GatewayStatus.ERROR)
+                self._notify_global_status(distro_name, GatewayStatus.ERROR)
+                return False
+
+        cmd = [
+            "wsl.exe", "-d", distro_name, "-u", "root", "--",
+            "bash", "-c",
+            f"nanobot gateway --port {port}" + (" --verbose" if verbose else "") + (" --no-guardian" if no_guardian else "")
+        ]
+
+        try:
+            gateway.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace"
+            )
+
+            monitor_thread = threading.Thread(
+                target=self._monitor_gateway_process,
+                args=(distro_name,),
+                daemon=True
+            )
+            monitor_thread.start()
+
+            time.sleep(2)
+
+            if gateway.process.poll() is not None:
+                stdout, stderr = gateway.process.communicate()
+                logger.error(f"Gateway failed to start: {stderr}")
+                gateway.set_status(GatewayStatus.ERROR)
+                self._notify_global_status(distro_name, GatewayStatus.ERROR)
+                return False
+
+            gateway.set_status(GatewayStatus.RUNNING)
+            self._notify_global_status(distro_name, GatewayStatus.RUNNING)
+            logger.info(f"Nanobot gateway started for {distro_name} on port {port}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to start gateway: {e}")
+            gateway.set_status(GatewayStatus.ERROR)
+            self._notify_global_status(distro_name, GatewayStatus.ERROR)
+            return False
+
+    def _monitor_gateway_process(self, distro_name: str):
+        gateway = self._gateways.get(distro_name)
+        if not gateway or not gateway.process:
+            return
+
+        def read_output(pipe, log_type):
+            try:
+                for line in iter(pipe.readline, ""):
+                    if line:
+                        cleaned = line.replace("\x00", "").strip()
+                        if cleaned:
+                            logger.debug(f"[gateway:{distro_name}:{log_type}] {cleaned}")
+            except Exception:
+                pass
+
+        stdout_thread = threading.Thread(
+            target=read_output,
+            args=(gateway.process.stdout, "stdout"),
+            daemon=True
+        )
+        stderr_thread = threading.Thread(
+            target=read_output,
+            args=(gateway.process.stderr, "stderr"),
+            daemon=True
+        )
+        stdout_thread.start()
+        stderr_thread.start()
+
+        gateway.process.wait()
+
+        if gateway.status == GatewayStatus.RUNNING:
+            gateway.set_status(GatewayStatus.STOPPED)
+            self._notify_global_status(distro_name, GatewayStatus.STOPPED)
+
+    def stop_gateway(self, distro_name: str) -> bool:
+        gateway = self._gateways.get(distro_name)
+        if not gateway:
+            logger.warning(f"No gateway for {distro_name}")
+            return True
+
+        if gateway.status != GatewayStatus.RUNNING:
+            logger.warning(f"Gateway for {distro_name} not running")
+            return True
+
+        gateway.set_status(GatewayStatus.STOPPING)
+        self._notify_global_status(distro_name, GatewayStatus.STOPPING)
+
+        try:
+            if gateway.process:
+                gateway.process.terminate()
+                try:
+                    gateway.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    gateway.process.kill()
+                    gateway.process.wait()
+
+            self._wsl_manager.execute_command(
+                distro_name,
+                "pkill -f 'nanobot gateway' || true"
+            )
+
+            self._port_manager.release_port(distro_name)
+            gateway.set_status(GatewayStatus.STOPPED)
+            self._notify_global_status(distro_name, GatewayStatus.STOPPED)
+            logger.info(f"Nanobot gateway stopped for {distro_name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to stop gateway: {e}")
+            gateway.set_status(GatewayStatus.ERROR)
+            self._notify_global_status(distro_name, GatewayStatus.ERROR)
+            return False
+
+    def stop_all_gateways(self) -> bool:
+        success = True
+        for distro_name in list(self._gateways.keys()):
+            if not self.stop_gateway(distro_name):
+                success = False
+        return success
+
+    def get_gateway_url(self, distro_name: str, use_localhost: bool = True) -> Optional[str]:
+        gateway = self._gateways.get(distro_name)
+        if not gateway or gateway.status != GatewayStatus.RUNNING:
+            return None
+
+        if use_localhost:
+            return f"ws://localhost:{gateway.port}/ws"
+
+        ip = self._wsl_manager.get_distro_ip(distro_name)
+        if not ip:
+            return None
+
+        return f"ws://{ip}:{gateway.port}/ws"

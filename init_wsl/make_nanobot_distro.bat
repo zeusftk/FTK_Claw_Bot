@@ -178,6 +178,7 @@ echo        [OK]
 echo   [2.3] Configure python to point to 3.11 (keep python3 as 3.10 for apt)...
 wsl -d %DISTRO_NAME% -u root -- bash -c "rm -f /usr/bin/python && ln -sf /usr/bin/python3.11 /usr/bin/python"
 wsl -d %DISTRO_NAME% -u root -- bash -c "rm -f /usr/bin/pip && ln -sf /usr/local/bin/pip3.11 /usr/bin/pip 2>/dev/null || ln -sf /usr/bin/pip3 /usr/bin/pip"
+wsl -d %DISTRO_NAME% -u root -- bash -c "ln /usr/local/bin/pip3.11 /usr/bin/pip3 && ln /usr/bin/python3.11 /usr/bin/python3"
 echo        [OK]
 
 echo   [2.4] Install pip for python3.11...

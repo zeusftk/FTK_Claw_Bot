@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 
-VERSION = "1.0.2"
+VERSION = "1.0.3.1"
 APP_NAME = "FTK_Claw_Bot"
 APP_AUTHOR = "FTK Team"
 APP_EMAIL = "zeusftk@gmail.com"
@@ -12,7 +12,6 @@ APP_EMAIL = "zeusftk@gmail.com"
 class Network:
     IPC_PORT = 9527
     GATEWAY_PORT = 18888
-    CHAT_PORT = 8765
     DEFAULT_HOST = "0.0.0.0"
     CONNECTION_TIMEOUT = 30
     RECONNECT_INTERVAL = 5

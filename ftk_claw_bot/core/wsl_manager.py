@@ -136,6 +136,96 @@ class WSLManager:
                 return_code=-1
             )
 
+    def export_distro(
+        self,
+        distro_name: str,
+        output_path: str
+    ) -> CommandResult:
+        """导出 WSL 分发为 tar 文件
+        
+        Args:
+            distro_name: 要导出的分发名称
+            output_path: tar 文件输出路径
+        
+        Returns:
+            CommandResult: 包含执行结果的 CommandResult 对象
+        """
+        from loguru import logger
+        
+        logger.info(f"export_distro 开始: distro_name={distro_name}, output_path={output_path}")
+        
+        if not _validate_distro_name(distro_name):
+            logger.error(f"分发名称无效: {distro_name}")
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr=f"Invalid distro name: {distro_name}",
+                return_code=-1
+            )
+        
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except Exception as e:
+                logger.error(f"无法创建输出目录: {output_dir}, {e}")
+                return CommandResult(
+                    success=False,
+                    stdout="",
+                    stderr=f"Cannot create output directory: {output_dir}",
+                    return_code=-1
+                )
+        
+        cmd = [
+            "wsl.exe",
+            "--export",
+            distro_name,
+            output_path
+        ]
+        
+        logger.info(f"执行命令: {' '.join(cmd)}")
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-16-le",
+                errors="replace",
+                timeout=600
+            )
+            stdout = result.stdout.replace('\x00', '').strip()
+            stderr = result.stderr.replace('\x00', '').strip()
+            
+            logger.info(f"命令执行完成: returncode={result.returncode}")
+            if stderr:
+                logger.warning(f"stderr: {stderr}")
+            
+            return CommandResult(
+                success=result.returncode == 0,
+                stdout=stdout,
+                stderr=stderr,
+                return_code=result.returncode
+            )
+        except subprocess.TimeoutExpired:
+            logger.error("导出超时 (600s)")
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr="Export timed out (600s)",
+                return_code=-1
+            )
+        except Exception as e:
+            logger.error(f"导出过程异常: {e}")
+            import traceback
+            logger.error(f"详细堆栈: {traceback.format_exc()}")
+            return CommandResult(
+                success=False,
+                stdout="",
+                stderr=str(e),
+                return_code=-1
+            )
+
     def _parse_distro_list(self, output: str) -> List[WSLDistro]:
         distros = []
         lines = output.strip().split("\n")

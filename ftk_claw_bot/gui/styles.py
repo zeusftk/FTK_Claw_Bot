@@ -71,6 +71,17 @@ QLabel#panelTitle, QLabel#navTitle, QLabel#configTitle, QLabel#skillTitle {
     font-weight: bold;
 }
 
+QLabel#navTitleMain {
+    color: %(accent)s;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+QLabel#navTitleSub {
+    color: %(text_muted)s;
+    font-size: 11px;
+}
+
 QLabel#cardTitle {
     color: %(text_primary)s;
     font-size: 14px;
