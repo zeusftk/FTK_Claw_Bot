@@ -1,3 +1,10 @@
+import os
+import tempfile
+from typing import Optional, List, Dict
+from datetime import datetime
+
+from loguru import logger
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QFrame, QGroupBox, QGridLayout, QLineEdit, QTextEdit,
@@ -7,11 +14,10 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPixmap
-from typing import Optional, List, Dict
-from datetime import datetime
 
 from ..mixins import WSLStateAwareMixin
 from ..dialogs import WaitingDialog
+from ...services.windows_bridge import WindowsAutomation
 
 
 class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
@@ -667,7 +673,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._check_bridge_available():
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         windows = automation.list_windows()
         
@@ -713,7 +718,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             x = int(self._mouse_x.text())
             y = int(self._mouse_y.text())
             
-            from ftk_claw_bot.services.windows_bridge import WindowsAutomation
             automation = WindowsAutomation()
             success = automation.mouse_move(x, y)
             
@@ -733,7 +737,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._confirm_action(f"鼠标{click_type}点击"):
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         
         pos = automation.get_mouse_position()
@@ -761,7 +764,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._confirm_action(f"输入文本: {text}"):
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         success = automation.keyboard_type(text)
         
@@ -782,7 +784,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._confirm_action(f"按下按键: {key}"):
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         success = automation.keyboard_press(key)
         
@@ -796,13 +797,10 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._check_bridge_available():
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         data = automation.screenshot()
         
         if data:
-            import tempfile
-            import os
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}.png"
             temp_dir = tempfile.gettempdir()
@@ -827,7 +825,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             QMessageBox.warning(self, "错误", "请输入窗口标题")
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         window = automation.find_window(title)
         
@@ -842,7 +839,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._check_bridge_available():
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         windows = automation.list_windows()
         
@@ -864,7 +860,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._check_bridge_available():
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         text = automation.get_clipboard()
         
@@ -878,7 +873,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if not self._check_bridge_available():
             return
         
-        from ftk_claw_bot.services.windows_bridge import WindowsAutomation
         automation = WindowsAutomation()
         pos = automation.get_mouse_position()
         

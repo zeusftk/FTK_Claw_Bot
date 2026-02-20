@@ -32,6 +32,8 @@ dependencies = [
     "cryptography>=41.0.0",
     "pywin32>=306",
     "watchdog>=3.0.0",
+    "websockets>=12.0",
+    "loguru>=0.7.0",
 ]
 
 [project.scripts]

@@ -1,8 +1,12 @@
 import os
+import glob
 import time
 import subprocess
 import threading
+import datetime
 from typing import Optional
+
+from loguru import logger
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -16,6 +20,7 @@ from PyQt6.QtGui import QFont, QColor
 from ...core import WSLManager, NanobotController, ConfigManager
 from ...models import DistroStatus, WSLDistro
 from ...gui.dialogs import show_info, show_critical, show_question, show_warning
+from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
 from ...utils.thread_safe import ThreadSafeSignal
 
 
@@ -656,9 +661,6 @@ class OverviewPanel(QWidget):
             self._refresh_status()
 
     def _open_terminal(self, distro_name: str):
-        import os
-        import glob
-        
         wt_paths = [
             os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe"),
         ]
@@ -884,7 +886,6 @@ class OverviewPanel(QWidget):
 
     def _create_distro(self):
         """打开创建分发向导"""
-        from ..dialogs.create_distro_wizard import CreateDistroWizard
         wizard = CreateDistroWizard(
             self._wsl_manager, 
             self._config_manager,
@@ -1150,8 +1151,6 @@ class OverviewPanel(QWidget):
 
     def _do_export(self, distro_name: str, save_dir: str):
         """执行导出操作"""
-        import datetime
-        
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         tar_filename = f"{distro_name}_{timestamp}.tar"
         output_path = os.path.join(save_dir, tar_filename)

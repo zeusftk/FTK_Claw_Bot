@@ -1,16 +1,23 @@
+import json
+import threading
 from os import curdir
 from typing import Optional, List, Dict
+
+from loguru import logger
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QLineEdit, QComboBox,
     QCheckBox, QFrame, QScrollArea, QSizePolicy, QFileDialog,
-    QMessageBox, QGroupBox, QDialog, QTabWidget
+    QMessageBox, QGroupBox, QDialog, QTabWidget, QApplication
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from ...core import ConfigManager, WSLManager
 from ...models import NanobotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
+from ...utils.async_ops import AsyncOperation, AsyncResult
+from ...utils.thread_safe import ThreadSafeSignal
 from ..mixins import WSLStateAwareMixin
 from .channel_config_dialog import get_channel_dialog
 from .skills_config_widget import SkillsConfigWidget
@@ -514,19 +521,14 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self._skills_widget.set_config(self._current_config.skills)
 
     def _load_configs(self):
-        from loguru import logger
-        
         self.config_list.clear()
         
         distros = self._wsl_manager.list_distros()
         logger.info(f"重新加载配置，WSL 分发: {[d.name for d in distros]}")
         
-        # 初始化所有WSL分发的配置
         for distro in distros:
             config = self._config_manager.get(distro.name)
             if not config:
-                # 如果配置不存在，创建一个新的
-                from ...models import NanobotConfig
                 config = NanobotConfig(
                     name=distro.name,
                     distro_name=distro.name
@@ -696,8 +698,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if not current:
             return
         
-        from loguru import logger
-
         name = current.text().replace(" (默认)", "")
         config = self._config_manager.get(name)
         if config:
@@ -777,7 +777,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             self, "导入配置", "", "JSON Files (*.json)"
         )
         if file_path:
-            import json
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -805,8 +804,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 QMessageBox.warning(self, "错误", f"导入失败: {e}")
 
     def _save_config(self):
-        from loguru import logger
-        
         if not self._current_config:
             QMessageBox.warning(self, "错误", "请先选择一个配置")
             return
@@ -925,8 +922,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _update_config_list_display(self):
         """仅更新配置列表的显示，不重新加载"""
-        from loguru import logger
-        
         logger.info(f"更新配置列表显示")
         current_row = self.config_list.currentRow()
         current_text = self.config_list.currentItem().text() if self.config_list.currentItem() else ""
@@ -967,7 +962,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             QMessageBox.warning(self, "错误", "设置默认配置失败")
     
     def _copy_apiKey(self):
-        from PyQt6.QtWidgets import QApplication
         apiKey = self.apiKey_edit.text()
         if apiKey:
             clipboard = QApplication.clipboard()
@@ -1046,10 +1040,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
     def _reset_form(self):
         """重置表单 - 异步从 WSL 读取配置"""
-        from loguru import logger
-        from ...utils.async_ops import AsyncOperation, AsyncResult
-
-        # 防止重复操作
         if self._is_loading:
             return
 
@@ -1114,8 +1104,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
     def _import_from_wsl(self):
         """从 WSL 导入配置"""
-        from loguru import logger
-        
         if not self._nanobot_controller:
             QMessageBox.warning(self, "错误", "clawbot 控制器未初始化")
             return
@@ -1138,8 +1126,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _sync_providers_from_wsl(self, distro_name: str):
         """从 WSL 配置同步提供商选项"""
-        from loguru import logger
-        
         wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
         if not wsl_config:
             return
@@ -1161,7 +1147,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _populate_from_nanobot_config(self, nanobot_config: dict):
         """从 clawbot 配置填充表单"""
-        from loguru import logger
         logger.info(f"_populate_from_nanobot_config: {nanobot_config}")
         
         agents = nanobot_config.get("agents", {}).get("defaults", {})
@@ -1222,9 +1207,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _on_oauth_login(self):
         """触发 OAuth 登录流程"""
-        import threading
-        from ...utils.thread_safe import ThreadSafeSignal
-        
         provider = self.provider_combo.currentText()
         distro_name = self._current_config.distro_name if self._current_config else None
         
@@ -1272,8 +1254,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _check_oauth_status(self):
         """异步检查 OAuth 认证状态"""
-        from ...utils.async_ops import AsyncOperation, AsyncResult
-        
         provider = self.provider_combo.currentText()
         distro_name = self._current_config.distro_name if self._current_config else None
         
@@ -1292,7 +1272,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         def on_result(exists):
             # 检查错误结果
             if isinstance(exists, AsyncResult) and not exists.success:
-                from loguru import logger
                 logger.error(f"检查 OAuth 状态失败: {exists.error}")
                 return
             
@@ -1345,7 +1324,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _refresh_data(self):
         """刷新 WSL 分发列表和配置数据"""
-        from loguru import logger
         logger.info("用户手动刷新 WSL 分发列表")
         self._load_configs()
         self._load_distros()

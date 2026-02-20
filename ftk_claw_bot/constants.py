@@ -25,8 +25,8 @@ class Paths:
         return Path.cwd() / cls.LOG_DIR_NAME
     
     @classmethod
-    def get_nanobot_configs_dir(cls) -> Path:
-        return Path.cwd() / "nanobot_configs"
+    def get_clawbot_configs_dir(cls) -> Path:
+        return Path.cwd() / "clawbot_configs"
 
 
 class UI:

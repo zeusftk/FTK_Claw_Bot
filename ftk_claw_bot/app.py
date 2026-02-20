@@ -1,13 +1,22 @@
 import os
 import sys
+import threading
 from typing import Optional
 
 from loguru import logger
+
+from PyQt6.QtWidgets import QApplication
 
 from .constants import VERSION, APP_NAME, APP_AUTHOR, UI
 from .container import container
 from .events import event_bus, EventType
 from .plugins import PluginManager
+from .utils import setup_logger
+from .core import WSLManager, NanobotController, ConfigManager
+from .services import MonitorService, WindowsBridge
+from .models import NanobotConfig
+from .gui import MainWindow
+from .gui.widgets import SplashScreen
 
 
 class Application:
@@ -34,12 +43,9 @@ class Application:
         os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
     
     def setup_logging(self, console: bool = True):
-        from .utils import setup_logger
         setup_logger("ftk_claw_bot", console=console)
     
     def create_qt_app(self):
-        from PyQt6.QtWidgets import QApplication
-        
         self._app = QApplication(sys.argv)
         self._app.setApplicationName(APP_NAME)
         self._app.setApplicationVersion(VERSION)
@@ -49,9 +55,6 @@ class Application:
         return self._app
     
     def init_services(self, progress_callback=None):
-        from .core import WSLManager, NanobotController, ConfigManager
-        from .services import MonitorService, WindowsBridge
-        
         if progress_callback:
             progress_callback("正在初始化 WSL 管理器...", 10)
         
@@ -83,7 +86,6 @@ class Application:
                 
                 config = config_manager.get(distro.name)
                 if not config:
-                    from .models import NanobotConfig
                     config = NanobotConfig(
                         name=distro.name,
                         distro_name=distro.name
@@ -137,11 +139,7 @@ class Application:
             progress_callback: 进度回调函数，接收 (message, progress) 参数
             completion_callback: 完成回调函数，接收 (success, error_message) 参数
         """
-        import threading
-        
         def init():
-            from .core import WSLManager, NanobotController, ConfigManager
-            from .services import MonitorService, WindowsBridge
             
             try:
                 if progress_callback:
@@ -175,7 +173,6 @@ class Application:
                         
                         config = config_manager.get(distro.name)
                         if not config:
-                            from .models import NanobotConfig
                             config = NanobotConfig(
                                 name=distro.name,
                                 distro_name=distro.name
@@ -231,8 +228,6 @@ class Application:
         thread.start()
     
     def create_main_window(self):
-        from .gui import MainWindow
-        
         self._window = MainWindow(
             wsl_manager=container.wsl_manager,
             config_manager=container.config_manager,
@@ -245,8 +240,6 @@ class Application:
         return self._window
     
     def show_splash(self, progress_callback=None):
-        from .gui.widgets import SplashScreen
-        
         self._splash = SplashScreen()
         self._splash.show()
         self._app.processEvents()

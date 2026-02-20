@@ -18,7 +18,7 @@ class ConfigManager:
 
         self._config_dir = config_dir
         self._main_config_path = str(Path(config_dir) / "config.json")
-        self._nanobot_configs_dir = str(Path(config_dir) / "nanobot_configs")
+        self._clawbot_configs_dir = str(Path(config_dir) / "clawbot_configs")
         self._configs: Dict[str, NanobotConfig] = {}
         self._default_config_name: str = self.DEFAULT_CONFIG_NAME
         self._main_config: dict = {}
@@ -28,7 +28,7 @@ class ConfigManager:
 
     def _ensure_dirs(self):
         Path(self._config_dir).mkdir(parents=True, exist_ok=True)
-        Path(self._nanobot_configs_dir).mkdir(parents=True, exist_ok=True)
+        Path(self._clawbot_configs_dir).mkdir(parents=True, exist_ok=True)
 
     def load(self, valid_distro_names: Optional[Set[str]] = None) -> Dict[str, NanobotConfig]:
         """加载配置
@@ -38,10 +38,10 @@ class ConfigManager:
         """
         self._load_main_config()
 
-        if os.path.exists(self._nanobot_configs_dir):
-            for filename in os.listdir(self._nanobot_configs_dir):
+        if os.path.exists(self._clawbot_configs_dir):
+            for filename in os.listdir(self._clawbot_configs_dir):
                 if filename.endswith(".json"):
-                    file_path = os.path.join(self._nanobot_configs_dir, filename)
+                    file_path = os.path.join(self._clawbot_configs_dir, filename)
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
                             data = json.load(f)
@@ -218,7 +218,7 @@ class ConfigManager:
             config.updated_at = datetime.now()
 
             # 允许覆盖已有配置（因为配置名称等于WSL分发名称，一一对应）
-            file_path = os.path.join(self._nanobot_configs_dir, f"{config.name}.json")
+            file_path = os.path.join(self._clawbot_configs_dir, f"{config.name}.json")
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)
 
@@ -234,7 +234,7 @@ class ConfigManager:
             return False
 
         try:
-            file_path = os.path.join(self._nanobot_configs_dir, f"{config_name}.json")
+            file_path = os.path.join(self._clawbot_configs_dir, f"{config_name}.json")
             if os.path.exists(file_path):
                 os.remove(file_path)
 
@@ -324,5 +324,5 @@ class ConfigManager:
     def get_config_dir(self) -> str:
         return self._config_dir
 
-    def get_nanobot_configs_dir(self) -> str:
-        return self._nanobot_configs_dir
+    def get_clawbot_configs_dir(self) -> str:
+        return self._clawbot_configs_dir

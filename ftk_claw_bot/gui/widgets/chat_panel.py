@@ -1,14 +1,18 @@
 from datetime import datetime
 from typing import List, Optional, Set, Dict
+
+from loguru import logger
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem,
-    QToolButton, QSizePolicy, QSpacerItem, QCheckBox, QSpinBox
+    QToolButton, QSizePolicy, QSpacerItem, QCheckBox, QSpinBox, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QEvent
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QCursor
 
 from ..mixins import WSLStateAwareMixin
+from ...utils.async_ops import AsyncOperation, AsyncResult
 
 
 class ChatMessage:
@@ -816,8 +820,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         if not self._wsl_manager:
             return
         
-        from ...utils.async_ops import AsyncOperation, AsyncResult
-        
         def refresh_operation():
             results = {}
             if self._wsl_manager:
@@ -852,9 +854,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             return results
         
         def on_result(results):
-            # 检查是否为错误结果
             if isinstance(results, AsyncResult) and not results.success:
-                from loguru import logger
                 logger.error(f"刷新 Nanobot 状态失败: {results.error}")
                 return
             
@@ -930,7 +930,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self.nanobot_selected.emit(list(self._selected_nanobots))
     
     def _on_nanobot_connect_requested(self, config_name: str):
-        from loguru import logger
         logger.info(f"[ChatPanel] 收到连接请求: {config_name}")
         
         if config_name in self._nanobot_cards:
@@ -939,14 +938,11 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self.nanobot_connect_requested.emit(config_name)
     
     def _on_nanobot_disconnect_requested(self, config_name: str):
-        from loguru import logger
         logger.info(f"[ChatPanel] 收到断开请求: {config_name}")
         
         self.nanobot_disconnect_requested.emit(config_name)
     
     def _on_connect_all_clicked(self):
-        from loguru import logger
-        
         connected_bots = [bot for bot, status in self._connection_status.items() if status]
         
         if connected_bots:
@@ -960,7 +956,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                     if bot not in self._connection_status or not self._connection_status[bot]:
                         self._on_nanobot_connect_requested(bot)
             else:
-                from PyQt6.QtWidgets import QMessageBox
                 QMessageBox.warning(self, "提示", "请先选择要连接的 Nanobot")
     
     def _on_send_message(self):
@@ -969,7 +964,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             return
         
         if not self._selected_nanobots:
-            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "提示", "请至少选择一个 Nanobot")
             return
         
@@ -1044,11 +1038,8 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         
         super().keyPressEvent(event)
     
-    def _on_connect_clicked(self):
-        from loguru import logger
-        
+    def _on_send_clicked(self):
         if not self._selected_nanobots:
-            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "提示", "请至少选择一个 Nanobot")
             return
         
@@ -1063,14 +1054,12 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             self.connect_clicked.emit("")
     
     def set_connecting(self):
-        from loguru import logger
         logger.info("[ChatPanel] 设置状态: 正在连接...")
         self._connect_btn.setEnabled(False)
         self._connect_btn.setText("连接中...")
     
     def set_connection_status(self, bot_name: str, is_connected: bool, info: Optional[str] = None):
-        from loguru import logger
-        logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -&gt; {is_connected}, info={info}")
+        logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -> {is_connected}, info={info}")
         
         self._connection_status[bot_name] = is_connected
         
@@ -1116,8 +1105,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self._connect_btn.setEnabled(True)
     
     def show_error(self, message: str):
-        from loguru import logger
-        from PyQt6.QtWidgets import QMessageBox
         logger.error(f"[ChatPanel] 显示错误: {message}")
         QMessageBox.warning(self, "错误", message)
         self.clear_connection_status()

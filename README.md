@@ -50,13 +50,12 @@ cd FTK_Claw_Bot
 pip install -e .
 ```
 
-### 方式二：使用 requirements.txt
+### 方式二：使用预编译二进制包
+适合无需 Python 环境的用户，开箱即用：
+1. 下载 `init_wsl` 目录下的 `FTK_Claw_Bot_1.0.3.1.exe`
+2. 双击运行
 
-```bash
-git clone https://github.com/zeusftk/FTK_Claw_Bot.git
-cd FTK_Claw_Bot
-pip install -r requirements.txt
-```
+> **注意**：首次运行可能需要 Windows 安全中心确认。
 
 ## 🔧 初始化 WSL 分发
 
@@ -164,8 +163,6 @@ FTK_Claw_Bot/
 │   ├── spec.md               # 系统规格文档
 │   ├── checklist.md          # 功能检查清单
 │   └── NAMING_CONVENTIONS.md # 命名规范
-├── run.py                    # Nuitka打包入口
-├── build_nuitka.py           # Nuitka构建脚本
 ├── requirements.txt          # 依赖列表
 ├── setup.py                  # 安装配置
 └── pyproject.toml            # 项目配置
@@ -196,35 +193,6 @@ FTK_Claw_Bot/
 | `Ctrl+S` | 保存当前配置 |
 | `Ctrl+F` | 聚焦搜索 |
 | `Esc` | 取消焦点 |
-
-## 🔌 插件开发
-
-创建自定义插件：
-
-```python
-from ftk_claw_bot.plugins.base import IPlugin
-
-class MyPlugin(IPlugin):
-    @property
-    def name(self) -> str:
-        return "MyPlugin"
-    
-    @property
-    def version(self) -> str:
-        return "1.0.0"
-    
-    @property
-    def description(self) -> str:
-        return "My custom plugin"
-    
-    def initialize(self, app) -> bool:
-        # 初始化逻辑
-        return True
-    
-    def shutdown(self) -> bool:
-        # 清理逻辑
-        return True
-```
 
 
 

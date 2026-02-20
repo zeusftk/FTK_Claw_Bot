@@ -1,22 +1,26 @@
 import sys
 from typing import Optional
 
+from loguru import logger
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QListWidget, QListWidgetItem, QLabel, QPushButton,
-    QStatusBar, QSystemTrayIcon, QMenu, QSplitter, QFrame
+    QStatusBar, QSystemTrayIcon, QMenu, QSplitter, QFrame, QMessageBox, QDialog
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
-from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer, QEvent
+from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter, QKeySequence
 
 from ..core import (
     WSLManager, NanobotController, ConfigManager,
     NanobotGatewayManager, BridgeManager, GatewayStatus
 )
+from ..core.config_sync_manager import ConfigSyncManager
 from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
 from ..utils import make_thread_safe
 from ..constants import Bridge, VERSION
 from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel
+from .styles import get_stylesheet
 
 
 class MainWindow(QMainWindow):
@@ -185,12 +189,9 @@ class MainWindow(QMainWindow):
         self._apply_styles()
 
     def _apply_styles(self):
-        from .styles import get_stylesheet
         self.setStyleSheet(get_stylesheet())
 
     def _init_managers(self):
-        from loguru import logger
-        
         distros = self._wsl_manager.list_distros()
         valid_distro_names = {d.name for d in distros} if distros else set()
         
@@ -320,7 +321,6 @@ class MainWindow(QMainWindow):
         pass
 
     def _update_client_count(self):
-        from loguru import logger
         if self._windows_bridge and self._windows_bridge.is_running:
             clients_info = self._windows_bridge.get_connected_clients_info()
             distros = self._wsl_manager.list_distros()
@@ -332,7 +332,6 @@ class MainWindow(QMainWindow):
 
     def _on_start_bridge(self):
         """处理启动桥接服务"""
-        from loguru import logger
         logger.info("=== 开始启动桥接服务 ===")
         
         if self._windows_bridge:
@@ -350,7 +349,6 @@ class MainWindow(QMainWindow):
 
     def _on_stop_bridge(self):
         """处理停止桥接服务"""
-        from loguru import logger
         logger.info("=== 开始停止桥接服务 ===")
         
         self._client_count_timer.stop()
@@ -366,7 +364,6 @@ class MainWindow(QMainWindow):
 
     def _on_bridge_port_changed(self, port: int):
         """处理桥接端口变更 - 自动同步配置并重启 IPC Server"""
-        from loguru import logger
         logger.info(f"桥接端口变更为: {port}")
         
         default_config = self._config_manager.get_default()
@@ -374,7 +371,6 @@ class MainWindow(QMainWindow):
             default_config.bridge_port = port
             self._config_manager.save(default_config)
             
-            from ..core.config_sync_manager import ConfigSyncManager
             sync_manager = ConfigSyncManager(self._wsl_manager)
             
             for config in self._config_manager.get_all().values():
@@ -399,7 +395,6 @@ class MainWindow(QMainWindow):
 
     def _on_restart_wsl(self, distro_name: str):
         """处理重启 WSL 分发"""
-        from loguru import logger
         logger.info(f"重启 WSL 分发: {distro_name}")
         
         distro = self._wsl_manager.get_distro(distro_name)
@@ -413,7 +408,6 @@ class MainWindow(QMainWindow):
 
     def _on_refresh_distros(self):
         """处理刷新 WSL 分发列表"""
-        from loguru import logger
         logger.info("刷新 WSL 分发列表")
         
         distros = self._wsl_manager.list_distros()
@@ -422,7 +416,6 @@ class MainWindow(QMainWindow):
 
     def _on_start_wsl_distro(self, distro_name: str):
         """处理启动 WSL 分发"""
-        from loguru import logger
         logger.info(f"启动 WSL 分发: {distro_name}")
         
         success = self._wsl_manager.start_distro(distro_name)
@@ -435,7 +428,6 @@ class MainWindow(QMainWindow):
 
     def _on_stop_wsl_distro(self, distro_name: str):
         """处理停止 WSL 分发"""
-        from loguru import logger
         logger.info(f"停止 WSL 分发: {distro_name}")
         
         success = self._wsl_manager.stop_distro(distro_name)
@@ -448,7 +440,6 @@ class MainWindow(QMainWindow):
 
     def _on_refresh_wsl_status(self):
         """刷新 WSL 连通状态"""
-        from loguru import logger
         logger.info("刷新 WSL 连通状态")
         
         distros = self._wsl_manager.list_distros()
@@ -461,9 +452,6 @@ class MainWindow(QMainWindow):
         self.bridge_panel._add_log(f"✓ WSL 连通状态已刷新，共 {len(distros)} 个分发")
 
     def _on_chat_connect(self):
-        from PyQt6.QtWidgets import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-        from loguru import logger
-        
         logger.info("=== 开始聊天连接流程 ===")
         
         # 获取选中的 nanobots
@@ -618,9 +606,6 @@ class MainWindow(QMainWindow):
 
     def _on_single_nanobot_connect(self, nanobot_name: str):
         """处理单个bot的连接请求"""
-        from PyQt6.QtWidgets import QMessageBox
-        from loguru import logger
-        
         logger.info(f"=== 开始连接单个 Bot: {nanobot_name} ===")
         
         config = self._config_manager.get(nanobot_name)
@@ -678,8 +663,6 @@ class MainWindow(QMainWindow):
     
     def _on_single_nanobot_disconnect(self, nanobot_name: str):
         """处理单个bot的断开请求"""
-        from loguru import logger
-        
         logger.info(f"[MainWindow] 断开 {nanobot_name} 连接")
         
         if nanobot_name in self._chat_clients:
@@ -694,8 +677,6 @@ class MainWindow(QMainWindow):
                 self.chat_panel.set_connection_status(nanobot_name, False)
     
     def _on_chat_disconnect(self, bot_name: str = ""):
-        from loguru import logger
-        
         if bot_name:
             logger.info(f"[MainWindow] 断开 {bot_name} 连接")
             if bot_name in self._chat_clients:
@@ -723,7 +704,6 @@ class MainWindow(QMainWindow):
         self.chat_panel.clear_messages()
 
     def _on_chat_message_sent(self, message: str, selected_nanobots: list):
-        from loguru import logger
         logger.info(f"[MainWindow] 聊天消息发送: {message[:100]}..., 目标: {selected_nanobots}")
         
         if not self._chat_clients:
@@ -744,8 +724,6 @@ class MainWindow(QMainWindow):
             logger.warning("[MainWindow] 没有成功向任何 nanobot 发送消息")
 
     def _on_chat_message_received(self, message: str, nanobot_name: Optional[str] = None):
-        from loguru import logger
-        # logger.info(f"[MainWindow] 收到聊天消息: {message[:100]}...")
         self.chat_panel.add_message("assistant", message, nanobot_name)
         
         if self.chat_panel.is_group_chat_enabled() and self._group_chat_forward_allowed:
@@ -758,7 +736,6 @@ class MainWindow(QMainWindow):
         self._group_chat_forward_allowed = True
     
     def _forward_to_other_bots(self, message: str, source_bot: str):
-        from loguru import logger
         selected_bots = list(self.chat_panel._selected_nanobots)
         
         for bot_name in selected_bots:
@@ -821,9 +798,6 @@ class MainWindow(QMainWindow):
             self.activateWindow()
 
     def keyPressEvent(self, event):
-        from PyQt6.QtGui import QKeySequence
-        from PyQt6.QtCore import Qt
-
         modifiers = event.modifiers()
         key = event.key()
 
@@ -867,7 +841,6 @@ class MainWindow(QMainWindow):
             self.config_panel.save_current_config()
 
     def changeEvent(self, event):
-        from PyQt6.QtCore import QEvent
         if event.type() == QEvent.Type.WindowStateChange:
             if self.windowState() & Qt.WindowState.WindowMinimized:
                 self.hide()

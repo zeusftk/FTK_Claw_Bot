@@ -1,6 +1,8 @@
 import subprocess
 import re
 import threading
+import traceback
+import time
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from dataclasses import dataclass
@@ -150,8 +152,6 @@ class WSLManager:
         Returns:
             CommandResult: 包含执行结果的 CommandResult 对象
         """
-        from loguru import logger
-        
         logger.info(f"export_distro 开始: distro_name={distro_name}, output_path={output_path}")
         
         if not _validate_distro_name(distro_name):
@@ -217,7 +217,6 @@ class WSLManager:
             )
         except Exception as e:
             logger.error(f"导出过程异常: {e}")
-            import traceback
             logger.error(f"详细堆栈: {traceback.format_exc()}")
             return CommandResult(
                 success=False,
@@ -468,7 +467,6 @@ class WSLManager:
             self._monitor_thread = None
 
     def _monitor_loop(self):
-        import time
         while self._monitor_running:
             try:
                 self.list_distros()
@@ -592,8 +590,6 @@ class WSLManager:
         Returns:
             CommandResult: 包含执行结果的 CommandResult 对象
         """
-        from loguru import logger
-        
         logger.info(f"import_distro 开始: tar_path={tar_path}, distro_name={distro_name}")
         
         if not _validate_distro_name(distro_name):
@@ -667,7 +663,6 @@ class WSLManager:
             )
         except Exception as e:
             logger.error(f"导入过程异常: {e}")
-            import traceback
             logger.error(f"详细堆栈: {traceback.format_exc()}")
             return CommandResult(
                 success=False,
