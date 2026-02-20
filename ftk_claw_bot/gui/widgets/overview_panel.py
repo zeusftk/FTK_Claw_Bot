@@ -869,9 +869,7 @@ class OverviewPanel(QWidget):
             line_edit.setText(file_path)
 
     def _browse_install_dir(self, line_edit):
-        dir_path = QFileDialog.getExistingDirectory(
-            self, "选择存放 WSL 分发的目录"
-        )
+        dir_path = QFileDialog.getExistingDirectory(self, "选择存放 WSL 分发的目录")
         if dir_path:
             line_edit.setText(dir_path)
 
@@ -1143,9 +1141,7 @@ class OverviewPanel(QWidget):
         dialog.exec()
 
     def _browse_export_dir(self, line_edit):
-        dir_path = QFileDialog.getExistingDirectory(
-            self, "选择 tar 文件保存目录"
-        )
+        dir_path = QFileDialog.getExistingDirectory(self, "选择 tar 文件保存目录")
         if dir_path:
             line_edit.setText(dir_path)
 

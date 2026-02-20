@@ -3,34 +3,57 @@ import threading
 from typing import Optional, Tuple, List, Any
 from dataclasses import dataclass
 
-try:
-    import pyautogui
-    pyautogui.FAILSAFE = True
-    pyautogui.PAUSE = 0.1
-    PYAUTOGUI_AVAILABLE = True
-except ImportError:
-    PYAUTOGUI_AVAILABLE = False
+PYAUTOGUI_AVAILABLE = True
+PIL_AVAILABLE = True
+WIN32_AVAILABLE = True
 
-try:
-    import pywinauto
-    from pywinauto import Application
-    PYWINAUTO_AVAILABLE = True
-except ImportError:
-    PYWINAUTO_AVAILABLE = False
 
-try:
-    from PIL import Image
-    import io
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+def _get_pyautogui():
+    global PYAUTOGUI_AVAILABLE
+    if not PYAUTOGUI_AVAILABLE:
+        return None
+    try:
+        import pyautogui
+        pyautogui.FAILSAFE = True
+        pyautogui.PAUSE = 0.1
+        return pyautogui
+    except ImportError:
+        PYAUTOGUI_AVAILABLE = False
+        return None
 
-try:
-    import win32clipboard
-    import win32con
-    WIN32_AVAILABLE = True
-except ImportError:
-    WIN32_AVAILABLE = False
+
+def _get_pil():
+    global PIL_AVAILABLE
+    if not PIL_AVAILABLE:
+        return None
+    try:
+        from PIL import Image
+        import io
+        return Image, io
+    except ImportError:
+        PIL_AVAILABLE = False
+        return None
+
+
+def _get_win32():
+    global WIN32_AVAILABLE
+    if not WIN32_AVAILABLE:
+        return None, None
+    try:
+        import win32clipboard
+        import win32con
+        return win32clipboard, win32con
+    except ImportError:
+        WIN32_AVAILABLE = False
+        return None, None
+
+
+def _get_pywinauto_app():
+    try:
+        from pywinauto import Application
+        return Application
+    except ImportError:
+        return None
 
 
 @dataclass
@@ -44,16 +67,11 @@ class WindowInfo:
 
 class WindowsAutomation:
     def __init__(self):
-        self._check_dependencies()
-
-    def _check_dependencies(self):
-        if not PYAUTOGUI_AVAILABLE:
-            print("Warning: pyautogui not available, some features will be disabled")
-        if not PYWINAUTO_AVAILABLE:
-            print("Warning: pywinauto not available, some features will be disabled")
+        pass
 
     def mouse_click(self, x: int, y: int, button: str = "left", clicks: int = 1) -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
             pyautogui.click(x=x, y=y, button=button, clicks=clicks)
@@ -68,7 +86,8 @@ class WindowsAutomation:
         return self.mouse_click(x, y, button="right")
 
     def mouse_move(self, x: int, y: int, duration: float = 0.0) -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
             pyautogui.moveTo(x, y, duration=duration)
@@ -78,7 +97,8 @@ class WindowsAutomation:
 
     def mouse_drag(self, start_x: int, start_y: int, end_x: int, end_y: int,
                    duration: float = 0.5, button: str = "left") -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
             pyautogui.moveTo(start_x, start_y)
@@ -88,7 +108,8 @@ class WindowsAutomation:
             return False
 
     def mouse_scroll(self, clicks: int, x: Optional[int] = None, y: Optional[int] = None) -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
             pyautogui.scroll(clicks, x, y)
@@ -97,16 +118,36 @@ class WindowsAutomation:
             return False
 
     def keyboard_type(self, text: str, interval: float = 0.0) -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
-            pyautogui.typewrite(text, interval=interval)
+            if self._contains_non_ascii(text):
+                return self._type_via_clipboard(text)
+            else:
+                pyautogui.typewrite(text, interval=interval)
+                return True
+        except Exception:
+            return False
+
+    def _contains_non_ascii(self, text: str) -> bool:
+        return any(ord(char) > 127 for char in text)
+
+    def _type_via_clipboard(self, text: str) -> bool:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
+            return False
+        if not self.set_clipboard(text):
+            return False
+        try:
+            pyautogui.hotkey('ctrl', 'v')
             return True
         except Exception:
             return False
 
     def keyboard_press(self, key: str) -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
             pyautogui.press(key)
@@ -115,7 +156,8 @@ class WindowsAutomation:
             return False
 
     def keyboard_hotkey(self, *keys: str) -> bool:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return False
         try:
             pyautogui.hotkey(*keys)
@@ -124,8 +166,11 @@ class WindowsAutomation:
             return False
 
     def screenshot(self, region: Optional[Tuple[int, int, int, int]] = None) -> Optional[bytes]:
-        if not PYAUTOGUI_AVAILABLE or not PIL_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        result = _get_pil()
+        if pyautogui is None or result is None:
             return None
+        Image, io = result
         try:
             img = pyautogui.screenshot(region=region)
             buffer = io.BytesIO()
@@ -135,17 +180,20 @@ class WindowsAutomation:
             return None
 
     def get_screen_size(self) -> Tuple[int, int]:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return (0, 0)
         return pyautogui.size()
 
     def get_mouse_position(self) -> Tuple[int, int]:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return (0, 0)
         return pyautogui.position()
 
     def find_window(self, title: str) -> Optional[WindowInfo]:
-        if not PYWINAUTO_AVAILABLE:
+        Application = _get_pywinauto_app()
+        if Application is None:
             return None
         try:
             app = Application(backend="uia").connect(title_re=f".*{title}.*", timeout=5)
@@ -162,7 +210,8 @@ class WindowsAutomation:
             return None
 
     def list_windows(self) -> List[WindowInfo]:
-        if not PYWINAUTO_AVAILABLE:
+        Application = _get_pywinauto_app()
+        if Application is None:
             return []
         try:
             windows = []
@@ -208,7 +257,8 @@ class WindowsAutomation:
             return False
 
     def get_clipboard(self) -> str:
-        if not WIN32_AVAILABLE:
+        win32clipboard, win32con = _get_win32()
+        if win32clipboard is None:
             return ""
         try:
             win32clipboard.OpenClipboard()
@@ -221,7 +271,8 @@ class WindowsAutomation:
             return ""
 
     def set_clipboard(self, text: str) -> bool:
-        if not WIN32_AVAILABLE:
+        win32clipboard, win32con = _get_win32()
+        if win32clipboard is None:
             return False
         try:
             win32clipboard.OpenClipboard()
@@ -235,7 +286,8 @@ class WindowsAutomation:
             return False
 
     def locate_on_screen(self, image_path: str, confidence: float = 0.9) -> Optional[Tuple[int, int, int, int]]:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return None
         try:
             return pyautogui.locateOnScreen(image_path, confidence=confidence)
@@ -244,7 +296,8 @@ class WindowsAutomation:
 
     def wait_for_image(self, image_path: str, timeout: float = 10.0,
                        confidence: float = 0.9) -> Optional[Tuple[int, int, int, int]]:
-        if not PYAUTOGUI_AVAILABLE:
+        pyautogui = _get_pyautogui()
+        if pyautogui is None:
             return None
         try:
             return pyautogui.locateOnScreen(image_path, confidence=confidence,

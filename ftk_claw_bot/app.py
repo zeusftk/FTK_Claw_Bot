@@ -6,6 +6,7 @@ from typing import Optional
 from loguru import logger
 
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
 
 from .constants import VERSION, APP_NAME, APP_AUTHOR, UI
 from .container import container
@@ -38,9 +39,9 @@ class Application:
         self._splash = None
     
     def setup_environment(self):
-        os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
-        os.environ["QT_SCALE_FACTOR_ROUNDING_POLICY"] = "Round"
-        os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
+        QApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor
+        )
     
     def setup_logging(self, console: bool = True):
         setup_logger("ftk_claw_bot", console=console)
