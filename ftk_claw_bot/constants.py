@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 APP_NAME = "FTK_Claw_Bot"
 APP_AUTHOR = "FTK Team"
 APP_EMAIL = "zeusftk@gmail.com"
@@ -62,6 +62,14 @@ class Monitor:
     DEFAULT_INTERVAL = 5.0
     WSL_CHECK_INTERVAL = 10.0
     NANOBOT_CHECK_INTERVAL = 5.0
+
+
+class Language:
+    DEFAULT = "zh_CN"
+    SUPPORTED = {
+        "zh_CN": "简体中文",
+        "en_US": "English"
+    }
 
 
 class LogLevel(str, Enum):

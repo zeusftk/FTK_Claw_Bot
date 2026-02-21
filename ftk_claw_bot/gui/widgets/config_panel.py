@@ -18,6 +18,7 @@ from ...core import ConfigManager, WSLManager
 from ...models import NanobotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
 from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.thread_safe import ThreadSafeSignal
+from ...utils.i18n import tr, I18nManager
 from ..mixins import WSLStateAwareMixin
 from .channel_config_dialog import get_channel_dialog
 from .skills_config_widget import SkillsConfigWidget
@@ -112,7 +113,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         layout.addWidget(right_panel, 1)
 
     def _create_left_panel(self) -> QFrame:
-        """创建左侧面板"""
         panel = QFrame()
         panel.setObjectName("leftPanel")
         panel.setFixedWidth(280)
@@ -121,9 +121,8 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        # 标题
         header = QHBoxLayout()
-        title = QLabel("WSL 分发")
+        title = QLabel(tr("config.title", "WSL 分发"))
         title.setObjectName("panelTitle")
         font = QFont()
         font.setPointSize(16)
@@ -132,16 +131,14 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         header.addWidget(title)
         header.addStretch()
         
-        # 刷新按钮
         refresh_btn = QPushButton("🔄")
         refresh_btn.setObjectName("smallButton")
-        refresh_btn.setToolTip("刷新 WSL 分发列表")
+        refresh_btn.setToolTip(tr("btn.refresh", "刷新"))
         refresh_btn.clicked.connect(self._refresh_data)
         header.addWidget(refresh_btn)
 
         layout.addLayout(header)
 
-        # 配置列表（显示WSL分发）
         self.config_list = QListWidget()
         self.config_list.setObjectName("configList")
         self.config_list.currentItemChanged.connect(self._on_config_selected)
@@ -158,7 +155,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         layout.setSpacing(20)
 
         header = QHBoxLayout()
-        self.config_title = QLabel("配置详情")
+        self.config_title = QLabel(tr("config.details", "配置详情"))
         self.config_title.setObjectName("panelTitle")
         font = QFont()
         font.setPointSize(16)
@@ -172,24 +169,24 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self._tab_widget.setObjectName("configTabWidget")
         
         basic_tab = self._create_basic_settings_tab()
-        self._tab_widget.addTab(basic_tab, "基础设置")
+        self._tab_widget.addTab(basic_tab, tr("config.tab.basic", "基础设置"))
         
         skills_tab = self._create_skills_tab()
-        self._tab_widget.addTab(skills_tab, "技能配置")
+        self._tab_widget.addTab(skills_tab, tr("config.tab.skills", "技能配置"))
         
         layout.addWidget(self._tab_widget, 1)
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        save_btn = QPushButton("更新配置")
+        save_btn = QPushButton(tr("btn.save", "保存"))
         save_btn.setObjectName("primaryButton")
         save_btn.clicked.connect(self._save_config)
         
-        reset_btn = QPushButton("重置")
+        reset_btn = QPushButton(tr("btn.reset", "重置"))
         reset_btn.clicked.connect(self._reset_form)
         
-        set_default_btn = QPushButton("设为默认")
+        set_default_btn = QPushButton(tr("btn.confirm", "确认"))
         set_default_btn.clicked.connect(self._set_default_config)
 
         btn_layout.addWidget(save_btn)
@@ -228,10 +225,10 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.form_layout.setContentsMargins(0, 0, 20, 0)
         self.form_layout.setSpacing(20)
 
-        basic_card = ConfigCard("基本信息")
+        basic_card = ConfigCard(tr("config.card.basic_info", "基本信息"))
         
         self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("配置名称等于WSL分发名称")
+        self.name_edit.setPlaceholderText(tr("config.placeholder.name_equals_distro", "配置名称等于WSL分发名称"))
         self.name_edit.setReadOnly(True)
         self.name_edit.setStyleSheet("""
             QLineEdit {
@@ -243,7 +240,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 font-size: 14px;
             }
         """)
-        basic_card.add_row("配置名称", self.name_edit)
+        basic_card.add_row(tr("config.label.name", "配置名称"), self.name_edit)
 
         self.distro_combo = QComboBox()
         self.distro_combo.setEnabled(False)
@@ -257,35 +254,35 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 font-size: 14px;
             }
         """)
-        basic_card.add_row("WSL 分发", self.distro_combo)
+        basic_card.add_row(tr("config.label.distro", "WSL 分发"), self.distro_combo)
         
         self.form_layout.addWidget(basic_card)
 
-        workspace_card = ConfigCard("工作空间")
+        workspace_card = ConfigCard(tr("config.card.workspace", "工作空间"))
         
         ws_row = QHBoxLayout()
         ws_row.setSpacing(8)
         self.windows_ws_edit = QLineEdit()
-        self.windows_ws_edit.setPlaceholderText("D:\\clawbot_workspace")
-        browse_btn = QPushButton("浏览")
+        self.windows_ws_edit.setPlaceholderText(tr("config.placeholder.windows_workspace", "D:\\clawbot_workspace"))
+        browse_btn = QPushButton(tr("config.label.browse", "浏览"))
         browse_btn.setObjectName("smallButton")
         browse_btn.clicked.connect(self._browse_workspace)
         ws_row.addWidget(self.windows_ws_edit)
         ws_row.addWidget(browse_btn)
-        workspace_card.add_row("Windows", ws_row)
+        workspace_card.add_row(tr("config.label.windows", "Windows"), ws_row)
 
         self.wsl_ws_label = QLabel("--")
         self.wsl_ws_label.setObjectName("pathLabel")
-        workspace_card.add_row("WSL 路径", self.wsl_ws_label)
+        workspace_card.add_row(tr("config.label.wsl_path", "WSL 路径"), self.wsl_ws_label)
 
-        self.sync_mnt_check = QCheckBox("同步到 /mnt 目录")
+        self.sync_mnt_check = QCheckBox(tr("config.label.sync_to_mnt", "同步到 /mnt 目录"))
         self.sync_mnt_check.setChecked(True)
         self.sync_mnt_check.stateChanged.connect(self._on_sync_changed)
         workspace_card.add_widget(self.sync_mnt_check)
         
         self.form_layout.addWidget(workspace_card)
 
-        llm_card = ConfigCard("LLM 配置")
+        llm_card = ConfigCard(tr("config.card.llm", "LLM 配置"))
         
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([
@@ -295,42 +292,42 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         ])
         self.provider_combo.currentTextChanged.connect(self._update_models)
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
-        llm_card.add_row("提供商", self.provider_combo)
+        llm_card.add_row(tr("config.label.provider", "提供商"), self.provider_combo)
 
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
         self._update_models()
-        llm_card.add_row("模型", self.model_combo)
+        llm_card.add_row(tr("config.label.model", "模型"), self.model_combo)
 
         key_row = QHBoxLayout()
         key_row.setSpacing(8)
         self.apiKey_edit = QLineEdit()
         self.apiKey_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.apiKey_edit.setPlaceholderText("输入 API Key")
+        self.apiKey_edit.setPlaceholderText(tr("config.placeholder.api_key", "输入 API Key"))
         show_key_btn = QPushButton("👁")
         show_key_btn.setObjectName("smallButton")
         show_key_btn.setCheckable(True)
-        show_key_btn.setToolTip("显示/隐藏 API Key")
+        show_key_btn.setToolTip(tr("config.tooltip.show_hide_key", "显示/隐藏 API Key"))
         show_key_btn.toggled.connect(lambda checked: self.apiKey_edit.setEchoMode(
             QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
         ))
         copy_key_btn = QPushButton("📋")
         copy_key_btn.setObjectName("smallButton")
-        copy_key_btn.setToolTip("复制 API Key 到剪贴板")
+        copy_key_btn.setToolTip(tr("config.tooltip.copy_key", "复制 API Key 到剪贴板"))
         copy_key_btn.clicked.connect(self._copy_apiKey)
         key_row.addWidget(self.apiKey_edit)
         key_row.addWidget(show_key_btn)
         key_row.addWidget(copy_key_btn)
-        llm_card.add_row("API Key", key_row)
+        llm_card.add_row(tr("config.label.api_key", "API Key"), key_row)
 
         oauth_row = QHBoxLayout()
         oauth_row.setSpacing(8)
-        self.oauth_status_label = QLabel("未登录")
+        self.oauth_status_label = QLabel(tr("config.status.not_logged_in", "未登录"))
         self.oauth_status_label.setObjectName("oauthStatusLabel")
         self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
-        self.oauth_login_btn = QPushButton("OAuth 登录")
+        self.oauth_login_btn = QPushButton(tr("config.oauth_login", "OAuth 登录"))
         self.oauth_login_btn.setObjectName("smallButton")
-        self.oauth_login_btn.setToolTip("使用 OAuth 登录 Qwen Portal")
+        self.oauth_login_btn.setToolTip(tr("config.tooltip.oauth_login", "使用 OAuth 登录 Qwen Portal"))
         self.oauth_login_btn.clicked.connect(self._on_oauth_login)
         oauth_row.addWidget(self.oauth_status_label)
         oauth_row.addWidget(self.oauth_login_btn)
@@ -343,29 +340,29 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         url_row = QHBoxLayout()
         url_row.setSpacing(8)
         self.base_url_edit = QLineEdit()
-        self.base_url_edit.setPlaceholderText("https://api.example.com/v1")
+        self.base_url_edit.setPlaceholderText(tr("config.placeholder.base_url", "https://api.example.com/v1"))
         url_row.addWidget(self.base_url_edit)
-        llm_card.add_row("自定义 URL", url_row)
+        llm_card.add_row(tr("config.label.custom_url", "自定义 URL"), url_row)
         
         self.form_layout.addWidget(llm_card)
 
-        features_card = ConfigCard("功能开关")
+        features_card = ConfigCard(tr("config.card.features", "功能开关"))
         
-        self.memory_check = QCheckBox("启用记忆功能")
+        self.memory_check = QCheckBox(tr("config.label.enable_memory", "启用记忆功能"))
         self.memory_check.setChecked(True)
         features_card.add_widget(self.memory_check)
 
-        self.web_search_check = QCheckBox("启用网络搜索")
+        self.web_search_check = QCheckBox(tr("config.label.enable_web_search", "启用网络搜索"))
         self.web_search_check.setChecked(True)
         features_card.add_widget(self.web_search_check)
 
         brave_row = QHBoxLayout()
         brave_row.setSpacing(8)
-        brave_label = QLabel("Brave Key:")
+        brave_label = QLabel(tr("config.label.brave_key", "Brave Key:"))
         brave_label.setObjectName("fieldLabel")
         brave_label.setFixedWidth(100)
         self.brave_key_edit = QLineEdit()
-        self.brave_key_edit.setPlaceholderText("Brave Search API Key (可选)")
+        self.brave_key_edit.setPlaceholderText(tr("config.placeholder.brave_key", "Brave Search API Key (可选)"))
         self.brave_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         brave_row.addWidget(brave_label)
         brave_row.addWidget(self.brave_key_edit)
@@ -373,31 +370,31 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         self.form_layout.addWidget(features_card)
 
-        log_card = ConfigCard("日志设置")
+        log_card = ConfigCard(tr("config.card.log", "日志设置"))
         
         self.log_level_combo = QComboBox()
         self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
-        log_card.add_row("日志级别", self.log_level_combo)
+        log_card.add_row(tr("config.label.log_level", "日志级别"), self.log_level_combo)
         
         self.form_layout.addWidget(log_card)
         
-        gateway_card = ConfigCard("Gateway 设置")
+        gateway_card = ConfigCard(tr("config.card.gateway", "Gateway 设置"))
         
         self.gateway_host_edit = QLineEdit()
-        self.gateway_host_edit.setPlaceholderText("0.0.0.0")
+        self.gateway_host_edit.setPlaceholderText(tr("config.placeholder.gateway_host", "0.0.0.0"))
         self.gateway_host_edit.hide()
         
         gateway_port_row = QHBoxLayout()
         gateway_port_row.setSpacing(8)
         self.gateway_port_edit = QLineEdit()
-        self.gateway_port_edit.setPlaceholderText("18888")
+        self.gateway_port_edit.setPlaceholderText(tr("config.placeholder.gateway_port", "18888"))
         gateway_port_row.addWidget(self.gateway_port_edit)
         
         self.gateway_port_hint_label = QLabel("")
         self.gateway_port_hint_label.setStyleSheet("color: #8b949e; font-size: 12px;")
         gateway_port_row.addWidget(self.gateway_port_hint_label)
         
-        gateway_card.add_row("Port", gateway_port_row)
+        gateway_card.add_row(tr("config.label.port", "Port"), gateway_port_row)
         
         self.gateway_port_edit.textChanged.connect(self._validate_gateway_port)
         
@@ -417,7 +414,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         pass
 
     def _create_channels_card(self) -> ConfigCard:
-        channels_card = ConfigCard("Channels 配置")
+        channels_card = ConfigCard(tr("config.card.channels", "Channels 配置"))
         
         self._channel_items: dict[str, dict] = {}
         
@@ -446,11 +443,11 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             
             item_layout.addLayout(info_layout, 1)
             
-            enable_check = QCheckBox("启用")
+            enable_check = QCheckBox(tr("config.label.enable", "启用"))
             enable_check.setObjectName("channelEnableCheck")
             item_layout.addWidget(enable_check)
             
-            config_btn = QPushButton("配置")
+            config_btn = QPushButton(tr("config.label.configure", "配置"))
             config_btn.setObjectName("smallButton")
             config_btn.setFixedWidth(60)
             item_layout.addWidget(config_btn)
@@ -561,7 +558,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         for distro in distros:
             item = QListWidgetItem(distro.name)
             if distro.name == default_name:
-                item.setText(f"{distro.name} (默认)")
+                item.setText(f"{distro.name}{tr('config.msg.default_suffix', ' (默认)')}")
             self.config_list.addItem(item)
 
         if distros:
@@ -670,12 +667,12 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         try:
             port = int(port_text)
         except ValueError:
-            self.gateway_port_hint_label.setText("⚠ 请输入有效数字")
+            self.gateway_port_hint_label.setText(tr("config.msg.port_valid_number", "⚠ 请输入有效数字"))
             self.gateway_port_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
             return False
         
         if port < 1024 or port > 65535:
-            self.gateway_port_hint_label.setText("⚠ 端口范围: 1024-65535")
+            self.gateway_port_hint_label.setText(tr("config.msg.port_range", "⚠ 端口范围: 1024-65535"))
             self.gateway_port_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
             return False
         
@@ -686,11 +683,11 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 existing_ports[config.gateway_port] = config.distro_name
         
         if port in existing_ports:
-            self.gateway_port_hint_label.setText(f"⚠ 已被 '{existing_ports[port]}' 使用")
+            self.gateway_port_hint_label.setText(tr("config.msg.port_in_use", "⚠ 已被 '{name}' 使用").format(name=existing_ports[port]))
             self.gateway_port_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
             return False
         else:
-            self.gateway_port_hint_label.setText("✓ 端口可用")
+            self.gateway_port_hint_label.setText(tr("config.msg.port_available", "✓ 端口可用"))
             self.gateway_port_hint_label.setStyleSheet("color: #3fb950; font-size: 12px;")
             return True
 
@@ -698,7 +695,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if not current:
             return
         
-        name = current.text().replace(" (默认)", "")
+        name = current.text().replace(tr('config.msg.default_suffix', ' (默认)'), "")
         config = self._config_manager.get(name)
         if config:
             # 确保配置名称等于WSL分发名称
@@ -711,7 +708,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             self._populate_form(config)
 
     def _populate_form(self, config: NanobotConfig):
-        self.config_title.setText(f"配置详情: {config.name}")
+        self.config_title.setText(f"{tr('config.details', '配置详情')}: {config.name}")
         self.name_edit.setText(config.name)
         index = self.distro_combo.findText(config.distro_name)
         if index >= 0:
@@ -755,14 +752,14 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             self.wsl_ws_label.setText("--")
 
     def _browse_workspace(self):
-        folder = QFileDialog.getExistingDirectory(self, "选择工作空间目录")
+        folder = QFileDialog.getExistingDirectory(self, tr("config.msg.select_workspace", "选择工作空间目录"))
         if folder:
             self.windows_ws_edit.setText(folder)
             self._update_wsl_path()
 
     def _new_config(self):
         self._current_config = None
-        self.config_title.setText("配置详情")
+        self.config_title.setText(tr("config.details", "配置详情"))
         self._reset_form()
 
         distros = self._wsl_manager.list_distros()
@@ -774,7 +771,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
     def _import_config(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "导入配置", "", "JSON Files (*.json)"
+            self, tr("config.msg.import_config", "导入配置"), "", "JSON Files (*.json)"
         )
         if file_path:
             try:
@@ -787,25 +784,25 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 
                 # 检查配置名称
                 if config.name in all_configs:
-                    QMessageBox.warning(self, "错误", f"配置名称 '{config.name}' 已存在，无法导入")
+                    QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.name_exists", "配置名称 '{name}' 已存在，无法导入").format(name=config.name))
                     return
                 
                 # 检查WSL分发
                 if config.distro_name:
                     for existing_config in all_configs.values():
                         if existing_config.distro_name == config.distro_name:
-                            QMessageBox.warning(self, "错误", f"WSL 分发 '{config.distro_name}' 已被配置 '{existing_config.name}' 使用，无法导入")
+                            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.distro_in_use", "WSL 分发 '{distro}' 已被配置 '{name}' 使用，无法导入").format(distro=config.distro_name, name=existing_config.name))
                             return
                 
                 self._config_manager.save(config)
                 self._load_configs()
-                QMessageBox.information(self, "成功", f"已导入配置: {config.name}")
+                QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.imported", "已导入配置: {name}").format(name=config.name))
             except Exception as e:
-                QMessageBox.warning(self, "错误", f"导入失败: {e}")
+                QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.import_failed", "导入失败: {error}").format(error=e))
 
     def _save_config(self):
         if not self._current_config:
-            QMessageBox.warning(self, "错误", "请先选择一个配置")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_config_first", "请先选择一个配置"))
             return
 
         # 配置名称等于WSL分发名称，不允许修改
@@ -901,24 +898,24 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             
             if need_restart:
                 reply = QMessageBox.question(
-                    self, "重启提示",
-                    f"配置 '{name}' 对应的 clawbot 正在运行，是否需要重启以应用新配置？{sync_message}",
+                    self, tr("config.msg.restart_prompt_title", "重启提示"),
+                    tr("config.msg.restart_prompt", "配置 '{name}' 对应的 clawbot 正在运行，是否需要重启以应用新配置？{sync_message}").format(name=name, sync_message=sync_message),
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     logger.info(f"正在重启 nanobot: {name}")
                     success = self._nanobot_controller.restart(name)
                     if success:
-                        QMessageBox.information(self, "成功", f"已保存配置并重启 clawbot: {name}{sync_message}")
+                        QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.saved_and_restarted", "已保存配置并重启 clawbot: {name}{sync_message}").format(name=name, sync_message=sync_message))
                     else:
-                        QMessageBox.warning(self, "警告", f"配置已保存，但重启 clawbot 失败{sync_message}")
+                        QMessageBox.warning(self, tr("error.warning", "警告"), tr("config.msg.saved_but_restart_failed", "配置已保存，但重启 clawbot 失败{sync_message}").format(sync_message=sync_message))
                 else:
-                    QMessageBox.information(self, "成功", f"已保存配置: {name}{sync_message}")
+                    QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.saved", "已保存配置: {name}{sync_message}").format(name=name, sync_message=sync_message))
             else:
-                QMessageBox.information(self, "成功", f"已保存配置: {name}{sync_message}")
+                QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.saved", "已保存配置: {name}{sync_message}").format(name=name, sync_message=sync_message))
         else:
             logger.error(f"✗ 本地配置保存失败: {name}")
-            QMessageBox.warning(self, "错误", "保存配置失败")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.save_failed", "保存配置失败"))
     
     def _update_config_list_display(self):
         """仅更新配置列表的显示，不重新加载"""
@@ -935,7 +932,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         for distro in distros:
             item_text = distro.name
             if distro.name == default_name:
-                item_text = f"{distro.name} (默认)"
+                item_text = f"{distro.name}{tr('config.msg.default_suffix', ' (默认)')}"
             self.config_list.addItem(item_text)
         
         # 恢复之前的选择
@@ -949,7 +946,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _set_default_config(self):
         if not self._current_config:
-            QMessageBox.warning(self, "错误", "请先选择一个配置")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_config_first", "请先选择一个配置"))
             return
         
         success = self._config_manager.set_default(self._current_config.name)
@@ -957,22 +954,22 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             if self._current_config.distro_name:
                 self._wsl_manager.set_default_distro(self._current_config.distro_name)
             self._load_configs()
-            QMessageBox.information(self, "成功", f"已设置 '{self._current_config.name}' 为默认配置，同时设置 WSL 分发 '{self._current_config.distro_name}' 为默认")
+            QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.set_default_success", "已设置 '{name}' 为默认配置，同时设置 WSL 分发 '{distro}' 为默认").format(name=self._current_config.name, distro=self._current_config.distro_name))
         else:
-            QMessageBox.warning(self, "错误", "设置默认配置失败")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.set_default_failed", "设置默认配置失败"))
     
     def _copy_apiKey(self):
         apiKey = self.apiKey_edit.text()
         if apiKey:
             clipboard = QApplication.clipboard()
             clipboard.setText(apiKey)
-            QMessageBox.information(self, "成功", "API Key 已复制到剪贴板")
+            QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.api_key_copied", "API Key 已复制到剪贴板"))
         else:
-            QMessageBox.warning(self, "提示", "没有可复制的 API Key")
+            QMessageBox.warning(self, tr("error.hint", "提示"), tr("config.msg.no_api_key", "没有可复制的 API Key"))
 
     def _verify_config(self):
         if not self._current_config:
-            QMessageBox.warning(self, "错误", "请先选择或创建一个配置")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_or_create_config", "请先选择或创建一个配置"))
             return
         
         errors = []
@@ -980,39 +977,41 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         successes = []
         
         if self._current_config.distro_name:
-            successes.append(f"✓ WSL 分发: {self._current_config.distro_name}")
+            successes.append(tr("config.verify.distro_ok", "✓ WSL 分发: {distro}").format(distro=self._current_config.distro_name))
         else:
-            errors.append("✗ 未选择 WSL 分发")
+            errors.append(tr("config.verify.no_distro", "✗ 未选择 WSL 分发"))
         
         if self._current_config.windows_workspace:
-            successes.append(f"✓ Windows 工作空间: {self._current_config.windows_workspace}")
+            successes.append(tr("config.verify.workspace_ok", "✓ Windows 工作空间: {workspace}").format(workspace=self._current_config.windows_workspace))
         else:
-            errors.append("✗ 未设置 Windows 工作空间")
+            errors.append(tr("config.verify.no_workspace", "✗ 未设置 Windows 工作空间"))
         
         if self._current_config.apiKey:
-            successes.append("✓ API Key 已设置")
+            successes.append(tr("config.verify.api_key_ok", "✓ API Key 已设置"))
         else:
-            warnings.append("⚠ 未设置 API Key")
+            warnings.append(tr("config.verify.no_api_key", "⚠ 未设置 API Key"))
         
         message_parts = []
         if successes:
-            message_parts.append("【成功项】\n" + "\n".join(successes))
+            message_parts.append(tr("config.msg.success_items", "【成功项】") + "\n" + "\n".join(successes))
         if warnings:
-            message_parts.append("\n【警告项】\n" + "\n".join(warnings))
+            message_parts.append("\n" + tr("config.msg.warning_items", "【警告项】") + "\n" + "\n".join(warnings))
         if errors:
-            message_parts.append("\n【错误项】\n" + "\n".join(errors))
+            message_parts.append("\n" + tr("config.msg.error_items", "【错误项】") + "\n" + "\n".join(errors))
         
         full_message = "\n".join(message_parts)
         
         if errors:
-            QMessageBox.warning(self, "配置验证失败", full_message)
+            QMessageBox.warning(self, tr("config.msg.verify_failed_title", "配置验证失败"), full_message)
         elif warnings:
-            QMessageBox.information(self, "配置验证通过（有警告）", full_message)
+            QMessageBox.information(self, tr("config.msg.verify_passed_with_warnings_title", "配置验证通过（有警告）"), full_message)
         else:
-            QMessageBox.information(self, "配置验证通过", full_message)
+            QMessageBox.information(self, tr("config.msg.verify_passed_title", "配置验证通过"), full_message)
 
-    def _show_loading(self, message: str = "加载中..."):
+    def _show_loading(self, message: str = None):
         """显示加载状态"""
+        if message is None:
+            message = tr("config.msg.loading", "加载中...")
         if self._loading_overlay is None:
             self._loading_overlay = QLabel(self)
             self._loading_overlay.setStyleSheet("""
@@ -1044,14 +1043,14 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             return
 
         if not self._current_config:
-            QMessageBox.warning(self, "错误", "请先选择一个配置")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_config_first", "请先选择一个配置"))
             return
         
         distro_name = self._current_config.distro_name
         logger.info(f"重置配置，从 WSL 分发 '{distro_name}' 读取")
 
         # 显示加载状态
-        self._show_loading("正在从 WSL 读取配置...")
+        self._show_loading(tr("config.msg.reading_from_wsl", "正在从 WSL 读取配置..."))
 
         def reset_operation():
             distro = self._wsl_manager.get_distro(distro_name)
@@ -1081,20 +1080,20 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             # 检查错误结果
             if isinstance(result, AsyncResult) and not result.success:
                 logger.error(f"重置配置失败: {result.error}")
-                QMessageBox.warning(self, "错误", f"重置配置失败: {result.error}")
+                QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.reset_failed", "重置配置失败: {error}").format(error=result.error))
                 return
 
             if result.get("success"):
                 # 在主线程中同步提供商
                 self._sync_providers_from_wsl(result["distro_name"])
                 self._populate_from_nanobot_config(result["config"])
-                QMessageBox.information(self, "成功", f"已从 WSL 分发 '{result['distro_name']}' 重置配置")
+                QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.reset_success", "已从 WSL 分发 '{name}' 重置配置").format(name=result['distro_name']))
             else:
                 error_msg = result.get("error", "未知错误")
                 if "无法启动" in error_msg:
-                    QMessageBox.warning(self, "WSL 分发未运行", error_msg)
+                    QMessageBox.warning(self, tr("config.msg.wsl_not_running_title", "WSL 分发未运行"), error_msg)
                 else:
-                    QMessageBox.information(self, "提示", error_msg)
+                    QMessageBox.information(self, tr("error.hint", "提示"), error_msg)
         
         op = AsyncOperation(self)
         op.execute(reset_operation, on_result)
@@ -1105,24 +1104,24 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     def _import_from_wsl(self):
         """从 WSL 导入配置"""
         if not self._nanobot_controller:
-            QMessageBox.warning(self, "错误", "clawbot 控制器未初始化")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.controller_not_initialized", "clawbot 控制器未初始化"))
             return
         
         distro_name = self.distro_combo.currentText()
         if not distro_name:
-            QMessageBox.warning(self, "错误", "请先选择 WSL 分发")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_distro_first", "请先选择 WSL 分发"))
             return
         
         logger.info(f"从 WSL 导入配置: {distro_name}")
         
         wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
         if not wsl_config:
-            QMessageBox.warning(self, "错误", f"无法从 WSL 分发 '{distro_name}' 读取配置")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.cannot_read_wsl_config", "无法从 WSL 分发 '{distro}' 读取配置").format(distro=distro_name))
             return
         
         logger.info(f"成功读取 WSL 配置")
         self._populate_from_nanobot_config(wsl_config)
-        QMessageBox.information(self, "成功", f"已从 WSL 分发 '{distro_name}' 导入配置")
+        QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.imported_from_wsl", "已从 WSL 分发 '{distro}' 导入配置").format(distro=distro_name))
     
     def _sync_providers_from_wsl(self, distro_name: str):
         """从 WSL 配置同步提供商选项"""
@@ -1211,17 +1210,17 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         distro_name = self._current_config.distro_name if self._current_config else None
         
         if not distro_name:
-            QMessageBox.warning(self, "错误", "请先选择 WSL 分发")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_distro_first", "请先选择 WSL 分发"))
             return
         
         distro = self._wsl_manager.get_distro(distro_name)
         if not distro or not distro.is_running:
             if not self._wsl_manager.start_distro(distro_name):
-                QMessageBox.warning(self, "错误", f"无法启动 WSL 分发: {distro_name}")
+                QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.cannot_start_distro", "无法启动 WSL 分发: {distro}").format(distro=distro_name))
                 return
         
         self.oauth_login_btn.setEnabled(False)
-        self.oauth_status_label.setText("正在登录...")
+        self.oauth_status_label.setText(tr("config.status.logging_in", "正在登录..."))
         self.oauth_status_label.setStyleSheet("color: #58a6ff; font-size: 12px;")
         
         if not hasattr(self, '_oauth_callback_signal'):
@@ -1243,14 +1242,14 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.oauth_login_btn.setEnabled(True)
         
         if success:
-            self.oauth_status_label.setText("已登录")
+            self.oauth_status_label.setText(tr("config.status.logged_in", "已登录"))
             self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
-            QMessageBox.information(self, "成功", "Qwen Portal OAuth 登录成功！")
+            QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.oauth_success", "Qwen Portal OAuth 登录成功！"))
         else:
-            self.oauth_status_label.setText("登录失败")
+            self.oauth_status_label.setText(tr("config.status.login_failed", "登录失败"))
             self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
             error_msg = stderr if stderr else stdout
-            QMessageBox.warning(self, "登录失败", f"OAuth 登录失败:\n{error_msg}")
+            QMessageBox.warning(self, tr("config.msg.login_failed_title", "登录失败"), tr("config.msg.oauth_failed", "OAuth 登录失败:\n{error}").format(error=error_msg))
     
     def _check_oauth_status(self):
         """异步检查 OAuth 认证状态"""
@@ -1276,10 +1275,10 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 return
             
             if exists:
-                self.oauth_status_label.setText("已登录")
+                self.oauth_status_label.setText(tr("config.status.logged_in", "已登录"))
                 self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
             else:
-                self.oauth_status_label.setText("未登录")
+                self.oauth_status_label.setText(tr("config.status.not_logged_in", "未登录"))
                 self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
         
         op = AsyncOperation(self)
@@ -1291,7 +1290,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
         name = self._current_config.name
         reply = QMessageBox.question(
-            self, "确认", f"确定要删除配置 '{name}' 吗？",
+            self, tr("config.msg.confirm_title", "确认"), tr("config.msg.confirm_delete", "确定要删除配置 '{name}' 吗？").format(name=name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
@@ -1299,7 +1298,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             if self._config_manager.delete(name):
                 self._current_config = None
                 self._load_configs()
-                QMessageBox.information(self, "成功", f"已删除配置: {name}")
+                QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.deleted", "已删除配置: {name}").format(name=name))
     
     def on_wsl_status_changed(self, distros: List[Dict], running_count: int, stopped_count: int):
         pass

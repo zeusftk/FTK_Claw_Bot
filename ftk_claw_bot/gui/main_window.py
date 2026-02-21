@@ -17,10 +17,11 @@ from ..core import (
 )
 from ..core.config_sync_manager import ConfigSyncManager
 from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
-from ..utils import make_thread_safe
+from ..utils import make_thread_safe, I18nManager, tr
 from ..constants import Bridge, VERSION
 from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel
 from .styles import get_stylesheet
+from .dialogs import SettingsDialog
 
 
 class MainWindow(QMainWindow):
@@ -80,7 +81,11 @@ class MainWindow(QMainWindow):
             self._init_chat()
 
     def _init_ui(self):
-        self.setWindowTitle(f"抓虾机器人_FTK_Claw_Bot {VERSION}")
+        main_config = self._config_manager.get_main_config()
+        saved_lang = main_config.get("ui", {}).get("language", "zh_CN")
+        I18nManager.initialize(saved_lang)
+        
+        self.setWindowTitle(f"{tr('app.title', '抓虾机器人_FTK_Claw_Bot')} {VERSION}")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
 
@@ -102,7 +107,7 @@ class MainWindow(QMainWindow):
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(2)
 
-        title_main = QLabel("抓虾")
+        title_main = QLabel(tr("nav.title", "抓虾"))
         title_main.setObjectName("navTitleMain")
         title_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_main_font = QFont()
@@ -124,12 +129,12 @@ class MainWindow(QMainWindow):
         self.nav_list = QListWidget()
         self.nav_list.setObjectName("navList")
         self.nav_list.setSpacing(5)
-        self.nav_list.addItem(QListWidgetItem("概览"))
-        self.nav_list.addItem(QListWidgetItem("配置管理"))
-        self.nav_list.addItem(QListWidgetItem("命令执行"))
-        self.nav_list.addItem(QListWidgetItem("聊天"))
-        self.nav_list.addItem(QListWidgetItem("桥接"))
-        self.nav_list.addItem(QListWidgetItem("日志查看"))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.overview", "概览")))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.config", "配置管理")))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.command", "命令执行")))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.chat", "聊天")))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.bridge", "桥接")))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.log", "日志查看")))
         self.nav_list.setCurrentRow(0)
         nav_layout.addWidget(self.nav_list)
 
@@ -139,6 +144,11 @@ class MainWindow(QMainWindow):
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setObjectName("versionLabel")
         nav_layout.addWidget(version_label)
+
+        self.settings_btn = QPushButton(f"⚙ {tr('settings.title', '设置')}")
+        self.settings_btn.setObjectName("settingsButton")
+        self.settings_btn.clicked.connect(self._show_settings)
+        nav_layout.addWidget(self.settings_btn)
 
         main_layout.addWidget(nav_frame)
 
@@ -175,9 +185,9 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
-        self.wsl_status_label = QLabel("WSL: 未检测")
-        self.nanobot_status_label = QLabel("Clawbot: 未运行")
-        self.resource_label = QLabel("CPU: -- | MEM: --")
+        self.wsl_status_label = QLabel(tr("status.wsl_not_detected", "WSL: 未检测"))
+        self.nanobot_status_label = QLabel(tr("status.clawbot_not_running", "Clawbot: 未运行"))
+        self.resource_label = QLabel(tr("status.cpu_mem", "CPU: -- | MEM: --"))
 
         self.status_bar.addWidget(self.wsl_status_label)
         self.status_bar.addWidget(QLabel(" | "))
@@ -187,9 +197,31 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(QLabel("FTK_Claw_Bot v0.1.0"))
 
         self._apply_styles()
+        I18nManager().language_changed.connect(self._retranslate_ui)
 
     def _apply_styles(self):
         self.setStyleSheet(get_stylesheet())
+    
+    def _retranslate_ui(self):
+        self.setWindowTitle(f"{tr('app.title', '抓虾机器人_FTK_Claw_Bot')} {VERSION}")
+        self.nav_list.item(0).setText(tr("nav.overview", "概览"))
+        self.nav_list.item(1).setText(tr("nav.config", "配置管理"))
+        self.nav_list.item(2).setText(tr("nav.command", "命令执行"))
+        self.nav_list.item(3).setText(tr("nav.chat", "聊天"))
+        self.nav_list.item(4).setText(tr("nav.bridge", "桥接"))
+        self.nav_list.item(5).setText(tr("nav.log", "日志查看"))
+        self.wsl_status_label.setText(tr("status.wsl_not_detected", "WSL: 未检测"))
+        self.nanobot_status_label.setText(tr("status.clawbot_not_running", "Clawbot: 未运行"))
+        self.resource_label.setText(tr("status.cpu_mem", "CPU: -- | MEM: --"))
+        self.settings_btn.setText(f"⚙ {tr('settings.title', '设置')}")
+    
+    def _show_settings(self):
+        dialog = SettingsDialog(self._config_manager, self)
+        dialog.settings_saved.connect(self._on_settings_saved)
+        dialog.exec()
+    
+    def _on_settings_saved(self):
+        pass
 
     def _init_managers(self):
         distros = self._wsl_manager.list_distros()
@@ -283,16 +315,16 @@ class MainWindow(QMainWindow):
         painter.end()
 
         self.tray_icon.setIcon(QIcon(pixmap))
-        self.tray_icon.setToolTip("FTK_Claw_Bot")
+        self.tray_icon.setToolTip(tr("app.tray_title", "FTK_Claw_Bot"))
 
         tray_menu = QMenu()
 
-        show_action = QAction("显示主窗口", self)
+        show_action = QAction(tr("tray.show_window", "显示主窗口"), self)
         show_action.triggered.connect(self.showNormal)
         show_action.triggered.connect(self.activateWindow)
         tray_menu.addAction(show_action)
 
-        quit_action = QAction("退出", self)
+        quit_action = QAction(tr("tray.quit", "退出"), self)
         quit_action.triggered.connect(self._quit_app)
         tray_menu.addAction(quit_action)
 
@@ -845,8 +877,8 @@ class MainWindow(QMainWindow):
             if self.windowState() & Qt.WindowState.WindowMinimized:
                 self.hide()
                 self.tray_icon.showMessage(
-                    "FTK_Claw_Bot",
-                    "程序已最小化到系统托盘",
+                    tr("app.tray_title", "FTK_Claw_Bot"),
+                    tr("app.tray_minimized", "程序已最小化到系统托盘"),
                     QSystemTrayIcon.MessageIcon.Information,
                     2000
                 )

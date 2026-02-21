@@ -1,0 +1,25 @@
+warning: in the working copy of 'ftk_claw_bot/constants.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/dialogs/create_distro_wizard.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/dialogs/settings_dialog.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/main_window.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/widgets/chat_panel.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/widgets/command_panel.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/widgets/config_panel.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/widgets/log_panel.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/widgets/overview_panel.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/gui/widgets/windows_bridge_panel.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/services/wsl_initializer.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ftk_claw_bot/utils/__init__.py', LF will be replaced by CRLF the next time Git touches it
+ ftk_claw_bot/constants.py                        |  10 [32m+[m[31m-[m
+ ftk_claw_bot/gui/dialogs/create_distro_wizard.py |   4 [32m+[m[31m-[m
+ ftk_claw_bot/gui/dialogs/settings_dialog.py      | 356 [32m++++++++++++++++[m[31m-------[m
+ ftk_claw_bot/gui/main_window.py                  |  66 [32m+++[m[31m--[m
+ ftk_claw_bot/gui/widgets/chat_panel.py           |  79 [32m++[m[31m---[m
+ ftk_claw_bot/gui/widgets/command_panel.py        |  38 [32m+[m[31m--[m
+ ftk_claw_bot/gui/widgets/config_panel.py         | 221 [32m+++++++[m[31m-------[m
+ ftk_claw_bot/gui/widgets/log_panel.py            |  58 [32m++[m[31m--[m
+ ftk_claw_bot/gui/widgets/overview_panel.py       | 260 [32m++++++++++[m[31m-------[m
+ ftk_claw_bot/gui/widgets/windows_bridge_panel.py | 214 [32m+++++++[m[31m-------[m
+ ftk_claw_bot/services/wsl_initializer.py         |  39 [32m++[m[31m-[m
+ ftk_claw_bot/utils/__init__.py                   |   3 [32m+[m
+ 12 files changed, 805 insertions(+), 543 deletions(-)

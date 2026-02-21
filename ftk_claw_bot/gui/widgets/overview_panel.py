@@ -22,6 +22,7 @@ from ...models import DistroStatus, WSLDistro
 from ...gui.dialogs import show_info, show_critical, show_question, show_warning
 from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
 from ...utils.thread_safe import ThreadSafeSignal
+from ...utils.i18n import tr, I18nManager
 
 
 class ImportProgressDialog(QDialog):
@@ -35,7 +36,7 @@ class ImportProgressDialog(QDialog):
         self._apply_styles()
     
     def _init_ui(self):
-        self.setWindowTitle("导入 WSL 分发")
+        self.setWindowTitle(tr("overview.progress.import.title", "导入 WSL 分发"))
         self.setFixedSize(450, 200)
         self.setWindowFlags(Qt.WindowType.Dialog)
         
@@ -45,7 +46,7 @@ class ImportProgressDialog(QDialog):
         
         layout.addStretch()
         
-        title_label = QLabel("导入 WSL 分发")
+        title_label = QLabel(tr("overview.progress.import.title", "导入 WSL 分发"))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
         title_font.setPointSize(20)
@@ -55,7 +56,7 @@ class ImportProgressDialog(QDialog):
         
         layout.addStretch()
         
-        self.status_label = QLabel("准备导入...")
+        self.status_label = QLabel(tr("overview.progress.preparing", "准备导入..."))
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_font = QFont()
         status_font.setPointSize(10)
@@ -71,7 +72,7 @@ class ImportProgressDialog(QDialog):
         
         layout.addStretch()
         
-        hint_label = QLabel("请稍候，这可能需要几分钟时间...")
+        hint_label = QLabel(tr("overview.progress.wait", "请稍候，这可能需要几分钟时间..."))
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_font = QFont()
         hint_font.setPointSize(9)
@@ -112,19 +113,19 @@ class ImportProgressDialog(QDialog):
         self.progress_bar.setValue(self._progress_value)
         
         if self._progress_value < 25:
-            self.status_label.setText("正在读取 tar 文件...")
+            self.status_label.setText(tr("overview.progress.reading", "正在读取 tar 文件..."))
         elif self._progress_value < 50:
-            self.status_label.setText("正在解压文件...")
+            self.status_label.setText(tr("overview.progress.extracting", "正在解压文件..."))
         elif self._progress_value < 75:
-            self.status_label.setText("正在注册 WSL 分发...")
+            self.status_label.setText(tr("overview.progress.registering", "正在注册 WSL 分发..."))
         else:
-            self.status_label.setText("正在完成导入...")
+            self.status_label.setText(tr("overview.progress.completing", "正在完成导入..."))
     
     def stop_animation(self):
         """停止进度动画"""
         self._timer.stop()
         self.progress_bar.setValue(100)
-        self.status_label.setText("导入完成！")
+        self.status_label.setText(tr("overview.progress.done", "导入完成！"))
     
     def closeEvent(self, event):
         """关闭事件 - 停止定时器"""
@@ -143,7 +144,7 @@ class ExportProgressDialog(QDialog):
         self._apply_styles()
     
     def _init_ui(self):
-        self.setWindowTitle("导出 WSL 分发")
+        self.setWindowTitle(tr("overview.progress.export.title", "导出 WSL 分发"))
         self.setFixedSize(450, 200)
         self.setWindowFlags(Qt.WindowType.Dialog)
         
@@ -153,7 +154,7 @@ class ExportProgressDialog(QDialog):
         
         layout.addStretch()
         
-        title_label = QLabel("导出 WSL 分发")
+        title_label = QLabel(tr("overview.progress.export.title", "导出 WSL 分发"))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
         title_font.setPointSize(20)
@@ -163,7 +164,7 @@ class ExportProgressDialog(QDialog):
         
         layout.addStretch()
         
-        self.status_label = QLabel("准备导出...")
+        self.status_label = QLabel(tr("overview.progress.preparing_export", "准备导出..."))
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_font = QFont()
         status_font.setPointSize(10)
@@ -179,7 +180,7 @@ class ExportProgressDialog(QDialog):
         
         layout.addStretch()
         
-        hint_label = QLabel("请稍候，这可能需要几分钟时间...")
+        hint_label = QLabel(tr("overview.progress.wait", "请稍候，这可能需要几分钟时间..."))
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_font = QFont()
         hint_font.setPointSize(9)
@@ -220,22 +221,22 @@ class ExportProgressDialog(QDialog):
         self.progress_bar.setValue(self._progress_value)
         
         if self._progress_value < 25:
-            self.status_label.setText("正在准备导出...")
+            self.status_label.setText(tr("overview.progress.preparing_export", "正在准备导出..."))
         elif self._progress_value < 50:
-            self.status_label.setText("正在打包文件...")
+            self.status_label.setText(tr("overview.progress.packing", "正在打包文件..."))
         elif self._progress_value < 75:
-            self.status_label.setText("正在创建 tar 文件...")
+            self.status_label.setText(tr("overview.progress.creating_tar", "正在创建 tar 文件..."))
         else:
-            self.status_label.setText("正在完成导出...")
+            self.status_label.setText(tr("overview.progress.completing_export", "正在完成导出..."))
     
     def stop_animation(self, output_path: str = ""):
         """停止进度动画"""
         self._timer.stop()
         self.progress_bar.setValue(100)
         if output_path:
-            self.status_label.setText(f"导出完成！\n{output_path}")
+            self.status_label.setText(tr("overview.progress.export_done", "导出完成！") + f"\n{output_path}")
         else:
-            self.status_label.setText("导出完成！")
+            self.status_label.setText(tr("overview.progress.export_done", "导出完成！"))
     
     def closeEvent(self, event):
         """关闭事件 - 停止定时器"""
@@ -248,6 +249,7 @@ class StatCard(QFrame):
         super().__init__(parent)
         self.setObjectName("statCard")
         self._value_label = None
+        self._title_label = None
         self._init_ui(title, value, icon)
 
     def _init_ui(self, title: str, value: str, icon: str):
@@ -263,10 +265,10 @@ class StatCard(QFrame):
             icon_label.setStyleSheet("font-size: 18px;")
             header.addWidget(icon_label)
 
-        title_label = QLabel(title)
-        title_label.setObjectName("cardTitle")
-        title_label.setStyleSheet("font-size: 12px; color: #8b949e;")
-        header.addWidget(title_label)
+        self._title_label = QLabel(title)
+        self._title_label.setObjectName("cardTitle")
+        self._title_label.setStyleSheet("font-size: 12px; color: #8b949e;")
+        header.addWidget(self._title_label)
         header.addStretch()
 
         layout.addLayout(header)
@@ -308,7 +310,7 @@ class OverviewPanel(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(20)
 
-        title = QLabel("系统概览")
+        title = QLabel(tr("overview.title", "系统概览"))
         title.setObjectName("panelTitle")
         font = QFont()
         font.setPointSize(20)
@@ -319,24 +321,24 @@ class OverviewPanel(QWidget):
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(16)
 
-        self.distro_count_card = StatCard("WSL 分发", "0", "🐧")
+        self.distro_count_card = StatCard(tr("overview.stats.distro_count", "WSL 分发"), "0", "🐧")
         stats_layout.addWidget(self.distro_count_card)
 
-        self.running_card = StatCard("运行中", "0", "▶")
+        self.running_card = StatCard(tr("overview.stats.running", "运行中"), "0", "▶")
         stats_layout.addWidget(self.running_card)
 
-        self.config_card = StatCard("配置文件", "0", "⚙")
+        self.config_card = StatCard(tr("overview.stats.config_count", "配置文件"), "0", "⚙")
         stats_layout.addWidget(self.config_card)
         
-        self.cpu_card = StatCard("CPU 使用率", "0%", "💻")
+        self.cpu_card = StatCard(tr("overview.stats.cpu_usage", "CPU 使用率"), "0%", "💻")
         stats_layout.addWidget(self.cpu_card)
         
-        self.memory_card = StatCard("内存使用", "0MB", "🧠")
+        self.memory_card = StatCard(tr("overview.stats.memory_usage", "内存使用"), "0MB", "🧠")
         stats_layout.addWidget(self.memory_card)
 
         layout.addLayout(stats_layout)
 
-        distro_group = QGroupBox("WSL 分发管理")
+        distro_group = QGroupBox(tr("overview.distro_group", "WSL 分发管理"))
         distro_group.setObjectName("distroGroup")
         distro_layout = QVBoxLayout(distro_group)
         distro_layout.setContentsMargins(12, 12, 12, 12)
@@ -345,11 +347,11 @@ class OverviewPanel(QWidget):
         header_layout = QHBoxLayout()
         header_layout.setSpacing(12)
 
-        self.refresh_btn = QPushButton("🔄 刷新")
-        self.shutdown_all_btn = QPushButton("⏹ 关闭所有")
-        self.import_btn = QPushButton("📥 导入分发")
-        self.create_btn = QPushButton("🆕 创建分发")
-        self.export_btn = QPushButton("📤 导出分发")
+        self.refresh_btn = QPushButton(f"🔄 {tr('btn.refresh', '刷新')}")
+        self.shutdown_all_btn = QPushButton(f"⏹ {tr('btn.shutdown_all', '关闭所有')}")
+        self.import_btn = QPushButton(f"📥 {tr('btn.import', '导入分发')}")
+        self.create_btn = QPushButton(f"🆕 {tr('btn.create', '创建分发')}")
+        self.export_btn = QPushButton(f"📤 {tr('btn.export', '导出分发')}")
 
         for btn in [self.refresh_btn, self.shutdown_all_btn, self.import_btn, self.create_btn, self.export_btn]:
             btn.setMinimumHeight(28)
@@ -365,7 +367,16 @@ class OverviewPanel(QWidget):
 
         self.distro_table = QTableWidget()
         self.distro_table.setColumnCount(8)
-        self.distro_table.setHorizontalHeaderLabels(["分发名称", "版本", "状态", "Port", "内核版本", "CPU%", "内存%", "操作"])
+        self.distro_table.setHorizontalHeaderLabels([
+            tr("table.distro_name", "分发名称"),
+            tr("table.version", "版本"),
+            tr("table.status", "状态"),
+            tr("table.port", "Port"),
+            tr("table.kernel", "内核版本"),
+            tr("table.cpu", "CPU%"),
+            tr("table.memory", "内存%"),
+            tr("table.actions", "操作")
+        ])
         self.distro_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.distro_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.distro_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
@@ -390,15 +401,15 @@ class OverviewPanel(QWidget):
 
         layout.addWidget(distro_group)
 
-        quick_actions_group = QGroupBox("快速操作")
+        quick_actions_group = QGroupBox(tr("overview.quick_actions", "快速操作"))
         quick_actions_group.setObjectName("quickActions")
         quick_layout = QHBoxLayout(quick_actions_group)
         quick_layout.setSpacing(12)
 
-        self.send_msg_btn = QPushButton("💬 发送消息")
+        self.send_msg_btn = QPushButton(f"💬 {tr('btn.send_message', '发送消息')}")
         self.send_msg_btn.setObjectName("primary")
-        self.view_log_btn = QPushButton("📋 查看日志")
-        self.edit_config_btn = QPushButton("⚙ 编辑配置")
+        self.view_log_btn = QPushButton(f"📋 {tr('btn.view_log', '查看日志')}")
+        self.edit_config_btn = QPushButton(f"⚙ {tr('btn.edit_config', '编辑配置')}")
 
         for btn in [self.send_msg_btn, self.view_log_btn, self.edit_config_btn]:
             btn.setMinimumHeight(40)
@@ -407,7 +418,7 @@ class OverviewPanel(QWidget):
 
         layout.addWidget(quick_actions_group)
 
-        activity_group = QGroupBox("最近活动")
+        activity_group = QGroupBox(tr("overview.activity", "最近活动"))
         activity_group.setObjectName("activityGroup")
         activity_layout = QVBoxLayout(activity_group)
 
@@ -420,7 +431,7 @@ class OverviewPanel(QWidget):
         activity_content_layout = QVBoxLayout(activity_content)
         activity_content_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.activity_list = QLabel("暂无活动记录")
+        self.activity_list = QLabel(tr("overview.no_activity", "暂无活动记录"))
         self.activity_list.setWordWrap(True)
         self.activity_list.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.activity_list.setStyleSheet("color: #8b949e; padding: 8px;")
@@ -431,6 +442,8 @@ class OverviewPanel(QWidget):
         activity_layout.addWidget(activity_scroll)
 
         layout.addWidget(activity_group, 1)
+        
+        I18nManager().language_changed.connect(self._retranslate_ui)
 
     def _apply_styles(self):
         table_style = """
@@ -485,6 +498,34 @@ class OverviewPanel(QWidget):
         self.send_msg_btn.clicked.connect(self._send_message)
         self.view_log_btn.clicked.connect(self._show_log_panel)
         self.edit_config_btn.clicked.connect(self._show_config_panel)
+    
+    def _retranslate_ui(self):
+        self.distro_count_card._title_label.setText(tr("overview.stats.distro_count", "WSL 分发"))
+        self.running_card._title_label.setText(tr("overview.stats.running", "运行中"))
+        self.config_card._title_label.setText(tr("overview.stats.config_count", "配置文件"))
+        self.cpu_card._title_label.setText(tr("overview.stats.cpu_usage", "CPU 使用率"))
+        self.memory_card._title_label.setText(tr("overview.stats.memory_usage", "内存使用"))
+        
+        self.refresh_btn.setText(f"🔄 {tr('btn.refresh', '刷新')}")
+        self.shutdown_all_btn.setText(f"⏹ {tr('btn.shutdown_all', '关闭所有')}")
+        self.import_btn.setText(f"📥 {tr('btn.import', '导入分发')}")
+        self.create_btn.setText(f"🆕 {tr('btn.create', '创建分发')}")
+        self.export_btn.setText(f"📤 {tr('btn.export', '导出分发')}")
+        
+        self.send_msg_btn.setText(f"💬 {tr('btn.send_message', '发送消息')}")
+        self.view_log_btn.setText(f"📋 {tr('btn.view_log', '查看日志')}")
+        self.edit_config_btn.setText(f"⚙ {tr('btn.edit_config', '编辑配置')}")
+        
+        self.distro_table.setHorizontalHeaderLabels([
+            tr("table.distro_name", "分发名称"),
+            tr("table.version", "版本"),
+            tr("table.status", "状态"),
+            tr("table.port", "Port"),
+            tr("table.kernel", "内核版本"),
+            tr("table.cpu", "CPU%"),
+            tr("table.memory", "内存%"),
+            tr("table.actions", "操作")
+        ])
 
     def _refresh_status(self):
         self._refresh_distro_list()
@@ -558,24 +599,24 @@ class OverviewPanel(QWidget):
             distro_config = self._config_manager.get(distro.name)
 
             if distro.is_running:
-                stop_btn = self._create_action_btn("⏹", f"停止分发: {distro.name}", "#da3633", "#f85149", "#b62324")
+                stop_btn = self._create_action_btn("⏹", tr("overview.tooltip.stop_distro", "停止分发: {name}").format(name=distro.name), "#da3633", "#f85149", "#b62324")
                 stop_btn.clicked.connect(lambda checked, n=distro.name: self._stop_distro(n))
                 action_layout.addWidget(stop_btn)
 
-                terminal_btn = self._create_action_btn("💻", f"打开终端: {distro.name}")
+                terminal_btn = self._create_action_btn("💻", tr("overview.tooltip.open_terminal", "打开终端: {name}").format(name=distro.name))
                 terminal_btn.clicked.connect(lambda checked, n=distro.name: self._open_terminal(n))
                 action_layout.addWidget(terminal_btn)
                 
                 if distro_config and distro_config.windows_workspace:
-                    workspace_btn = self._create_action_btn("📁", f"打开工作空间: {distro.name}")
+                    workspace_btn = self._create_action_btn("📁", tr("overview.tooltip.open_workspace", "打开工作空间: {name}").format(name=distro.name))
                     workspace_btn.clicked.connect(lambda checked, n=distro.name, p=distro_config.windows_workspace: self._open_distro_workspace(n, p))
                     action_layout.addWidget(workspace_btn)
             else:
-                start_btn = self._create_action_btn("▶", f"启动分发: {distro.name}", "#238636", "#2ea043", "#196c2e")
+                start_btn = self._create_action_btn("▶", tr("overview.tooltip.start_distro", "启动分发: {name}").format(name=distro.name), "#238636", "#2ea043", "#196c2e")
                 start_btn.clicked.connect(lambda checked, n=distro.name: self._start_distro(n))
                 action_layout.addWidget(start_btn)
 
-            remove_btn = self._create_action_btn("🗑️", f"移除分发: {distro.name} (不删除虚拟磁盘)", hover_color="#da3633", pressed_color="#b62324")
+            remove_btn = self._create_action_btn("🗑️", tr("overview.tooltip.remove_distro", "移除分发: {name} (不删除虚拟磁盘)").format(name=distro.name), hover_color="#da3633", pressed_color="#b62324")
             remove_btn.clicked.connect(lambda checked, n=distro.name: self._remove_distro(n))
             action_layout.addWidget(remove_btn)
             
@@ -617,47 +658,47 @@ class OverviewPanel(QWidget):
         success = self._wsl_manager.start_distro(distro_name)
         if success:
             self.distro_started.emit(distro_name)
-            self.add_activity(f"WSL '{distro_name}' 已启动")
+            self.add_activity(tr("overview.msg.distro_started", "WSL '{name}' 已启动").format(name=distro_name))
             self._refresh_status()
         else:
-            QMessageBox.warning(self, "错误", f"无法启动分发: {distro_name}")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_start", "无法启动分发: {name}").format(name=distro_name))
 
     def _stop_distro(self, distro_name: str):
         success = self._wsl_manager.stop_distro(distro_name)
         if success:
             self.distro_stopped.emit(distro_name)
-            self.add_activity(f"WSL '{distro_name}' 已停止")
+            self.add_activity(tr("overview.msg.distro_stopped", "WSL '{name}' 已停止").format(name=distro_name))
             self._refresh_status()
         else:
-            QMessageBox.warning(self, "错误", f"无法停止分发: {distro_name}")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_stop", "无法停止分发: {name}").format(name=distro_name))
 
     def _remove_distro(self, distro_name: str):
         reply = QMessageBox.question(
-            self, "确认",
-            f"确定要移除分发 '{distro_name}' 吗？\n此操作将注销分发但不会删除虚拟磁盘。",
+            self, tr("error.confirm", "确认"),
+            tr("overview.msg.confirm_remove", "确定要移除分发 '{name}' 吗？\n此操作将注销分发但不会删除虚拟磁盘。").format(name=distro_name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
             success = self._wsl_manager.unregister_distro(distro_name)
             if success:
-                self.add_activity(f"WSL '{distro_name}' 已移除")
+                self.add_activity(tr("overview.msg.distro_removed", "WSL '{name}' 已移除").format(name=distro_name))
                 self._refresh_status()
             else:
-                QMessageBox.warning(self, "错误", f"无法移除分发: {distro_name}")
+                QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_remove", "无法移除分发: {name}").format(name=distro_name))
 
     def _refresh_list(self):
         self._refresh_status()
-        self.add_activity("WSL 列表已刷新")
+        self.add_activity(tr("overview.msg.wsl_refreshed", "WSL 列表已刷新"))
 
     def _shutdown_all(self):
         reply = QMessageBox.question(
-            self, "确认",
-            "确定要关闭所有 WSL 分发吗？",
+            self, tr("error.confirm", "确认"),
+            tr("msg.confirm_shutdown_all", "确定要关闭所有 WSL 分发吗？"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._wsl_manager.shutdown_all()
-            self.add_activity("已关闭所有 WSL 分发")
+            self.add_activity(tr("overview.msg.all_shutdown", "已关闭所有 WSL 分发"))
             self._refresh_status()
 
     def _open_terminal(self, distro_name: str):
@@ -679,28 +720,27 @@ class OverviewPanel(QWidget):
         if wt_exe:
             try:
                 subprocess.Popen([wt_exe, "wsl", "-d", distro_name])
-                self.add_activity(f"已打开终端: {distro_name}")
+                self.add_activity(tr("overview.msg.terminal_opened", "已打开终端: {name}").format(name=distro_name))
                 return
             except Exception as e:
-                QMessageBox.warning(self, "错误", f"无法打开终端: {e}")
+                QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_open_terminal", "无法打开终端: {error}").format(error=e))
                 return
         
         try:
             subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", "wsl", "-d", distro_name])
-            self.add_activity(f"已打开终端: {distro_name}")
+            self.add_activity(tr("overview.msg.terminal_opened", "已打开终端: {name}").format(name=distro_name))
             
             QMessageBox.information(
                 self, 
-                "提示", 
-                "建议安装 Windows Terminal 以获得更好的体验。\n\n"
-                "可通过 Microsoft Store 搜索 'Windows Terminal' 安装。"
+                tr("overview.msg.hint", "提示"), 
+                tr("overview.msg.suggest_terminal", "建议安装 Windows Terminal 以获得更好的体验。\n\n可通过 Microsoft Store 搜索 'Windows Terminal' 安装。")
             )
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"无法打开终端: {e}")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_open_terminal", "无法打开终端: {error}").format(error=e))
 
     def _import_distro(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("导入 WSL 分发")
+        dialog.setWindowTitle(tr("dialog.import_distro.title", "导入 WSL 分发"))
         dialog.setMinimumWidth(600)
         dialog.setStyleSheet("""
             QDialog {
@@ -757,13 +797,13 @@ class OverviewPanel(QWidget):
 
         tar_layout = QHBoxLayout()
         tar_layout.setSpacing(12)
-        tar_layout.addWidget(QLabel("tar 文件:"))
+        tar_layout.addWidget(QLabel(tr("dialog.import_distro.tar_file", "tar 文件:")))
 
         tar_edit = QLineEdit()
-        tar_edit.setPlaceholderText("选择 .tar 文件...")
+        tar_edit.setPlaceholderText(tr("dialog.import_distro.tar_placeholder", "选择 .tar 文件..."))
         tar_layout.addWidget(tar_edit, 1)
 
-        browse_btn = QPushButton("浏览")
+        browse_btn = QPushButton(tr("btn.browse", "浏览..."))
         browse_btn.clicked.connect(lambda: self._browse_tar(tar_edit))
         tar_layout.addWidget(browse_btn)
 
@@ -771,10 +811,10 @@ class OverviewPanel(QWidget):
 
         name_layout = QHBoxLayout()
         name_layout.setSpacing(12)
-        name_layout.addWidget(QLabel("分发名称:"))
+        name_layout.addWidget(QLabel(tr("dialog.import_distro.distro_name", "分发名称:")))
 
         name_edit = QLineEdit()
-        name_edit.setPlaceholderText("clawbot")
+        name_edit.setPlaceholderText(tr("dialog.import_distro.distro_placeholder", "clawbot"))
         name_layout.addWidget(name_edit, 1)
 
         name_hint_label = QLabel("")
@@ -785,19 +825,19 @@ class OverviewPanel(QWidget):
 
         dir_layout = QHBoxLayout()
         dir_layout.setSpacing(12)
-        dir_layout.addWidget(QLabel("安装目录:"))
+        dir_layout.addWidget(QLabel(tr("dialog.import_distro.install_dir", "安装目录:")))
 
         dir_edit = QLineEdit()
-        dir_edit.setPlaceholderText("选择存放 WSL 分发的目录...")
+        dir_edit.setPlaceholderText(tr("dialog.import_distro.install_dir_placeholder", "选择存放 WSL 分发的目录..."))
         dir_layout.addWidget(dir_edit, 1)
 
-        browse_dir_btn = QPushButton("浏览")
+        browse_dir_btn = QPushButton(tr("btn.browse", "浏览..."))
         browse_dir_btn.clicked.connect(lambda: self._browse_install_dir(dir_edit))
         dir_layout.addWidget(browse_dir_btn)
 
         layout.addLayout(dir_layout)
 
-        hint_label = QLabel("提示: 分发名称将从 tar 文件名自动推断，可手动修改\n安装目录可选，留空则使用默认位置")
+        hint_label = QLabel(tr("dialog.import_distro.hint", "提示: 分发名称将从 tar 文件名自动推断，可手动修改\n安装目录可选，留空则使用默认位置"))
         hint_label.setStyleSheet("color: #8b949e; font-size: 12px; line-height: 1.6;")
         layout.addWidget(hint_label)
 
@@ -807,11 +847,11 @@ class OverviewPanel(QWidget):
         btn_layout.setSpacing(12)
         btn_layout.addStretch()
 
-        cancel_btn = QPushButton("取消")
+        cancel_btn = QPushButton(tr("btn.cancel", "取消"))
         cancel_btn.clicked.connect(dialog.reject)
         btn_layout.addWidget(cancel_btn)
 
-        import_btn = QPushButton("导入")
+        import_btn = QPushButton(tr("dialog.import_distro.importing", "导入"))
         import_btn.setObjectName("primary")
         import_btn.setDefault(True)
         import_btn.setEnabled(False)
@@ -832,11 +872,11 @@ class OverviewPanel(QWidget):
 
             existing_distros = self._wsl_manager.list_distros()
             if any(d.name == name for d in existing_distros):
-                name_hint_label.setText("⚠ 名称已存在")
+                name_hint_label.setText("⚠ " + tr("overview.dialog.name_exists", "名称已存在"))
                 name_hint_label.setStyleSheet("color: #f85149; font-size: 12px;")
                 import_btn.setEnabled(False)
             else:
-                name_hint_label.setText("✓ 名称可用")
+                name_hint_label.setText("✓ " + tr("overview.dialog.name_available", "名称可用"))
                 name_hint_label.setStyleSheet("color: #3fb950; font-size: 12px;")
                 import_btn.setEnabled(True)
 
@@ -848,11 +888,11 @@ class OverviewPanel(QWidget):
             install_location = dir_edit.text().strip() or None
 
             if not tar_path:
-                show_warning(self, "错误", "请选择 tar 文件")
+                show_warning(self, tr("error.title", "错误"), tr("overview.msg.select_tar", "请选择 tar 文件"))
                 return
 
             if not distro_name:
-                show_warning(self, "错误", "请输入分发名称")
+                show_warning(self, tr("error.title", "错误"), tr("overview.msg.enter_distro_name", "请输入分发名称"))
                 return
 
             dialog.close()
@@ -863,13 +903,13 @@ class OverviewPanel(QWidget):
 
     def _browse_tar(self, line_edit):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 tar 文件", "", "Tar Files (*.tar *.tar.gz *.tar.xz);;All Files (*)"
+            self, tr("overview.dialog.select_tar", "选择 tar 文件"), "", "Tar Files (*.tar *.tar.gz *.tar.xz);;All Files (*)"
         )
         if file_path:
             line_edit.setText(file_path)
 
     def _browse_install_dir(self, line_edit):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择存放 WSL 分发的目录")
+        dir_path = QFileDialog.getExistingDirectory(self, tr("overview.dialog.select_install_dir", "选择存放 WSL 分发的目录"))
         if dir_path:
             line_edit.setText(dir_path)
 
@@ -896,16 +936,16 @@ class OverviewPanel(QWidget):
     def _on_distro_created(self, distro_name: str):
         """分发创建完成回调"""
         self.distro_imported.emit(distro_name)
-        self.add_activity(f"WSL '{distro_name}' 创建成功")
+        self.add_activity(tr("overview.msg.distro_created", "WSL '{name}' 创建成功").format(name=distro_name))
         self._refresh_status()
 
     def _do_import(self, tar_path: str, distro_name: str, install_location: Optional[str] = None):
         existing_distros = self._wsl_manager.list_distros()
         if any(d.name == distro_name for d in existing_distros):
             reply = show_question(
-                self, "确认",
-                f"分发 '{distro_name}' 已存在。导入将覆盖现有分发，是否继续？",
-                yes_text="继续", no_text="取消"
+                self, tr("error.confirm", "确认"),
+                tr("overview.msg.confirm_overwrite", "分发 '{name}' 已存在。导入将覆盖现有分发，是否继续？").format(name=distro_name),
+                yes_text=tr("btn.next", "继续"), no_text=tr("btn.cancel", "取消")
             )
             if not reply:
                 return
@@ -948,16 +988,16 @@ class OverviewPanel(QWidget):
             del self._import_install_location
 
         if result.success:
-            message = f"WSL 分发 '{distro_name}' 导入成功！"
+            message = tr("overview.msg.import_success", "WSL 分发 '{name}' 导入成功！").format(name=distro_name)
             if result.stdout:
                 message += f"\n\n{result.stdout}"
-            show_info(self, "成功", message)
+            show_info(self, tr("error.success", "成功"), message)
             self.distro_imported.emit(distro_name)
-            self.add_activity(f"WSL '{distro_name}' 导入成功")
+            self.add_activity(tr("overview.msg.import_success", "WSL '{name}' 导入成功").format(name=distro_name))
             self._refresh_status()
         else:
-            message = f"无法导入 WSL 分发:\n{result.stderr}"
-            show_critical(self, "导入失败", message)
+            message = tr("overview.msg.import_failed", "无法导入 WSL 分发:\n{error}").format(error=result.stderr)
+            show_critical(self, tr("dialog.import_distro.import_failed_title", "导入失败"), message)
 
     def _on_wsl_state_changed(self, distros: dict):
         self._refresh_status()
@@ -974,24 +1014,24 @@ class OverviewPanel(QWidget):
     def _open_distro_workspace(self, distro_name: str, workspace_path: str):
         """打开指定分发的工作空间"""
         if not workspace_path:
-            QMessageBox.warning(self, "错误", f"分发 '{distro_name}' 未配置工作空间路径")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_open_workspace", "分发 '{name}' 未配置工作空间路径").format(name=distro_name))
             return
 
         try:
             subprocess.Popen(["explorer", workspace_path])
-            self.add_activity(f"打开工作空间 ({distro_name}): {workspace_path}")
+            self.add_activity(tr("overview.msg.workspace_opened", "打开工作空间 ({name}): {path}").format(name=distro_name, path=workspace_path))
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"无法打开目录: {e}")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.msg.cannot_open_dir", "无法打开目录: {error}").format(error=e))
 
     def _export_distro(self):
         """导出 WSL 分发"""
         distros = self._wsl_manager.list_distros()
         if not distros:
-            show_warning(self, "错误", "没有可导出的 WSL 分发")
+            show_warning(self, tr("error.title", "错误"), tr("dialog.export_distro.no_distros", "没有可导出的 WSL 分发"))
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("导出 WSL 分发")
+        dialog.setWindowTitle(tr("dialog.export_distro.title", "导出 WSL 分发"))
         dialog.setMinimumWidth(500)
         dialog.setStyleSheet("""
             QDialog {
@@ -1076,7 +1116,7 @@ class OverviewPanel(QWidget):
 
         distro_layout = QHBoxLayout()
         distro_layout.setSpacing(12)
-        distro_layout.addWidget(QLabel("选择分发:"))
+        distro_layout.addWidget(QLabel(tr("dialog.export_distro.select_distro", "选择分发:")))
 
         distro_combo = QComboBox()
         distro_combo.addItems([d.name for d in distros])
@@ -1086,19 +1126,19 @@ class OverviewPanel(QWidget):
 
         dir_layout = QHBoxLayout()
         dir_layout.setSpacing(12)
-        dir_layout.addWidget(QLabel("保存目录:"))
+        dir_layout.addWidget(QLabel(tr("dialog.export_distro.save_dir", "保存目录:")))
 
         dir_edit = QLineEdit()
-        dir_edit.setPlaceholderText("选择 tar 文件保存目录...")
+        dir_edit.setPlaceholderText(tr("dialog.export_distro.dir_placeholder", "选择 tar 文件保存目录..."))
         dir_layout.addWidget(dir_edit, 1)
 
-        browse_dir_btn = QPushButton("浏览")
+        browse_dir_btn = QPushButton(tr("btn.browse", "浏览..."))
         browse_dir_btn.clicked.connect(lambda: self._browse_export_dir(dir_edit))
         dir_layout.addWidget(browse_dir_btn)
 
         layout.addLayout(dir_layout)
 
-        hint_label = QLabel("提示: 将导出为 tar 文件，可用于备份或迁移到其他机器")
+        hint_label = QLabel(tr("dialog.export_distro.hint", "提示: 将导出为 tar 文件，可用于备份或迁移到其他机器"))
         hint_label.setStyleSheet("color: #8b949e; font-size: 12px; line-height: 1.6;")
         layout.addWidget(hint_label)
 
@@ -1108,11 +1148,11 @@ class OverviewPanel(QWidget):
         btn_layout.setSpacing(12)
         btn_layout.addStretch()
 
-        cancel_btn = QPushButton("取消")
+        cancel_btn = QPushButton(tr("btn.cancel", "取消"))
         cancel_btn.clicked.connect(dialog.reject)
         btn_layout.addWidget(cancel_btn)
 
-        export_btn = QPushButton("导出")
+        export_btn = QPushButton(tr("btn.export", "导出"))
         export_btn.setObjectName("primary")
         export_btn.setDefault(True)
         export_btn.setEnabled(False)
@@ -1131,7 +1171,7 @@ class OverviewPanel(QWidget):
             save_dir = dir_edit.text().strip()
 
             if not save_dir:
-                show_warning(self, "错误", "请选择保存目录")
+                show_warning(self, tr("error.title", "错误"), tr("dialog.export_distro.select_save_dir", "请选择保存目录"))
                 return
 
             dialog.close()
@@ -1141,7 +1181,7 @@ class OverviewPanel(QWidget):
         dialog.exec()
 
     def _browse_export_dir(self, line_edit):
-        dir_path = QFileDialog.getExistingDirectory(self, "选择 tar 文件保存目录")
+        dir_path = QFileDialog.getExistingDirectory(self, tr("overview.dialog.select_save_dir", "选择 tar 文件保存目录"))
         if dir_path:
             line_edit.setText(dir_path)
 
@@ -1181,11 +1221,11 @@ class OverviewPanel(QWidget):
         progress.stop_animation(output_path if result.success else "")
 
         if result.success:
-            self.add_activity(f"WSL '{distro_name}' 导出成功: {output_path}")
+            self.add_activity(tr("overview.msg.export_success", "WSL '{name}' 导出成功: {path}").format(name=distro_name, path=output_path))
             QTimer.singleShot(1500, progress.close)
             self._refresh_status()
         else:
-            show_critical(self, "导出失败", f"无法导出 WSL 分发:\n{result.stderr}")
+            show_critical(self, tr("overview.msg.export_failed_title", "导出失败"), tr("overview.msg.export_failed", "无法导出 WSL 分发:\n{error}").format(error=result.stderr))
             progress.close()
 
         del self._export_progress
@@ -1205,7 +1245,7 @@ class OverviewPanel(QWidget):
 
     def add_activity(self, message: str):
         current = self.activity_list.text()
-        if current == "暂无活动记录":
+        if current == tr("overview.no_activity", "暂无活动记录"):
             current = ""
         timestamp = time.strftime("%H:%M:%S")
         new_activity = f"• {timestamp}: {message}"

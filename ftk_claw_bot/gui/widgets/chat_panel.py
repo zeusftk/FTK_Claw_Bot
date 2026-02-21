@@ -13,6 +13,7 @@ from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QCursor
 
 from ..mixins import WSLStateAwareMixin
 from ...utils.async_ops import AsyncOperation, AsyncResult
+from ...utils.i18n import tr
 
 
 class ChatMessage:
@@ -173,15 +174,15 @@ class NanobotCard(QFrame):
         status_text_layout = QVBoxLayout()
         status_text_layout.setSpacing(2)
         
-        self.wsl_status_text = QLabel("WSL: 已停止")
+        self.wsl_status_text = QLabel(tr("chat.status.wsl_stopped", "WSL: 已停止"))
         self.wsl_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
         status_text_layout.addWidget(self.wsl_status_text)
         
-        self.nanobot_status_text = QLabel("Bot: 已停止")
+        self.nanobot_status_text = QLabel(tr("chat.status.bot_stopped", "Bot: 已停止"))
         self.nanobot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
         status_text_layout.addWidget(self.nanobot_status_text)
         
-        self.model_text = QLabel("模型: --")
+        self.model_text = QLabel(tr("chat.status.model_none", "模型: --"))
         self.model_text.setStyleSheet("color: #8b949e; font-size: 10px;")
         status_text_layout.addWidget(self.model_text)
         
@@ -190,7 +191,7 @@ class NanobotCard(QFrame):
         action_layout = QHBoxLayout()
         action_layout.setSpacing(6)
         
-        self.connect_btn = QPushButton("连接")
+        self.connect_btn = QPushButton(tr("chat.btn.connect", "连接"))
         self.connect_btn.setFixedSize(60, 28)
         self.connect_btn.setStyleSheet("""
             QPushButton {
@@ -216,7 +217,7 @@ class NanobotCard(QFrame):
         self.connect_btn.clicked.connect(lambda: self._on_connect_clicked())
         action_layout.addWidget(self.connect_btn)
         
-        self.view_log_btn = QPushButton("日志")
+        self.view_log_btn = QPushButton(tr("chat.log", "日志"))
         self.view_log_btn.setFixedSize(50, 28)
         self.view_log_btn.setStyleSheet("""
             QPushButton {
@@ -253,11 +254,11 @@ class NanobotCard(QFrame):
         status_lower = status.lower()
         if "running" in status_lower:
             self.wsl_status_dot.setText("🟢")
-            self.wsl_status_text.setText("WSL: 运行中")
+            self.wsl_status_text.setText(tr("chat.status.wsl_running", "WSL: 运行中"))
             self.wsl_status_text.setStyleSheet("color: #3fb950; font-size: 10px;")
         elif "stopped" in status_lower:
             self.wsl_status_dot.setText("⚪")
-            self.wsl_status_text.setText("WSL: 已停止")
+            self.wsl_status_text.setText(tr("chat.status.wsl_stopped", "WSL: 已停止"))
             self.wsl_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
         else:
             self.wsl_status_dot.setText("⚪")
@@ -268,33 +269,33 @@ class NanobotCard(QFrame):
         self.nanobot_status = status
         if status == "running":
             self.nanobot_status_dot.setText("🟢")
-            self.nanobot_status_text.setText("Bot: 运行中")
+            self.nanobot_status_text.setText(tr("chat.status.bot_running", "Bot: 运行中"))
             self.nanobot_status_text.setStyleSheet("color: #3fb950; font-size: 10px;")
         elif status == "starting":
             self.nanobot_status_dot.setText("🟡")
-            self.nanobot_status_text.setText("Bot: 启动中")
+            self.nanobot_status_text.setText(tr("chat.status.bot_starting", "Bot: 启动中"))
             self.nanobot_status_text.setStyleSheet("color: #d29922; font-size: 10px;")
         elif status == "error":
             self.nanobot_status_dot.setText("🔴")
-            self.nanobot_status_text.setText("Bot: 错误")
+            self.nanobot_status_text.setText(tr("chat.status.bot_error", "Bot: 错误"))
             self.nanobot_status_text.setStyleSheet("color: #f85149; font-size: 10px;")
         else:
             self.nanobot_status_dot.setText("⚪")
-            self.nanobot_status_text.setText("Bot: 已停止")
+            self.nanobot_status_text.setText(tr("chat.status.bot_stopped", "Bot: 已停止"))
             self.nanobot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
     
     def set_model(self, model: str, provider: str = None):
         if model:
             short_model = model.split("/")[-1] if "/" in model else model
-            display_text = f"模型: {short_model}"
+            display_text = tr("chat.status.model", "模型: {}").format(model=short_model)
         else:
-            display_text = "模型: --"
+            display_text = tr("chat.status.model_none", "模型: --")
         self.model_text.setText(display_text)
     
     def set_connection_status(self, status: str):
         self.connection_status = status
         if status == "connected":
-            self.connect_btn.setText("断开")
+            self.connect_btn.setText(tr("chat.btn.disconnect", "断开"))
             self.connect_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #da3633;
@@ -313,7 +314,7 @@ class NanobotCard(QFrame):
             """)
             self.connect_btn.setEnabled(True)
         elif status == "connecting":
-            self.connect_btn.setText("连接中...")
+            self.connect_btn.setText(tr("chat.btn.connecting", "连接中..."))
             self.connect_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #484f58;
@@ -325,7 +326,7 @@ class NanobotCard(QFrame):
             """)
             self.connect_btn.setEnabled(False)
         else:
-            self.connect_btn.setText("连接")
+            self.connect_btn.setText(tr("chat.btn.connect", "连接"))
             self.connect_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #238636;
@@ -435,7 +436,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         layout.setSpacing(16)
         
         header = QHBoxLayout()
-        title = QLabel("Clawbot 选择")
+        title = QLabel(tr("chat.title", "Clawbot 选择"))
         font = QFont()
         font.setPointSize(16)
         font.setBold(True)
@@ -467,10 +468,10 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         layout.addLayout(header)
         
         action_layout = QHBoxLayout()
-        self.select_all_btn = QPushButton("全选")
+        self.select_all_btn = QPushButton(tr("chat.select_all", "全选"))
         self.select_all_btn.setObjectName("smallButton")
         self.select_all_btn.clicked.connect(self._select_all)
-        self.deselect_all_btn = QPushButton("取消全选")
+        self.deselect_all_btn = QPushButton(tr("chat.deselect_all", "取消全选"))
         self.deselect_all_btn.setObjectName("smallButton")
         self.deselect_all_btn.clicked.connect(self._deselect_all)
         action_layout.addWidget(self.select_all_btn)
@@ -505,7 +506,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         layout.setSpacing(15)
         
         header_layout = QHBoxLayout()
-        title = QLabel("聊天")
+        title = QLabel(tr("chat.chat_title", "聊天"))
         font = QFont()
         font.setPointSize(18)
         font.setBold(True)
@@ -526,14 +527,14 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         
         status_layout.addWidget(self._connection_status_container)
         
-        self._connect_btn = QPushButton("连接全部")
+        self._connect_btn = QPushButton(tr("chat.connect_all", "连接全部"))
         self._connect_btn.setObjectName("smallButton")
         self._connect_btn.clicked.connect(self._on_connect_all_clicked)
         status_layout.addWidget(self._connect_btn)
         
         header_layout.addLayout(status_layout)
         
-        clear_btn = QPushButton("清空")
+        clear_btn = QPushButton(tr("btn.clear", "清空"))
         clear_btn.setObjectName("smallButton")
         clear_btn.clicked.connect(self._clear_clicked)
         header_layout.addWidget(clear_btn)
@@ -545,7 +546,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         tags_layout.setContentsMargins(0, 0, 0, 0)
         tags_layout.setSpacing(8)
         
-        self.tags_label = QLabel("已选: 无")
+        self.tags_label = QLabel(tr("chat.selected_none", "已选: 无"))
         self.tags_label.setStyleSheet("color: #8b949e; font-size: 12px;")
         tags_layout.addWidget(self.tags_label)
         tags_layout.addStretch()
@@ -580,8 +581,8 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         tools_layout = QHBoxLayout()
         tools_layout.setSpacing(8)
         
-        self.group_chat_checkbox = QCheckBox("群聊模式")
-        self.group_chat_checkbox.setToolTip("开启后，Bot的回复会转发给其他选中的Bot进行持续对话")
+        self.group_chat_checkbox = QCheckBox(tr("chat.group_mode", "群聊模式"))
+        self.group_chat_checkbox.setToolTip(tr("chat.group_mode_hint", "开启后，Bot的回复会转发给其他选中的Bot进行持续对话"))
         self.group_chat_checkbox.setStyleSheet("""
             QCheckBox {
                 color: #8b949e;
@@ -602,8 +603,8 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self.group_chat_interval_spin = QSpinBox()
         self.group_chat_interval_spin.setRange(1, 60)
         self.group_chat_interval_spin.setValue(5)
-        self.group_chat_interval_spin.setSuffix("秒")
-        self.group_chat_interval_spin.setToolTip("群聊转发间隔")
+        self.group_chat_interval_spin.setSuffix(tr("chat.seconds", "秒"))
+        self.group_chat_interval_spin.setToolTip(tr("chat.forward_interval", "群聊转发间隔"))
         self.group_chat_interval_spin.setStyleSheet("""
             QSpinBox {
                 background-color: #21262d;
@@ -662,7 +663,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         input_layout.addLayout(tools_layout)
         
         self.message_input = QTextEdit()
-        self.message_input.setPlaceholderText("在此输入消息，按 Ctrl+Enter 发送，Enter 换行")
+        self.message_input.setPlaceholderText(tr("chat.input_placeholder", "在此输入消息，按 Ctrl+Enter 发送，Enter 换行"))
         self.message_input.setFont(QFont("Microsoft YaHei UI", 10))
         self.message_input.setMaximumHeight(120)
         self.message_input.setAcceptRichText(False)
@@ -683,7 +684,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         input_buttons_layout.setSpacing(10)
         input_buttons_layout.addStretch()
         
-        send_btn = QPushButton("发送 (Ctrl+Enter)")
+        send_btn = QPushButton(tr("chat.send", "发送 (Ctrl+Enter)"))
         send_btn.setObjectName("primaryButton")
         send_btn.clicked.connect(self._on_send_message)
         
@@ -956,7 +957,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                     if bot not in self._connection_status or not self._connection_status[bot]:
                         self._on_nanobot_connect_requested(bot)
             else:
-                QMessageBox.warning(self, "提示", "请先选择要连接的 Nanobot")
+                QMessageBox.warning(self, tr("chat.msg.select_bot_first", "请先选择要连接的 Nanobot"))
     
     def _on_send_message(self):
         text = self.message_input.toPlainText().strip()
@@ -964,7 +965,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             return
         
         if not self._selected_nanobots:
-            QMessageBox.warning(self, "提示", "请至少选择一个 Nanobot")
+            QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Nanobot"))
             return
         
         self.message_input.clear()
@@ -981,11 +982,11 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         cursor.movePosition(QTextCursor.MoveOperation.End)
         
         if message.role == "user":
-            role_text = "你"
+            role_text = tr("chat.role.you", "你")
             role_color = QColor("#58a6ff")
             bg_color = QColor("#1f3a5f")
         elif message.role == "assistant":
-            role_text = message.nanobot_name or "AI"
+            role_text = message.nanobot_name or tr("chat.role.ai", "AI")
             if message.nanobot_name:
                 if message.nanobot_name not in self._bot_color_map:
                     color_idx = len(self._bot_color_map) % len(self._BOT_COLORS)
@@ -1040,7 +1041,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
     
     def _on_send_clicked(self):
         if not self._selected_nanobots:
-            QMessageBox.warning(self, "提示", "请至少选择一个 Nanobot")
+            QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Nanobot"))
             return
         
         connected_bots = [bot for bot, status in self._connection_status.items() if status]
@@ -1056,7 +1057,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
     def set_connecting(self):
         logger.info("[ChatPanel] 设置状态: 正在连接...")
         self._connect_btn.setEnabled(False)
-        self._connect_btn.setText("连接中...")
+        self._connect_btn.setText(tr("chat.btn.connecting", "连接中..."))
     
     def set_connection_status(self, bot_name: str, is_connected: bool, info: Optional[str] = None):
         logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -> {is_connected}, info={info}")
@@ -1080,9 +1081,9 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         
         connected_bots = [bot for bot, status in self._connection_status.items() if status]
         if connected_bots:
-            self._connect_btn.setText("断开全部")
+            self._connect_btn.setText(tr("chat.disconnect_all", "断开全部"))
         else:
-            self._connect_btn.setText("连接全部")
+            self._connect_btn.setText(tr("chat.connect_all", "连接全部"))
         self._connect_btn.setEnabled(True)
     
     def _update_connection_status_display(self):
@@ -1101,10 +1102,10 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
     def clear_connection_status(self):
         self._connection_status.clear()
         self._update_connection_status_display()
-        self._connect_btn.setText("连接全部")
+        self._connect_btn.setText(tr("chat.connect_all", "连接全部"))
         self._connect_btn.setEnabled(True)
     
     def show_error(self, message: str):
         logger.error(f"[ChatPanel] 显示错误: {message}")
-        QMessageBox.warning(self, "错误", message)
+        QMessageBox.warning(self, tr("error.title", "错误"), message)
         self.clear_connection_status()

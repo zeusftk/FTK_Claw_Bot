@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QTextCursor
 
+from ...utils.i18n import tr
+
 
 class LogEntry:
     def __init__(self, level: str, timestamp: str, source: str, message: str):
@@ -22,7 +24,7 @@ class LogPanel(QWidget):
         self._logs: List[LogEntry] = []
         self._max_logs: int = 1000
         self._auto_scroll: bool = True
-        self._filter_level: str = "全部"
+        self._filter_level: str = tr("log.all", "全部")
         self._displayed_count: int = 0
 
         self._init_ui()
@@ -34,7 +36,7 @@ class LogPanel(QWidget):
         layout.setSpacing(15)
 
         header_layout = QHBoxLayout()
-        title = QLabel("日志查看")
+        title = QLabel(tr("log.title", "日志查看"))
         font = QFont()
         font.setPointSize(18)
         font.setBold(True)
@@ -42,9 +44,9 @@ class LogPanel(QWidget):
         header_layout.addWidget(title)
         header_layout.addStretch()
 
-        clear_btn = QPushButton("清空")
+        clear_btn = QPushButton(tr("btn.clear", "清空"))
         clear_btn.clicked.connect(self._clear_logs)
-        export_btn = QPushButton("导出")
+        export_btn = QPushButton(tr("log.btn_export", "导出"))
         export_btn.clicked.connect(self._export_logs)
         header_layout.addWidget(clear_btn)
         header_layout.addWidget(export_btn)
@@ -53,22 +55,22 @@ class LogPanel(QWidget):
 
         filter_layout = QHBoxLayout()
 
-        level_label = QLabel("日志级别:")
+        level_label = QLabel(tr("log.level", "日志级别:"))
         self.level_combo = QComboBox()
-        self.level_combo.addItems(["全部", "DEBUG", "INFO", "WARNING", "ERROR"])
+        self.level_combo.addItems([tr("log.all", "全部"), "DEBUG", "INFO", "WARNING", "ERROR"])
         self.level_combo.currentTextChanged.connect(self._on_filter_changed)
 
-        source_label = QLabel("来源:")
+        source_label = QLabel(tr("log.source", "来源:"))
         self.source_combo = QComboBox()
-        self.source_combo.addItems(["全部", "Nanobot", "Bridge", "WSL", "FTK_Claw_Bot"])
+        self.source_combo.addItems([tr("log.all", "全部"), tr("log.source_nanobot", "Nanobot"), tr("log.source_bridge", "Bridge"), tr("log.source_wsl", "WSL"), tr("log.source_ftk", "FTK_Claw_Bot")])
         self.source_combo.currentTextChanged.connect(self._on_filter_changed)
         
-        time_label = QLabel("时间范围:")
+        time_label = QLabel(tr("log.time_range", "时间范围:"))
         self.time_combo = QComboBox()
-        self.time_combo.addItems(["最近10分钟", "最近1小时", "最近24小时", "全部"])
+        self.time_combo.addItems([tr("log.last_10min", "最近10分钟"), tr("log.last_1hour", "最近1小时"), tr("log.last_24hours", "最近24小时"), tr("log.all", "全部")])
         self.time_combo.currentTextChanged.connect(self._on_filter_changed)
 
-        self.auto_scroll_check = QCheckBox("实时刷新")
+        self.auto_scroll_check = QCheckBox(tr("log.realtime_refresh", "实时刷新"))
         self.auto_scroll_check.setChecked(True)
         self.auto_scroll_check.stateChanged.connect(self._on_auto_scroll_changed)
 
@@ -83,9 +85,9 @@ class LogPanel(QWidget):
         
         # 搜索框
         search_layout = QHBoxLayout()
-        search_label = QLabel("搜索:")
+        search_label = QLabel(tr("log.search", "搜索:"))
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("🔍 输入关键词搜索...")
+        self.search_edit.setPlaceholderText(tr("log.search_placeholder", "输入关键词搜索..."))
         self.search_edit.textChanged.connect(self._on_filter_changed)
         
         search_layout.addWidget(search_label)
@@ -101,7 +103,7 @@ class LogPanel(QWidget):
         layout.addWidget(self.log_text, 1)
         
         # 分页信息
-        self.pagination_label = QLabel("第 1-0 条，共 0 条")
+        self.pagination_label = QLabel(tr("log.pagination", "第 {start}-{end} 条，共 {total} 条").format(start=1, end=0, total=0))
         self.pagination_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(self.pagination_label)
 
@@ -131,26 +133,34 @@ class LogPanel(QWidget):
     def _should_display(self, entry: LogEntry) -> bool:
         # 级别过滤
         level_filter = self.level_combo.currentText()
-        if level_filter != "全部" and entry.level != level_filter:
+        if level_filter != tr("log.all", "全部") and entry.level != level_filter:
             return False
 
         # 来源过滤
         source_filter = self.source_combo.currentText()
-        if source_filter != "全部" and entry.source != source_filter:
-            return False
+        if source_filter != tr("log.all", "全部"):
+            # 检查来源是否匹配（需要反向映射翻译后的来源名称）
+            source_map = {
+                tr("log.source_nanobot", "Nanobot"): "Nanobot",
+                tr("log.source_bridge", "Bridge"): "Bridge",
+                tr("log.source_wsl", "WSL"): "WSL",
+                tr("log.source_ftk", "FTK_Claw_Bot"): "FTK_Claw_Bot"
+            }
+            if source_filter in source_map and entry.source != source_map[source_filter]:
+                return False
         
         # 时间范围过滤
         time_filter = self.time_combo.currentText()
-        if time_filter != "全部":
+        if time_filter != tr("log.all", "全部"):
             try:
                 entry_time = datetime.strptime(entry.timestamp, "%Y-%m-%d %H:%M:%S")
                 now = datetime.now()
                 
-                if time_filter == "最近10分钟":
+                if time_filter == tr("log.last_10min", "最近10分钟"):
                     cutoff = now - timedelta(minutes=10)
-                elif time_filter == "最近1小时":
+                elif time_filter == tr("log.last_1hour", "最近1小时"):
                     cutoff = now - timedelta(hours=1)
-                elif time_filter == "最近24小时":
+                elif time_filter == tr("log.last_24hours", "最近24小时"):
                     cutoff = now - timedelta(hours=24)
                 else:
                     cutoff = None
@@ -185,7 +195,7 @@ class LogPanel(QWidget):
         self._update_pagination()
     
     def _update_pagination(self):
-        self.pagination_label.setText(f"第 1-{self._displayed_count} 条，共 {len(self._logs)} 条")
+        self.pagination_label.setText(tr("log.pagination", "第 {start}-{end} 条，共 {total} 条").format(start=1, end=self._displayed_count, total=len(self._logs)))
     
     def _append_log(self, entry: LogEntry):
         if not self._should_display(entry):
@@ -230,7 +240,7 @@ class LogPanel(QWidget):
     def _export_logs(self):
         from PyQt6.QtWidgets import QFileDialog
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出日志", "", "Text Files (*.txt);;Log Files (*.log)"
+            self, tr("log.export_title", "导出日志"), "", "Text Files (*.txt);;Log Files (*.log)"
         )
         if file_path:
             try:
@@ -239,7 +249,7 @@ class LogPanel(QWidget):
                         f.write(f"[{entry.level}] {entry.timestamp} [{entry.source}] {entry.message}\n")
             except Exception as e:
                 from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.warning(self, "错误", f"导出失败: {e}")
+                QMessageBox.warning(self, tr("error.title", "错误"), tr("log.export_failed", "导出失败: {error}").format(error=e))
 
     def get_logs(self, count: Optional[int] = None) -> List[LogEntry]:
         if count:

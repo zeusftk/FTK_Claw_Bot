@@ -382,8 +382,8 @@ class InitProgressPage(QWidget):
             "更新系统包",
             "安装基础工具",
             "安装 Python 3.11",
-            "安装 nanobot",
-            "安装 OpenCode",
+            "安装 clawbot",
+            "安装 Node.js",
             "配置系统服务"
         ]
         for i, step in enumerate(steps):

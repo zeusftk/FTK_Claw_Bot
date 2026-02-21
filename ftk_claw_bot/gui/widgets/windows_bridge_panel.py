@@ -18,6 +18,7 @@ from PyQt6.QtGui import QFont, QColor, QPixmap
 from ..mixins import WSLStateAwareMixin
 from ..dialogs import WaitingDialog
 from ...services.windows_bridge import WindowsAutomation
+from ...utils.i18n import tr
 
 
 class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
@@ -60,35 +61,30 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         if new_port != self._bridge_port:
             reply = QMessageBox.question(
                 self,
-                "确认修改端口",
-                f"端口将从 {self._bridge_port} 更改为 {new_port}\n\n"
-                f"这将：\n"
-                f"1. 保存配置\n"
-                f"2. 同步配置到所有 WSL\n"
-                f"3. 重启 IPC Server\n\n"
-                f"是否继续？",
+                tr("bridge.msg.confirm_port_change", "确认修改端口"),
+                tr("bridge.msg.port_change_detail", "端口将从 {old} 更改为 {new}\n\n这将：\n1. 保存配置\n2. 同步配置到所有 WSL\n3. 重启 IPC Server\n\n是否继续？").format(old=self._bridge_port, new=new_port),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self._show_port_change_progress(new_port)
         else:
-            self._add_log("端口未变更")
+            self._add_log(tr("bridge.msg.port_not_changed", "端口未变更"))
     
     def _show_port_change_progress(self, new_port: int):
-        dialog = WaitingDialog("修改端口", "正在更新端口配置...", self)
+        dialog = WaitingDialog(tr("bridge.msg.change_port_title", "修改端口"), tr("bridge.msg.updating_port", "正在更新端口配置..."), self)
         dialog.show()
         
         old_port = self._bridge_port
         self._bridge_port = new_port
         
-        self._bridge_status_label.setText(f"Windows Bridge: ● 运行中 (端口: {new_port})")
+        self._bridge_status_label.setText(f"Windows Bridge: ● {tr('bridge.status_running_dot', '运行中')} (端口: {new_port})")
         
         self.port_changed.emit(new_port)
         
-        dialog.close_with_result(True, f"端口已更改为 {new_port}")
+        dialog.close_with_result(True, tr("bridge.msg.port_changed", "端口已更改为 {port}").format(port=new_port))
         
-        self._add_log(f"✓ 监听端口已更改为: {new_port}")
+        self._add_log(tr("bridge.msg.port_changed_log", "✓ 监听端口已更改为: {port}").format(port=new_port))
     
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -96,7 +92,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         main_layout.setSpacing(16)
         
         header_layout = QHBoxLayout()
-        title = QLabel("桥接控制")
+        title = QLabel(tr("bridge.title", "桥接控制"))
         font = QFont()
         font.setPointSize(18)
         font.setBold(True)
@@ -105,11 +101,11 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         header_layout.addWidget(title)
         header_layout.addStretch()
         
-        self._status_label = QLabel("状态: 未运行")
+        self._status_label = QLabel(tr("bridge.status_not_running", "状态: 未运行"))
         self._status_label.setStyleSheet("color: #8b949e; font-size: 14px;")
         header_layout.addWidget(self._status_label)
         
-        self._toggle_btn = QPushButton("启动桥接")
+        self._toggle_btn = QPushButton(tr("bridge.start", "启动桥接"))
         self._toggle_btn.setObjectName("primaryButton")
         self._toggle_btn.setFixedWidth(100)
         self._toggle_btn.clicked.connect(self._on_toggle_bridge)
@@ -145,8 +141,8 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             }
         """)
         
-        self._tab_widget.addTab(self._create_basic_tab(), "基础设置")
-        self._tab_widget.addTab(self._create_advanced_tab(), "高级控制")
+        self._tab_widget.addTab(self._create_basic_tab(), tr("bridge.tab.basic", "基础设置"))
+        self._tab_widget.addTab(self._create_advanced_tab(), tr("bridge.tab.advanced", "高级控制"))
         
         main_layout.addWidget(self._tab_widget)
     
@@ -194,7 +190,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         return tab
     
     def _create_wsl_connection_group(self) -> QGroupBox:
-        group = QGroupBox("📡 WSL 连通状态")
+        group = QGroupBox(tr("bridge.wsl_status", "📡 WSL 连通状态"))
         group.setStyleSheet("""
             QGroupBox {
                 color: #f0f6fc;
@@ -220,7 +216,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         
         header_layout = QHBoxLayout()
         header_layout.addStretch()
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = QPushButton(tr("bridge.btn.refresh", "刷新"))
         refresh_btn.setObjectName("smallButton")
         refresh_btn.setFixedWidth(50)
         refresh_btn.clicked.connect(self._on_refresh_wsl_status)
@@ -229,7 +225,11 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         
         self._wsl_status_table = QTableWidget()
         self._wsl_status_table.setColumnCount(3)
-        self._wsl_status_table.setHorizontalHeaderLabels(["分发名称", "WSL状态", "Bridge连接"])
+        self._wsl_status_table.setHorizontalHeaderLabels([
+            tr("bridge.table.distro_name", "分发名称"),
+            tr("bridge.table.wsl_status", "WSL状态"),
+            tr("bridge.table.bridge_connection", "Bridge连接")
+        ])
         self._wsl_status_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._wsl_status_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self._wsl_status_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -263,7 +263,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout.addWidget(self._wsl_status_table)
         
         status_layout = QHBoxLayout()
-        self._bridge_status_label = QLabel("Windows Bridge: ○ 未运行")
+        self._bridge_status_label = QLabel(f"Windows Bridge: ○ {tr('bridge.status_not_running', '未运行')}")
         self._bridge_status_label.setStyleSheet("color: #8b949e; font-size: 12px;")
         status_layout.addWidget(self._bridge_status_label)
         status_layout.addStretch()
@@ -272,7 +272,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         return group
     
     def _create_port_settings_group(self) -> QGroupBox:
-        group = QGroupBox("⚙ 端口设置")
+        group = QGroupBox(tr("bridge.port_settings", "⚙ 端口设置"))
         group.setStyleSheet("""
             QGroupBox {
                 color: #f0f6fc;
@@ -297,7 +297,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout.setSpacing(8)
         
         port_layout = QHBoxLayout()
-        port_layout.addWidget(QLabel("监听端口:"))
+        port_layout.addWidget(QLabel(tr("bridge.listen_port", "监听端口:")))
         
         self._port_spin = QSpinBox()
         self._port_spin.setRange(1024, 65535)
@@ -317,7 +317,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         """)
         port_layout.addWidget(self._port_spin)
         
-        self._apply_port_btn = QPushButton("应用")
+        self._apply_port_btn = QPushButton(tr("bridge.btn.apply", "应用"))
         self._apply_port_btn.setObjectName("smallButton")
         self._apply_port_btn.setFixedWidth(50)
         self._apply_port_btn.clicked.connect(self._on_apply_port)
@@ -333,7 +333,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         self.refresh_wsl_status.emit()
     
     def _create_quick_actions_group(self) -> QGroupBox:
-        group = QGroupBox("⚡ 快速操作")
+        group = QGroupBox(tr("bridge.quick_actions", "⚡ 快速操作"))
         group.setStyleSheet("""
             QGroupBox {
                 color: #f0f6fc;
@@ -358,10 +358,10 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout.setSpacing(8)
         
         actions = [
-            ("📸 截图", self._on_quick_screenshot),
-            ("📋 剪贴板", self._on_quick_clipboard),
-            ("🖱 鼠标位置", self._on_get_mouse_position),
-            ("🪟 窗口列表", self._on_list_windows),
+            (tr("bridge.quick.screenshot", "📸 截图"), self._on_quick_screenshot),
+            (tr("bridge.quick.clipboard", "📋 剪贴板"), self._on_quick_clipboard),
+            (tr("bridge.quick.mouse_position", "🖱 鼠标位置"), self._on_get_mouse_position),
+            (tr("bridge.quick.window_list", "🪟 窗口列表"), self._on_list_windows),
         ]
         
         for i, (text, callback) in enumerate(actions):
@@ -390,7 +390,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         return group
     
     def _create_log_group(self) -> QGroupBox:
-        group = QGroupBox("📋 操作日志")
+        group = QGroupBox(tr("bridge.operation_log", "📋 操作日志"))
         group.setStyleSheet("""
             QGroupBox {
                 color: #f0f6fc;
@@ -416,7 +416,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         
         header_layout = QHBoxLayout()
         header_layout.addStretch()
-        clear_btn = QPushButton("清空")
+        clear_btn = QPushButton(tr("bridge.btn.clear", "清空"))
         clear_btn.setObjectName("smallButton")
         clear_btn.setFixedWidth(50)
         clear_btn.clicked.connect(self._clear_log)
@@ -455,37 +455,41 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout = QVBoxLayout(frame)
         layout.setSpacing(12)
         
-        title = QLabel("🖱 鼠标控制")
+        title = QLabel(tr("bridge.mouse_control", "🖱 鼠标控制"))
         title.setStyleSheet("color: #f0f6fc; font-weight: 600; font-size: 14px;")
         layout.addWidget(title)
         
         move_layout = QHBoxLayout()
-        move_layout.addWidget(QLabel("移动:"))
+        move_layout.addWidget(QLabel(tr("bridge.label.move", "移动:")))
         self._mouse_x = QLineEdit()
-        self._mouse_x.setPlaceholderText("X")
+        self._mouse_x.setPlaceholderText(tr("bridge.placeholder.x", "X"))
         self._mouse_x.setFixedWidth(60)
         self._mouse_x.setStyleSheet(self._get_input_style())
         move_layout.addWidget(self._mouse_x)
         move_layout.addWidget(QLabel(","))
         self._mouse_y = QLineEdit()
-        self._mouse_y.setPlaceholderText("Y")
+        self._mouse_y.setPlaceholderText(tr("bridge.placeholder.y", "Y"))
         self._mouse_y.setFixedWidth(60)
         self._mouse_y.setStyleSheet(self._get_input_style())
         move_layout.addWidget(self._mouse_y)
-        move_btn = QPushButton("移动")
+        move_btn = QPushButton(tr("bridge.btn.move", "移动"))
         move_btn.setObjectName("smallButton")
         move_btn.clicked.connect(self._on_mouse_move)
         move_layout.addWidget(move_btn)
         layout.addLayout(move_layout)
         
         click_layout = QHBoxLayout()
-        click_layout.addWidget(QLabel("点击:"))
+        click_layout.addWidget(QLabel(tr("bridge.label.click", "点击:")))
         self._click_type = QComboBox()
-        self._click_type.addItems(["左键", "右键", "双击"])
+        self._click_type.addItems([
+            tr("bridge.left_click", "左键"),
+            tr("bridge.right_click", "右键"),
+            tr("bridge.double_click", "双击")
+        ])
         self._click_type.setFixedWidth(80)
         self._click_type.setStyleSheet(self._get_combo_style())
         click_layout.addWidget(self._click_type)
-        click_btn = QPushButton("执行")
+        click_btn = QPushButton(tr("bridge.btn.execute", "执行"))
         click_btn.setObjectName("smallButton")
         click_btn.clicked.connect(self._on_mouse_click)
         click_layout.addWidget(click_btn)
@@ -507,30 +511,30 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout = QVBoxLayout(frame)
         layout.setSpacing(12)
         
-        title = QLabel("⌨ 键盘控制")
+        title = QLabel(tr("bridge.keyboard_control", "⌨ 键盘控制"))
         title.setStyleSheet("color: #f0f6fc; font-weight: 600; font-size: 14px;")
         layout.addWidget(title)
         
         type_layout = QHBoxLayout()
-        type_layout.addWidget(QLabel("文本:"))
+        type_layout.addWidget(QLabel(tr("bridge.label.text", "文本:")))
         self._keyboard_text = QLineEdit()
-        self._keyboard_text.setPlaceholderText("输入文本")
+        self._keyboard_text.setPlaceholderText(tr("bridge.placeholder.text", "输入文本"))
         self._keyboard_text.setStyleSheet(self._get_input_style())
         type_layout.addWidget(self._keyboard_text)
-        type_btn = QPushButton("输入")
+        type_btn = QPushButton(tr("bridge.btn.type", "输入"))
         type_btn.setObjectName("smallButton")
         type_btn.clicked.connect(self._on_keyboard_type)
         type_layout.addWidget(type_btn)
         layout.addLayout(type_layout)
         
         press_layout = QHBoxLayout()
-        press_layout.addWidget(QLabel("按键:"))
+        press_layout.addWidget(QLabel(tr("bridge.label.key", "按键:")))
         self._keyboard_key = QLineEdit()
-        self._keyboard_key.setPlaceholderText("如: enter")
+        self._keyboard_key.setPlaceholderText(tr("bridge.placeholder.key", "如: enter"))
         self._keyboard_key.setFixedWidth(80)
         self._keyboard_key.setStyleSheet(self._get_input_style())
         press_layout.addWidget(self._keyboard_key)
-        press_btn = QPushButton("按下")
+        press_btn = QPushButton(tr("bridge.btn.press", "按下"))
         press_btn.setObjectName("smallButton")
         press_btn.clicked.connect(self._on_keyboard_press)
         press_layout.addWidget(press_btn)
@@ -552,11 +556,11 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout = QVBoxLayout(frame)
         layout.setSpacing(12)
         
-        title = QLabel("📸 屏幕截图")
+        title = QLabel(tr("bridge.screen_capture", "📸 屏幕截图"))
         title.setStyleSheet("color: #f0f6fc; font-weight: 600; font-size: 14px;")
         layout.addWidget(title)
         
-        screenshot_btn = QPushButton("截取全屏")
+        screenshot_btn = QPushButton(tr("bridge.capture_fullscreen", "截取全屏"))
         screenshot_btn.setStyleSheet("""
             QPushButton {
                 background-color: #238636;
@@ -573,7 +577,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         screenshot_btn.clicked.connect(self._on_screenshot)
         layout.addWidget(screenshot_btn)
         
-        self._screenshot_info = QLabel("点击按钮开始截图")
+        self._screenshot_info = QLabel(tr("bridge.msg.click_to_start", "点击按钮开始截图"))
         self._screenshot_info.setStyleSheet("color: #8b949e; font-size: 12px;")
         self._screenshot_info.setWordWrap(True)
         layout.addWidget(self._screenshot_info)
@@ -594,23 +598,23 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         layout = QVBoxLayout(frame)
         layout.setSpacing(12)
         
-        title = QLabel("🪟 窗口管理")
+        title = QLabel(tr("bridge.window_management", "🪟 窗口管理"))
         title.setStyleSheet("color: #f0f6fc; font-weight: 600; font-size: 14px;")
         layout.addWidget(title)
         
         find_layout = QHBoxLayout()
-        find_layout.addWidget(QLabel("标题:"))
+        find_layout.addWidget(QLabel(tr("bridge.label.title", "标题:")))
         self._window_title = QLineEdit()
-        self._window_title.setPlaceholderText("输入窗口标题")
+        self._window_title.setPlaceholderText(tr("bridge.placeholder.title", "输入窗口标题"))
         self._window_title.setStyleSheet(self._get_input_style())
         find_layout.addWidget(self._window_title)
-        find_btn = QPushButton("查找")
+        find_btn = QPushButton(tr("bridge.btn.find", "查找"))
         find_btn.setObjectName("smallButton")
         find_btn.clicked.connect(self._on_find_window)
         find_layout.addWidget(find_btn)
         layout.addLayout(find_layout)
         
-        list_btn = QPushButton("列出所有窗口")
+        list_btn = QPushButton(tr("bridge.btn.list_windows", "列出所有窗口"))
         list_btn.setStyleSheet("""
             QPushButton {
                 background-color: #21262d;
@@ -677,15 +681,15 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         windows = automation.list_windows()
         
         if windows:
-            self._add_log(f"✓ 找到 {len(windows)} 个窗口:")
+            self._add_log(tr("bridge.msg.windows_found", "✓ 找到 {count} 个窗口:").format(count=len(windows)))
             for i, w in enumerate(windows[:10]):
                 if w.title:
                     self._add_log(f"  {i+1}. {w.title}")
             if len(windows) > 10:
-                self._add_log(f"  ... 还有 {len(windows) - 10} 个窗口")
+                self._add_log(tr("bridge.msg.more_windows", "  ... 还有 {count} 个窗口").format(count=len(windows) - 10))
             self._update_last_activity()
         else:
-            self._add_log(f"✗ 未找到任何窗口")
+            self._add_log(tr("bridge.msg.no_windows", "✗ 未找到任何窗口"))
     
     def _on_toggle_bridge(self):
         if self._bridge_status:
@@ -697,15 +701,15 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
     
     def _check_bridge_available(self) -> bool:
         if not self._windows_bridge or not self._windows_bridge.is_running:
-            QMessageBox.warning(self, "提示", "桥接服务未启动，请先启动桥接服务")
+            QMessageBox.warning(self, tr("bridge.msg.hint", "提示"), tr("bridge.msg.bridge_not_running", "桥接服务未启动，请先启动桥接服务"))
             return False
         return True
     
     def _confirm_action(self, action_description: str) -> bool:
         reply = QMessageBox.question(
             self,
-            "确认操作",
-            f"即将执行: {action_description}\n\n是否继续?",
+            tr("bridge.msg.confirm_action", "确认操作"),
+            tr("bridge.msg.action_detail", "即将执行: {action}\n\n是否继续?").format(action=action_description),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -722,76 +726,76 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             success = automation.mouse_move(x, y)
             
             if success:
-                self._add_log(f"✓ 移动鼠标到: ({x}, {y})")
+                self._add_log(tr("bridge.msg.mouse_moved", "✓ 移动鼠标到: ({x}, {y})").format(x=x, y=y))
                 self._update_last_activity()
             else:
-                self._add_log(f"✗ 移动鼠标失败")
+                self._add_log(tr("bridge.msg.mouse_move_failed", "✗ 移动鼠标失败"))
         except ValueError:
-            QMessageBox.warning(self, "错误", "请输入有效的坐标")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("bridge.msg.invalid_coords", "请输入有效的坐标"))
     
     def _on_mouse_click(self):
         if not self._check_bridge_available():
             return
         click_type = self._click_type.currentText()
         
-        if not self._confirm_action(f"鼠标{click_type}点击"):
+        if not self._confirm_action(tr("bridge.msg.mouse_click_action", "鼠标{type}点击").format(type=click_type)):
             return
         
         automation = WindowsAutomation()
         
         pos = automation.get_mouse_position()
-        if click_type == "左键":
+        if click_type == tr("bridge.left_click", "左键"):
             success = automation.mouse_click(pos[0], pos[1], "left", 1)
-        elif click_type == "右键":
+        elif click_type == tr("bridge.right_click", "右键"):
             success = automation.mouse_click(pos[0], pos[1], "right", 1)
         else:
             success = automation.mouse_click(pos[0], pos[1], "left", 2)
         
         if success:
-            self._add_log(f"✓ 执行{click_type}点击 @ ({pos[0]}, {pos[1]})")
+            self._add_log(tr("bridge.msg.mouse_clicked", "✓ 执行{type}点击 @ ({x}, {y})").format(type=click_type, x=pos[0], y=pos[1]))
             self._update_last_activity()
         else:
-            self._add_log(f"✗ 执行{click_type}点击失败")
+            self._add_log(tr("bridge.msg.mouse_click_failed", "✗ 执行{type}点击失败").format(type=click_type))
     
     def _on_keyboard_type(self):
         if not self._check_bridge_available():
             return
         text = self._keyboard_text.text()
         if not text:
-            QMessageBox.warning(self, "错误", "请输入要键入的文本")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("bridge.msg.enter_text", "请输入要键入的文本"))
             return
         
-        if not self._confirm_action(f"输入文本: {text}"):
+        if not self._confirm_action(tr("bridge.msg.type_text_action", "输入文本: {text}").format(text=text)):
             return
         
         automation = WindowsAutomation()
         success = automation.keyboard_type(text)
         
         if success:
-            self._add_log(f"✓ 输入文本: {text}")
+            self._add_log(tr("bridge.msg.text_typed", "✓ 输入文本: {text}").format(text=text))
             self._update_last_activity()
         else:
-            self._add_log(f"✗ 输入文本失败")
+            self._add_log(tr("bridge.msg.text_type_failed", "✗ 输入文本失败"))
     
     def _on_keyboard_press(self):
         if not self._check_bridge_available():
             return
         key = self._keyboard_key.text()
         if not key:
-            QMessageBox.warning(self, "错误", "请输入要按下的按键")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("bridge.msg.enter_key", "请输入要按下的按键"))
             return
         
-        if not self._confirm_action(f"按下按键: {key}"):
+        if not self._confirm_action(tr("bridge.msg.press_key_action", "按下按键: {key}").format(key=key)):
             return
         
         automation = WindowsAutomation()
         success = automation.keyboard_press(key)
         
         if success:
-            self._add_log(f"✓ 按下按键: {key}")
+            self._add_log(tr("bridge.msg.key_pressed", "✓ 按下按键: {key}").format(key=key))
             self._update_last_activity()
         else:
-            self._add_log(f"✗ 按下按键失败")
+            self._add_log(tr("bridge.msg.key_press_failed", "✗ 按下按键失败"))
     
     def _on_screenshot(self):
         if not self._check_bridge_available():
@@ -809,31 +813,31 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             with open(filepath, "wb") as f:
                 f.write(data)
             
-            automation.set_clipboard(f"[截图已保存: {filepath}]")
-            self._screenshot_info.setText(f"截图已保存: {filepath}")
-            self._add_log(f"✓ 截图已保存: {filepath}")
+            automation.set_clipboard(tr("bridge.msg.screenshot_clipboard", "[截图已保存: {path}]").format(path=filepath))
+            self._screenshot_info.setText(tr("bridge.msg.screenshot_saved", "截图已保存: {path}").format(path=filepath))
+            self._add_log(tr("bridge.msg.screenshot_saved_log", "✓ 截图已保存: {path}").format(path=filepath))
             self._update_last_activity()
         else:
-            self._screenshot_info.setText("截图失败")
-            self._add_log(f"✗ 截图失败")
+            self._screenshot_info.setText(tr("bridge.msg.screenshot_failed", "截图失败"))
+            self._add_log(tr("bridge.msg.screenshot_failed_log", "✗ 截图失败"))
     
     def _on_find_window(self):
         if not self._check_bridge_available():
             return
         title = self._window_title.text()
         if not title:
-            QMessageBox.warning(self, "错误", "请输入窗口标题")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("bridge.msg.enter_title", "请输入窗口标题"))
             return
         
         automation = WindowsAutomation()
         window = automation.find_window(title)
         
         if window:
-            self._add_log(f"✓ 找到窗口: {window.title}")
-            self._add_log(f"  位置: {window.rect}")
+            self._add_log(tr("bridge.msg.window_found", "✓ 找到窗口: {title}").format(title=window.title))
+            self._add_log(tr("bridge.msg.window_position", "  位置: {rect}").format(rect=window.rect))
             self._update_last_activity()
         else:
-            self._add_log(f"✗ 未找到窗口: {title}")
+            self._add_log(tr("bridge.msg.window_not_found", "✗ 未找到窗口: {title}").format(title=title))
     
     def _on_list_windows(self):
         if not self._check_bridge_available():
@@ -843,15 +847,15 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         windows = automation.list_windows()
         
         if windows:
-            self._add_log(f"✓ 找到 {len(windows)} 个窗口:")
+            self._add_log(tr("bridge.msg.windows_found", "✓ 找到 {count} 个窗口:").format(count=len(windows)))
             for i, w in enumerate(windows[:10]):
                 if w.title:
                     self._add_log(f"  {i+1}. {w.title}")
             if len(windows) > 10:
-                self._add_log(f"  ... 还有 {len(windows) - 10} 个窗口")
+                self._add_log(tr("bridge.msg.more_windows", "  ... 还有 {count} 个窗口").format(count=len(windows) - 10))
             self._update_last_activity()
         else:
-            self._add_log(f"✗ 未找到任何窗口")
+            self._add_log(tr("bridge.msg.no_windows", "✗ 未找到任何窗口"))
     
     def _on_quick_screenshot(self):
         self._on_screenshot()
@@ -864,10 +868,10 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         text = automation.get_clipboard()
         
         if text:
-            self._add_log(f"✓ 剪贴板内容: {text[:100]}{'...' if len(text) > 100 else ''}")
+            self._add_log(tr("bridge.msg.clipboard_content", "✓ 剪贴板内容: {content}").format(content=text[:100] + ('...' if len(text) > 100 else '')))
             self._update_last_activity()
         else:
-            self._add_log(f"剪贴板为空")
+            self._add_log(tr("bridge.msg.clipboard_empty", "剪贴板为空"))
     
     def _on_get_mouse_position(self):
         if not self._check_bridge_available():
@@ -876,7 +880,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         automation = WindowsAutomation()
         pos = automation.get_mouse_position()
         
-        self._add_log(f"✓ 鼠标位置: ({pos[0]}, {pos[1]})")
+        self._add_log(tr("bridge.msg.mouse_position", "✓ 鼠标位置: ({x}, {y})").format(x=pos[0], y=pos[1]))
         self._mouse_x.setText(str(pos[0]))
         self._mouse_y.setText(str(pos[1]))
         self._update_last_activity()
@@ -884,19 +888,19 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
     def set_bridge_status(self, running: bool):
         self._bridge_status = running
         if running:
-            self._status_label.setText("状态: 运行中")
+            self._status_label.setText(tr("bridge.status_running", "状态: 运行中"))
             self._status_label.setStyleSheet("color: #3fb950; font-size: 14px;")
-            self._toggle_btn.setText("停止桥接")
-            self._bridge_status_label.setText(f"Windows Bridge: ● 运行中 (端口: {self._bridge_port})")
+            self._toggle_btn.setText(tr("bridge.stop", "停止桥接"))
+            self._bridge_status_label.setText(f"Windows Bridge: ● {tr('bridge.status_running_dot', '运行中')} (端口: {self._bridge_port})")
             self._bridge_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
-            self._add_log("✓ 桥接服务已启动")
+            self._add_log(tr("bridge.service_started", "✓ 桥接服务已启动"))
         else:
-            self._status_label.setText("状态: 未运行")
+            self._status_label.setText(tr("bridge.status_not_running", "状态: 未运行"))
             self._status_label.setStyleSheet("color: #8b949e; font-size: 14px;")
-            self._toggle_btn.setText("启动桥接")
-            self._bridge_status_label.setText("Windows Bridge: ○ 未运行")
+            self._toggle_btn.setText(tr("bridge.start", "启动桥接"))
+            self._bridge_status_label.setText(f"Windows Bridge: ○ {tr('bridge.status_not_running', '未运行')}")
             self._bridge_status_label.setStyleSheet("color: #8b949e; font-size: 12px;")
-            self._add_log("桥接服务已停止")
+            self._add_log(tr("bridge.service_stopped", "桥接服务已停止"))
 
     def update_clients_info(self, clients_info: list):
         pass
@@ -922,12 +926,12 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             name_item = QTableWidgetItem(distro.name)
             name_item.setForeground(QColor("#c9d1d9"))
             
-            wsl_status_item = QTableWidgetItem("● 运行" if distro.is_running else "○ 停止")
+            wsl_status_item = QTableWidgetItem(tr("bridge.status_running_dot", "● 运行") if distro.is_running else tr("bridge.status_stopped_dot", "○ 停止"))
             wsl_status_item.setForeground(QColor("#3fb950") if distro.is_running else QColor("#8b949e"))
             
             if distro.is_running:
                 is_connected = distro.name in connected_distro_names
-                bridge_status_item = QTableWidgetItem("● 已连接" if is_connected else "○ 未连接")
+                bridge_status_item = QTableWidgetItem(tr("bridge.status_connected", "● 已连接") if is_connected else tr("bridge.status_disconnected", "○ 未连接"))
                 bridge_status_item.setForeground(QColor("#3fb950") if is_connected else QColor("#f85149"))
             else:
                 bridge_status_item = QTableWidgetItem("--")
@@ -941,7 +945,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         pass
     
     def update_distro_list(self, distros: list):
-        self._add_log(f"✓ WSL 分发列表已更新，共 {len(distros)} 个")
+        self._add_log(tr("bridge.msg.wsl_list_updated", "✓ WSL 分发列表已更新，共 {count} 个").format(count=len(distros)))
     
     def _update_last_activity(self):
         pass
@@ -958,11 +962,11 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         self._update_wsl_table_from_data(distros)
 
     def on_wsl_distro_started(self, distro_name: str):
-        self._add_log(f"WSL '{distro_name}' 已启动")
+        self._add_log(tr("bridge.msg.wsl_started", "✓ WSL '{name}' 已启动").format(name=distro_name))
         self.refresh_wsl_status.emit()
 
     def on_wsl_distro_stopped(self, distro_name: str):
-        self._add_log(f"WSL '{distro_name}' 已停止")
+        self._add_log(tr("bridge.msg.wsl_stopped", "✓ WSL '{name}' 已停止").format(name=distro_name))
         self.refresh_wsl_status.emit()
 
     def _update_wsl_table_from_data(self, distros: List[Dict]):
@@ -973,7 +977,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             name_item.setForeground(QColor("#c9d1d9"))
             
             is_running = distro.get("is_running", False)
-            wsl_status_item = QTableWidgetItem("● 运行" if is_running else "○ 停止")
+            wsl_status_item = QTableWidgetItem(f"● {tr('bridge.status_running_dot', '运行')}" if is_running else f"○ {tr('bridge.status_stopped_dot', '停止')}")
             wsl_status_item.setForeground(QColor("#3fb950") if is_running else QColor("#8b949e"))
             
             bridge_status_item = QTableWidgetItem("--")
