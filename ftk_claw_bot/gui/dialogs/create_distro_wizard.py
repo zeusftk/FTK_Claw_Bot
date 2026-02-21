@@ -198,11 +198,54 @@ class BasicInfoPage(QWidget):
         location_layout.addWidget(browse_btn)
         
         layout.addLayout(location_layout)
-        
+
+        tar_layout = QHBoxLayout()
+        tar_layout.setSpacing(12)
+        tar_label = QLabel("Ubuntu 镜像:")
+        tar_label.setFixedWidth(100)
+        tar_layout.addWidget(tar_label)
+
+        self.tar_path_edit = QLineEdit()
+        self.tar_path_edit.setPlaceholderText("选择 Ubuntu 镜像文件 (.tar)")
+        default_tar = os.path.join(os.getcwd(), "init_wsl", "Ubuntu_22.tar")
+        if os.path.exists(default_tar):
+            self.tar_path_edit.setText(default_tar)
+        tar_layout.addWidget(self.tar_path_edit, 1)
+
+        tar_browse_btn = QPushButton("浏览")
+        tar_browse_btn.setObjectName("smallButton")
+        tar_browse_btn.clicked.connect(self._browse_tar)
+        tar_layout.addWidget(tar_browse_btn)
+
+        layout.addLayout(tar_layout)
+
+        bat_layout = QHBoxLayout()
+        bat_layout.setSpacing(12)
+        bat_label = QLabel("Nanobot 包:")
+        bat_label.setFixedWidth(100)
+        bat_layout.addWidget(bat_label)
+
+        self.whl_path_edit = QLineEdit()
+        self.whl_path_edit.setPlaceholderText("选择 nanobot wheel 文件 (.whl)")
+        default_whl = os.path.join(os.getcwd(), "init_wsl")
+        if os.path.exists(default_whl):
+            whl_files = [f for f in os.listdir(default_whl) if f.startswith("nanobot") and f.endswith(".whl")]
+            if whl_files:
+                self.whl_path_edit.setText(os.path.join(default_whl, whl_files[0]))
+        bat_layout.addWidget(self.whl_path_edit, 1)
+
+        bat_browse_btn = QPushButton("浏览")
+        bat_browse_btn.setObjectName("smallButton")
+        bat_browse_btn.clicked.connect(self._browse_whl)
+        bat_layout.addWidget(bat_browse_btn)
+
+        layout.addLayout(bat_layout)
+
         hint_label = QLabel(
             "提示:\n"
             "• 分发名称只能包含字母、数字、下划线和横杠\n"
-            "• 安装位置可选，留空则使用默认位置"
+            "• 安装位置可选，留空则使用默认位置\n"
+            "• Ubuntu 镜像和 Nanobot 包可通过浏览按钮选择"
         )
         hint_label.setStyleSheet("color: #8b949e; font-size: 12px; line-height: 1.6;")
         layout.addWidget(hint_label)
@@ -215,7 +258,21 @@ class BasicInfoPage(QWidget):
         dir_path = QFileDialog.getExistingDirectory(self, "选择 WSL 安装目录")
         if dir_path:
             self.location_edit.setText(dir_path)
-    
+
+    def _browse_tar(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择 Ubuntu 镜像文件", "", "TAR 文件 (*.tar);;所有文件 (*)"
+        )
+        if file_path:
+            self.tar_path_edit.setText(file_path)
+
+    def _browse_whl(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择 nanobot wheel 文件", "", "Wheel 文件 (*.whl);;所有文件 (*)"
+        )
+        if file_path:
+            self.whl_path_edit.setText(file_path)
+
     def _validate_name(self):
         name = self.name_edit.text().strip()
         
@@ -239,91 +296,115 @@ class BasicInfoPage(QWidget):
     
     def validate(self) -> bool:
         name = self.name_edit.text().strip()
-        
+
         if not name:
             show_warning(self, "错误", "请输入分发名称")
             return False
-        
+
         if not re.match(r'^[a-zA-Z0-9_.-]+$', name):
             show_warning(self, "错误", "分发名称只能包含字母、数字、下划线和横杠")
             return False
-        
+
         existing_distros = self._wsl_manager.list_distros()
         if any(d.name == name for d in existing_distros):
             show_warning(self, "错误", f"分发名称 '{name}' 已存在")
             return False
-        
+
+        tar_path = self.tar_path_edit.text().strip()
+        if not tar_path:
+            show_warning(self, "错误", "请选择 Ubuntu 镜像文件")
+            return False
+        if not os.path.exists(tar_path):
+            show_warning(self, "错误", f"Ubuntu 镜像文件不存在: {tar_path}")
+            return False
+
+        whl_path = self.whl_path_edit.text().strip()
+        if not whl_path:
+            show_warning(self, "错误", "请选择 nanobot wheel 文件")
+            return False
+        if not os.path.exists(whl_path):
+            show_warning(self, "错误", f"nanobot wheel 文件不存在: {whl_path}")
+            return False
+
         return True
-    
+
     def get_data(self) -> Dict[str, str]:
         return {
             "distro_name": self.name_edit.text().strip(),
-            "install_location": self.location_edit.text().strip() or None
+            "install_location": self.location_edit.text().strip() or None,
+            "tar_path": self.tar_path_edit.text().strip() or None,
+            "whl_path": self.whl_path_edit.text().strip() or None
         }
 
 
 class InitProgressPage(QWidget):
     """Step 2: 初始化 WSL（后台执行）"""
-    
+
     init_completed = pyqtSignal(bool, str)
     status_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int)
     step_status_changed = pyqtSignal(int, str)
-    
+
     def __init__(self, wsl_manager, parent=None):
         super().__init__(parent)
         self._wsl_manager = wsl_manager
         self._init_ui()
-    
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 24, 24, 24)
-        
+
         title_label = QLabel("正在初始化 WSL 分发")
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #c9d1d9;")
         layout.addWidget(title_label)
-        
+
         self.status_label = QLabel("准备中...")
         self.status_label.setStyleSheet("color: #8b949e; font-size: 13px;")
         layout.addWidget(self.status_label)
-        
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setFixedHeight(8)
         layout.addWidget(self.progress_bar)
-        
+
         steps_frame = QFrame()
         steps_frame.setStyleSheet("QFrame { background-color: #161b22; border-radius: 6px; }")
         steps_layout = QVBoxLayout(steps_frame)
         steps_layout.setSpacing(8)
         steps_layout.setContentsMargins(16, 16, 16, 16)
-        
+
         self.step_labels = []
         steps = [
             "导入 Ubuntu 镜像",
-            "配置 nanobot 环境"
+            "配置镜像源",
+            "更新系统包",
+            "安装基础工具",
+            "安装 Python 3.11",
+            "安装 nanobot",
+            "安装 OpenCode",
+            "配置系统服务"
         ]
         for i, step in enumerate(steps):
             step_label = QLabel(f"{'○' if i > 0 else '●'} {step}")
             step_label.setStyleSheet("color: #8b949e; font-size: 12px;")
             steps_layout.addWidget(step_label)
             self.step_labels.append(step_label)
-        
+
         layout.addWidget(steps_frame)
         layout.addStretch()
-        
+
         self.status_changed.connect(self._update_status, Qt.ConnectionType.QueuedConnection)
         self.progress_changed.connect(self._update_progress, Qt.ConnectionType.QueuedConnection)
         self.step_status_changed.connect(self._update_step_status, Qt.ConnectionType.QueuedConnection)
-    
+
     def _update_status(self, status: str):
         self.status_label.setText(status)
-    
+
     def _update_progress(self, value: int):
         self.progress_bar.setValue(value)
-    
+
     def _update_step_status(self, step_index: int, status: str):
         if step_index < len(self.step_labels):
             step_text = self.step_labels[step_index].text()
@@ -340,84 +421,59 @@ class InitProgressPage(QWidget):
             elif status == "pending":
                 self.step_labels[step_index].setText(f"○ {step_name}")
                 self.step_labels[step_index].setStyleSheet("color: #8b949e; font-size: 12px;")
-    
+
     def _set_step_status(self, step_index: int, status: str):
         self.step_status_changed.emit(step_index, status)
-    
-    def start_init(self, distro_name: str, install_location: Optional[str]):
+
+    def start_init(self, distro_name: str, install_location: Optional[str], tar_path: str, whl_path: str):
         self._distro_name = distro_name
         self._install_location = install_location
-        
+        self._tar_path = tar_path
+        self._whl_path = whl_path
+
         self.progress_bar.setValue(0)
+        for i in range(len(self.step_labels)):
+            self._set_step_status(i, "pending")
         self._set_step_status(0, "running")
-        self._set_step_status(1, "pending")
-        
+
         thread = threading.Thread(
             target=self._run_init,
             daemon=True
         )
         thread.start()
-    
-    def _get_init_wsl_path(self) -> str:
-        ## 获取 init_wsl 目录在项目根目录下
-        script_dir = Path(__file__).parent.parent.parent.parent
-        return str(script_dir / "init_wsl")
-    
+
     def _run_init(self):
         try:
-            init_wsl_path = self._get_init_wsl_path()
-            tar_path = os.path.join(init_wsl_path, "Ubuntu_22.tar")
-            bat_path = os.path.join(init_wsl_path, "make_nanobot_distro.bat")
-            
-            if not os.path.exists(tar_path):
-                self.init_completed.emit(False, f"Ubuntu 镜像文件不存在: {tar_path}")
-                return
-            
-            self.status_changed.emit("正在导入 Ubuntu 镜像...")
-            self.progress_changed.emit(10)
-            
-            result = self._wsl_manager.import_distro(
-                tar_path, 
-                self._distro_name, 
-                self._install_location
+            from ...services.wsl_initializer import WSLInitializer
+
+            initializer = WSLInitializer(self._wsl_manager)
+
+            initializer.set_progress_callback(
+                lambda percent, status: (
+                    self.progress_changed.emit(percent),
+                    self.status_changed.emit(status)
+                )
             )
-            
-            if not result.success:
-                self._set_step_status(0, "error")
-                self.init_completed.emit(False, f"导入失败: {result.stderr}")
-                return
-            
-            self._set_step_status(0, "done")
-            self.progress_changed.emit(50)
-            
-            self.status_changed.emit("正在配置 nanobot 环境...")
-            self._set_step_status(1, "running")
-            
-            process = subprocess.Popen(
-                [bat_path, self._distro_name],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                cwd=init_wsl_path
+
+            initializer.set_step_callback(
+                lambda step_index, step_name, status: self._set_step_status(step_index, status)
             )
-            
-            stdout, stderr = process.communicate()
-            
-            if process.returncode != 0:
-                self._set_step_status(1, "error")
-                error_msg = stderr if stderr else "配置脚本执行失败"
-                self.init_completed.emit(False, error_msg)
-                return
-            
-            self._set_step_status(1, "done")
-            self.progress_changed.emit(100)
-            self.status_changed.emit("初始化完成")
-            
-            self.init_completed.emit(True, "初始化成功")
-            
+
+            initializer.set_log_callback(
+                lambda msg: logger.info(f"[InitProgress] {msg}")
+            )
+
+            success, message = initializer.initialize_distro(
+                distro_name=self._distro_name,
+                tar_path=self._tar_path,
+                whl_path=self._whl_path,
+                install_location=self._install_location
+            )
+
+            self.init_completed.emit(success, message)
+
         except Exception as e:
+            logger.exception("初始化异常")
             self.init_completed.emit(False, str(e))
 
 
@@ -1349,7 +1405,9 @@ class CreateDistroWizard(QDialog):
                 self._go_to_step(1)
                 self.init_progress_page.start_init(
                     self._config_data.get("distro_name"),
-                    self._config_data.get("install_location")
+                    self._config_data.get("install_location"),
+                    self._config_data.get("tar_path"),
+                    self._config_data.get("whl_path")
                 )
             elif self._current_step == 2:
                 self._config_data.update(self.workspace_page.get_data())

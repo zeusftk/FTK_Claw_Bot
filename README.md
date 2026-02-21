@@ -39,48 +39,38 @@ FTK_Claw_Bot - Windows 平台的虾群控制工具，openclaw 平替方案。专
 
 ## 🚀 安装
 
-### 方式一：源码安装
+### 源码安装
 
 ```bash
 # 克隆仓库
 git clone https://github.com/zeusftk/FTK_Claw_Bot.git
 cd FTK_Claw_Bot
 
-# 安装依赖
-pip install -e .
-```
-
-### 方式二：使用预编译二进制包
-适合无需 Python 环境的用户，开箱即用：
-1. 下载 `init_wsl` 目录下的 `FTK_Claw_Bot_1.0.3.1.exe`
-2. 双击运行
-
-> **注意**：首次运行可能需要 Windows 安全中心确认。
-
-## 🔧 初始化 WSL 分发
-
-使用 `init_wsl` 目录中的脚本可快速配置 WSL 分发：
-
-```bash
-cd init_wsl
-make_nanobot_distro.bat
-```
-
-详细说明请参阅 [init_wsl/README.md](init_wsl/README.md)。
-
+# 方式一：
+pip install -r requirements.txt
 ## 🏃 运行
+python -m ftk_claw_bot.main
 
-### 命令行启动
-
-```bash
+# 方式二：
+pip install -e .
+## 🏃 运行
 ftkclawbot
 ```
 
-### 模块方式启动
 
+### 直接使用,二进制包
+适合无需 Python 环境的用户，开箱即用：
+1. 下载 `init_wsl` 
+2. 双击运行,目录下的 `FTK_Claw_Bot_1.0.4.exe`
+
+> **注意**：首次运行使用 `wsl --version` 检查 WSL 版本，确保为 WSL2。
+
+## 🔧 检查WSL版本
 ```bash
-python -m ftk_claw_bot.main
+cd init_wsl
+check_wsl_version.bat
 ```
+
 
 ## 📁 项目结构
 
@@ -96,7 +86,6 @@ FTK_Claw_Bot/
 │   │   ├── config_sync_manager.py      # 配置同步管理器
 │   │   ├── multi_nanobot_gateway_manager.py  # 多Bot网关管理
 │   │   ├── nanobot_controller.py       # Bot控制器
-│   │   ├── nanobot_distro_configurator.py    # 分发配置器
 │   │   ├── nanobot_gateway_manager.py  # 网关管理器
 │   │   ├── port_manager.py             # 端口管理器
 │   │   ├── skill_manager.py            # 技能管理器
@@ -140,6 +129,7 @@ FTK_Claw_Bot/
 │   │   ├── monitor_service.py # 监控服务
 │   │   ├── nanobot_chat_client.py # 聊天客户端
 │   │   ├── windows_bridge.py # Windows桥接
+│   │   ├── wsl_initializer.py # WSL初始化服务
 │   │   └── wsl_state_service.py # WSL状态服务
 │   ├── utils/                # 工具函数
 │   │   ├── async_ops.py      # 异步操作
@@ -155,14 +145,8 @@ FTK_Claw_Bot/
 │   ├── events.py             # 事件总线
 │   └── main.py               # 应用入口
 ├── init_wsl/                 # WSL初始化脚本
-│   ├── README.md
-│   ├── make_nanobot_distro.bat
-│   ├── make_nanobot_distro_manu.bat
-│   └── Clawbot-0.1.0.2-py3-none-any.whl
-├── docs/                     # 文档
-│   ├── spec.md               # 系统规格文档
-│   ├── checklist.md          # 功能检查清单
-│   └── NAMING_CONVENTIONS.md # 命名规范
+│   ├── check_wsl_version.bat # WSL版本检查脚本
+│   └── nanobot-0.1.4.1-py3-none-any.whl # nanobot wheel包
 ├── requirements.txt          # 依赖列表
 ├── setup.py                  # 安装配置
 └── pyproject.toml            # 项目配置
@@ -208,6 +192,7 @@ FTK_Claw_Bot/
 
 | 版本 | 日期 | 变更描述 |
 |------|------|----------|
+| 1.0.4 | 2026-02-21 | nanobot wheel包更新至0.1.4.1、项目结构优化 |
 | 1.0.3 | 2026-02-20 | 文档同步更新、目录结构优化 |
 | 1.0.2 | 2026-02-18 | 布局优化、默认提供商调整、进度对话框修复 |
 | 1.0.1 | 2026-02-17 | 版本号统一管理、插件系统、命名规范文档 |
