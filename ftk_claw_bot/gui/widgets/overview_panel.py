@@ -8,6 +8,16 @@ from typing import Optional
 
 from loguru import logger
 
+
+def _debug_log(msg: str):
+    """调试日志 - 同时输出到日志文件和控制台"""
+    try:
+        print(f"[DEBUG] {msg}")
+        logger.info(msg)
+    except Exception:
+        pass
+
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
@@ -294,22 +304,45 @@ class OverviewPanel(QWidget):
         config_manager: ConfigManager,
         parent=None
     ):
+        _debug_log("[OverviewPanel] 开始初始化...")
         super().__init__(parent)
+        _debug_log("[OverviewPanel] super().__init__() 完成")
+        
         self._wsl_manager = wsl_manager
         self._nanobot_controller = nanobot_controller
         self._config_manager = config_manager
+        _debug_log("[OverviewPanel] 成员变量赋值完成")
 
+        _debug_log("[OverviewPanel] 调用 _init_ui...")
         self._init_ui()
+        _debug_log("[OverviewPanel] _init_ui 完成")
+        
+        _debug_log("[OverviewPanel] 调用 _init_connections...")
         self._init_connections()
+        _debug_log("[OverviewPanel] _init_connections 完成")
+        
+        _debug_log("[OverviewPanel] 调用 _apply_styles...")
         self._apply_styles()
+        _debug_log("[OverviewPanel] _apply_styles 完成")
+        
+        _debug_log("[OverviewPanel] 注册 WSL 回调...")
         self._wsl_manager.register_callback(self._on_wsl_state_changed)
+        _debug_log("[OverviewPanel] WSL 回调注册完成")
+        
+        _debug_log("[OverviewPanel] 调用 _refresh_status...")
         self._refresh_status()
+        _debug_log("[OverviewPanel] _refresh_status 完成")
+        _debug_log("[OverviewPanel] 初始化完成!")
 
     def _init_ui(self):
+        _debug_log("[OverviewPanel._init_ui] 开始...")
+        
+        _debug_log("[OverviewPanel._init_ui] 创建主布局...")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(20)
 
+        _debug_log("[OverviewPanel._init_ui] 创建标题...")
         title = QLabel(tr("overview.title", "系统概览"))
         title.setObjectName("panelTitle")
         font = QFont()
@@ -318,26 +351,34 @@ class OverviewPanel(QWidget):
         title.setFont(font)
         layout.addWidget(title)
 
+        _debug_log("[OverviewPanel._init_ui] 创建统计卡片...")
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(16)
 
+        _debug_log("[OverviewPanel._init_ui] 创建 distro_count_card...")
         self.distro_count_card = StatCard(tr("overview.stats.distro_count", "WSL 分发"), "0", "🐧")
         stats_layout.addWidget(self.distro_count_card)
 
+        _debug_log("[OverviewPanel._init_ui] 创建 running_card...")
         self.running_card = StatCard(tr("overview.stats.running", "运行中"), "0", "▶")
         stats_layout.addWidget(self.running_card)
 
+        _debug_log("[OverviewPanel._init_ui] 创建 config_card...")
         self.config_card = StatCard(tr("overview.stats.config_count", "配置文件"), "0", "⚙")
         stats_layout.addWidget(self.config_card)
         
+        _debug_log("[OverviewPanel._init_ui] 创建 cpu_card...")
         self.cpu_card = StatCard(tr("overview.stats.cpu_usage", "CPU 使用率"), "0%", "💻")
         stats_layout.addWidget(self.cpu_card)
         
+        _debug_log("[OverviewPanel._init_ui] 创建 memory_card...")
         self.memory_card = StatCard(tr("overview.stats.memory_usage", "内存使用"), "0MB", "🧠")
         stats_layout.addWidget(self.memory_card)
 
         layout.addLayout(stats_layout)
+        _debug_log("[OverviewPanel._init_ui] 统计卡片创建完成")
 
+        _debug_log("[OverviewPanel._init_ui] 创建分发管理组...")
         distro_group = QGroupBox(tr("overview.distro_group", "WSL 分发管理"))
         distro_group.setObjectName("distroGroup")
         distro_layout = QVBoxLayout(distro_group)
@@ -365,6 +406,7 @@ class OverviewPanel(QWidget):
 
         distro_layout.addLayout(header_layout)
 
+        _debug_log("[OverviewPanel._init_ui] 创建分发表格...")
         self.distro_table = QTableWidget()
         self.distro_table.setColumnCount(8)
         self.distro_table.setHorizontalHeaderLabels([
@@ -400,7 +442,9 @@ class OverviewPanel(QWidget):
         distro_layout.addWidget(self.distro_table)
 
         layout.addWidget(distro_group)
+        _debug_log("[OverviewPanel._init_ui] 分发管理组创建完成")
 
+        _debug_log("[OverviewPanel._init_ui] 创建快速操作组...")
         quick_actions_group = QGroupBox(tr("overview.quick_actions", "快速操作"))
         quick_actions_group.setObjectName("quickActions")
         quick_layout = QHBoxLayout(quick_actions_group)
@@ -417,7 +461,9 @@ class OverviewPanel(QWidget):
             quick_layout.addWidget(btn)
 
         layout.addWidget(quick_actions_group)
+        _debug_log("[OverviewPanel._init_ui] 快速操作组创建完成")
 
+        _debug_log("[OverviewPanel._init_ui] 创建活动记录组...")
         activity_group = QGroupBox(tr("overview.activity", "最近活动"))
         activity_group.setObjectName("activityGroup")
         activity_layout = QVBoxLayout(activity_group)
@@ -442,8 +488,12 @@ class OverviewPanel(QWidget):
         activity_layout.addWidget(activity_scroll)
 
         layout.addWidget(activity_group, 1)
+        _debug_log("[OverviewPanel._init_ui] 活动记录组创建完成")
         
-        I18nManager().language_changed.connect(self._retranslate_ui)
+        _debug_log("[OverviewPanel._init_ui] 连接 I18nManager 信号...")
+        I18nManager._get_signals().language_changed.connect(self._retranslate_ui)
+        _debug_log("[OverviewPanel._init_ui] I18nManager 信号连接完成")
+        _debug_log("[OverviewPanel._init_ui] 完成!")
 
     def _apply_styles(self):
         table_style = """

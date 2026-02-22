@@ -1,5 +1,7 @@
 import sys
 from typing import Optional
+from datetime import datetime
+import os
 
 from loguru import logger
 
@@ -24,6 +26,15 @@ from .styles import get_stylesheet
 from .dialogs import SettingsDialog
 
 
+def _debug_log(msg: str):
+    """调试日志 - 同时输出到日志文件和控制台"""
+    try:
+        print(f"[DEBUG] {msg}")
+        logger.info(msg)
+    except Exception:
+        pass
+
+
 class MainWindow(QMainWindow):
     def __init__(
         self,
@@ -34,9 +45,12 @@ class MainWindow(QMainWindow):
         windows_bridge=None,
         skip_init=False
     ):
+        _debug_log("[MainWindow] 开始初始化...")
         super().__init__()
+        _debug_log("[MainWindow] super().__init__() 完成")
         
         if skip_init and wsl_manager and config_manager and nanobot_controller:
+            _debug_log("[MainWindow] 使用 skip_init 模式")
             self._wsl_manager = wsl_manager
             self._config_manager = config_manager
             self._nanobot_controller = nanobot_controller
@@ -52,11 +66,21 @@ class MainWindow(QMainWindow):
             self._group_chat_timer.setSingleShot(True)
             self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
             
+            _debug_log("[MainWindow] 调用 _init_ui...")
             self._init_ui()
+            _debug_log("[MainWindow] _init_ui 完成")
+            _debug_log("[MainWindow] 调用 _init_managers_skip...")
             self._init_managers_skip()
+            _debug_log("[MainWindow] _init_managers_skip 完成")
+            _debug_log("[MainWindow] 调用 _init_connections...")
             self._init_connections()
+            _debug_log("[MainWindow] _init_connections 完成")
+            _debug_log("[MainWindow] 调用 _init_tray...")
             self._init_tray()
+            _debug_log("[MainWindow] _init_tray 完成")
+            _debug_log("[MainWindow] 调用 _init_chat...")
             self._init_chat()
+            _debug_log("[MainWindow] _init_chat 完成")
         else:
             self._wsl_manager = WSLManager()
             self._config_manager = ConfigManager()
@@ -81,14 +105,22 @@ class MainWindow(QMainWindow):
             self._init_chat()
 
     def _init_ui(self):
+        _debug_log("[MainWindow._init_ui] 开始...")
+        _debug_log("[MainWindow._init_ui] 获取主配置...")
         main_config = self._config_manager.get_main_config()
         saved_lang = main_config.get("ui", {}).get("language", "zh_CN")
+        _debug_log(f"[MainWindow._init_ui] 语言设置: {saved_lang}")
+        _debug_log("[MainWindow._init_ui] 初始化 I18nManager...")
         I18nManager.initialize(saved_lang)
+        _debug_log("[MainWindow._init_ui] I18nManager 初始化完成")
         
+        _debug_log("[MainWindow._init_ui] 设置窗口标题和大小...")
         self.setWindowTitle(f"{tr('app.title', '抓虾机器人_FTK_Claw_Bot')} {VERSION}")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
+        _debug_log("[MainWindow._init_ui] 窗口基本设置完成")
 
+        _debug_log("[MainWindow._init_ui] 创建中央部件...")
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
@@ -96,6 +128,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
+        _debug_log("[MainWindow._init_ui] 创建导航栏...")
         nav_frame = QFrame()
         nav_frame.setFixedWidth(200)
         nav_frame.setObjectName("navFrame")
@@ -152,26 +185,34 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(nav_frame)
 
+        _debug_log("[MainWindow._init_ui] 创建内容面板...")
         self.content_stack = QStackedWidget()
         self.content_stack.setObjectName("contentStack")
 
+        _debug_log("[MainWindow._init_ui] 创建 OverviewPanel...")
         self.overview_panel = OverviewPanel(
             self._wsl_manager,
             self._nanobot_controller,
             self._config_manager
         )
+        _debug_log("[MainWindow._init_ui] 创建 ConfigPanel...")
         self.config_panel = ConfigPanel(
             self._config_manager,
             self._wsl_manager,
             self._nanobot_controller
         )
+        _debug_log("[MainWindow._init_ui] 创建 CommandPanel...")
         self.command_panel = CommandPanel(self._wsl_manager)
+        _debug_log("[MainWindow._init_ui] 创建 ChatPanel...")
         self.chat_panel = ChatPanel(self._config_manager, self._nanobot_controller, self._wsl_manager)
+        _debug_log("[MainWindow._init_ui] 创建 WindowsBridgePanel...")
         self.bridge_panel = WindowsBridgePanel(
             windows_bridge=self._windows_bridge,
             wsl_manager=self._wsl_manager
         )
+        _debug_log("[MainWindow._init_ui] 创建 LogPanel...")
         self.log_panel = LogPanel()
+        _debug_log("[MainWindow._init_ui] 所有面板创建完成")
 
         self.content_stack.addWidget(self.overview_panel)
         self.content_stack.addWidget(self.config_panel)
@@ -182,6 +223,7 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.content_stack, 1)
 
+        _debug_log("[MainWindow._init_ui] 创建状态栏...")
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
@@ -196,8 +238,10 @@ class MainWindow(QMainWindow):
         self.status_bar.addWidget(self.resource_label)
         self.status_bar.addPermanentWidget(QLabel("FTK_Claw_Bot v0.1.0"))
 
+        _debug_log("[MainWindow._init_ui] 应用样式...")
         self._apply_styles()
-        I18nManager().language_changed.connect(self._retranslate_ui)
+        I18nManager._get_signals().language_changed.connect(self._retranslate_ui)
+        _debug_log("[MainWindow._init_ui] 完成")
 
     def _apply_styles(self):
         self.setStyleSheet(get_stylesheet())
