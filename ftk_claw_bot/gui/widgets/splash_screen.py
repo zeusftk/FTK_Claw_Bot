@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPainter
+from PyQt6.QtGui import QFont, QColor, QPainter, QPixmap, QIcon
+from pathlib import Path
 
 from ...constants import VERSION
 
@@ -25,16 +26,27 @@ class SplashScreen(QWidget):
         self.move(x, y)
     
     def _init_ui(self):
-        self.setFixedSize(500, 350)
+        self.setFixedSize(500, 400)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         
+        icon_path = Path(__file__).parent.parent / "FTK_AI.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(20)
+        
+        icon_label = QLabel()
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if icon_path.exists():
+            pixmap = QPixmap(str(icon_path))
+            icon_label.setPixmap(pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(icon_label)
         
         layout.addStretch()
         

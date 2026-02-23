@@ -7,7 +7,6 @@ config/
 logs/
 debug.log
 opencode_client/
-init_wsl/Ubuntu_22.tar
 
 # Nuitka 打包相关
 build_nuitka.py

@@ -31,7 +31,7 @@ class EmbedResponse(BaseModel):
     dimension: int
 
 
-def create_app(model_path: str, port: int = 8765) -> FastAPI:
+def create_app(model_path: str, port: int = 18765) -> FastAPI:
     logger.info(f"create_app() called with model_path={model_path}, port={port}")
     
     embedder: Optional['Embedder'] = None

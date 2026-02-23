@@ -409,7 +409,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         embedding_url_row = QHBoxLayout()
         embedding_url_row.setSpacing(8)
         self.embedding_url_edit = QLineEdit()
-        self.embedding_url_edit.setPlaceholderText(tr("config.placeholder.embedding_url", "http://localhost:8765"))
+        self.embedding_url_edit.setPlaceholderText(tr("config.placeholder.embedding_url", "http://localhost:18765"))
         self.embedding_url_edit.setText(self._get_default_embedding_url())
         
         use_default_btn = QPushButton(tr("config.label.use_default", "使用默认"))
@@ -759,7 +759,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self._validate_gateway_port()
         
         self.embedding_url_edit.setText(config.embedding_url or self._get_default_embedding_url())
-        self.memory_enabled_check.setChecked(bool(config.embedding_url))
+        self.memory_enabled_check.setChecked(config.embedding_enabled)
         
         self._load_channel_configs()
         self._load_skills_config()
@@ -790,7 +790,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 from .local_services_panel import get_windows_host_ip
                 host_ip = get_windows_host_ip()
                 return f"http://{host_ip}:{info.port}"
-        return "http://localhost:8765"
+        return "http://localhost:18765"
     
     def _use_default_embedding_url(self):
         """使用默认的 Embedding URL"""
@@ -899,7 +899,8 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             log_level=self.log_level_combo.currentText(),
             gateway_host=self.gateway_host_edit.text() or "0.0.0.0",
             gateway_port=gateway_port,
-            embedding_url=self.embedding_url_edit.text().strip() if self.memory_enabled_check.isChecked() else "",
+            embedding_url=self.embedding_url_edit.text().strip(),
+            embedding_enabled=self.memory_enabled_check.isChecked(),
             channels=self._current_config.channels if self._current_config else ChannelsConfig(),
             skills=self._skills_widget.get_config(),
         )

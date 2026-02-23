@@ -2,6 +2,7 @@ import sys
 from typing import Optional
 from datetime import datetime
 import os
+from pathlib import Path
 
 from loguru import logger
 
@@ -35,6 +36,28 @@ def _debug_log(msg: str):
         pass
 
 
+def _get_app_icon() -> QIcon:
+    """获取应用图标"""
+    icon_path = Path(__file__).parent / "FTK_AI.ico"
+    if icon_path.exists():
+        return QIcon(str(icon_path))
+    pixmap = QPixmap(32, 32)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(QColor(0, 120, 212))
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.drawRoundedRect(2, 2, 28, 28, 6, 6)
+    painter.setBrush(QColor(255, 255, 255))
+    font = QFont()
+    font.setBold(True)
+    font.setPixelSize(16)
+    painter.setFont(font)
+    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "F")
+    painter.end()
+    return QIcon(pixmap)
+
+
 class MainWindow(QMainWindow):
     def __init__(
         self,
@@ -48,6 +71,8 @@ class MainWindow(QMainWindow):
         _debug_log("[MainWindow] 开始初始化...")
         super().__init__()
         _debug_log("[MainWindow] super().__init__() 完成")
+        
+        self.setWindowIcon(_get_app_icon())
         
         if skip_init and wsl_manager and config_manager and nanobot_controller:
             _debug_log("[MainWindow] 使用 skip_init 模式")
@@ -347,23 +372,7 @@ class MainWindow(QMainWindow):
 
     def _init_tray(self):
         self.tray_icon = QSystemTrayIcon(self)
-
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QColor(0, 120, 212))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(2, 2, 28, 28, 6, 6)
-        painter.setBrush(QColor(255, 255, 255))
-        font = QFont()
-        font.setBold(True)
-        font.setPixelSize(16)
-        painter.setFont(font)
-        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "F")
-        painter.end()
-
-        self.tray_icon.setIcon(QIcon(pixmap))
+        self.tray_icon.setIcon(_get_app_icon())
         self.tray_icon.setToolTip(tr("app.tray_title", "FTK_Claw_Bot"))
 
         tray_menu = QMenu()

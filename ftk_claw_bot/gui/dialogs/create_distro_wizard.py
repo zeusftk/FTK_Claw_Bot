@@ -502,7 +502,7 @@ class WorkspacePage(QWidget):
         ws_layout.addWidget(ws_label)
         
         self.windows_ws_edit = QLineEdit()
-        self.windows_ws_edit.setPlaceholderText("D:\\clawbot_workspace")
+        self.windows_ws_edit.setPlaceholderText(".\clawbot_workspace")
         self.windows_ws_edit.textChanged.connect(self._update_wsl_path)
         ws_layout.addWidget(self.windows_ws_edit, 1)
         

@@ -36,6 +36,7 @@ class NanobotConfig:
     gateway_port: int = 18888
     bridge_port: int = 9527
     embedding_url: str = ""
+    embedding_enabled: bool = True
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
@@ -140,13 +141,12 @@ class NanobotConfig:
             "autoConnect": True
         }
         
-        if self.embedding_url:
-            config["memory"] = {
-                "embedding_api": {
-                    "enabled": True,
-                    "base_url": self.embedding_url
-                }
+        config["memory"] = {
+            "embedding_api": {
+                "enabled": self.embedding_enabled and bool(self.embedding_url),
+                "base_url": self.embedding_url
             }
+        }
         
         config["channels"] = self.channels.to_nanobot_config()
         
@@ -173,6 +173,7 @@ class NanobotConfig:
             "gateway_port": self.gateway_port,
             "bridge_port": self.bridge_port,
             "embedding_url": self.embedding_url,
+            "embedding_enabled": self.embedding_enabled,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "channels": self.channels.to_dict(),
@@ -203,6 +204,7 @@ class NanobotConfig:
             gateway_port=data.get("gateway_port", 18888),
             bridge_port=data.get("bridge_port", 9527),
             embedding_url=data.get("embedding_url", ""),
+            embedding_enabled=data.get("embedding_enabled", True),
             created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(),
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else datetime.now(),
             channels=ChannelsConfig.from_dict(channels_data) if channels_data else ChannelsConfig(),

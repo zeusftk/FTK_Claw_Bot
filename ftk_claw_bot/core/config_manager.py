@@ -158,6 +158,7 @@ class ConfigManager:
         embedding_api = memory.get("embedding_api", {})
         if embedding_api.get("base_url"):
             ftk_config.embedding_url = embedding_api["base_url"]
+        ftk_config.embedding_enabled = embedding_api.get("enabled", True)
     
     def _apply_channels_config(self, ftk_config: NanobotConfig, channels: dict):
         from ..models import (

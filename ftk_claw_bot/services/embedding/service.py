@@ -66,7 +66,7 @@ def _run_server_process(model_path: str, port: int):
 class EmbeddingService(LocalService):
     """Embedding 服务"""
     
-    def __init__(self, port: int = 8765):
+    def __init__(self, port: int = 18765):
         self._port = port
         self._status = ServiceStatus.STOPPED
         self._error: Optional[str] = None
@@ -190,7 +190,7 @@ class EmbeddingService(LocalService):
 _service_instance: Optional[EmbeddingService] = None
 
 
-def register_embedding_service(port: int = 8765) -> EmbeddingService:
+def register_embedding_service(port: int = 18765) -> EmbeddingService:
     """注册 Embedding 服务"""
     global _service_instance
     if _service_instance is None:

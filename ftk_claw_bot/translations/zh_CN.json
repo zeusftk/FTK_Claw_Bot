@@ -272,7 +272,7 @@
     "config.placeholder.brave_key": "Brave Search API Key (可选)",
     "config.placeholder.gateway_host": "0.0.0.0",
     "config.placeholder.gateway_port": "18888",
-    "config.placeholder.embedding_url": "http://localhost:8765",
+    "config.placeholder.embedding_url": "http://localhost:18765",
     "config.tooltip.show_hide_key": "显示/隐藏 API Key",
     "config.tooltip.copy_key": "复制 API Key 到剪贴板",
     "config.tooltip.oauth_login": "使用 OAuth 登录 Qwen Portal",

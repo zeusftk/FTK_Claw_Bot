@@ -9,6 +9,7 @@ from loguru import logger
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
 from .constants import VERSION, APP_NAME, APP_AUTHOR, UI
 from .container import container
@@ -79,6 +80,10 @@ class Application:
         self._app.setApplicationVersion(VERSION)
         self._app.setOrganizationName(APP_AUTHOR)
         self._app.setStyle("Fusion")
+        
+        icon_path = Path(__file__).parent / "gui" / "FTK_AI.ico"
+        if icon_path.exists():
+            self._app.setWindowIcon(QIcon(str(icon_path)))
         
         return self._app
     

@@ -207,7 +207,7 @@ class LocalServicesPanel(QWidget):
         
         self._port_spinbox = QSpinBox()
         self._port_spinbox.setRange(1024, 65535)
-        self._port_spinbox.setValue(service.get_config().get("port", 8765))
+        self._port_spinbox.setValue(service.get_config().get("port", 18765))
         self._port_spinbox.valueChanged.connect(lambda v: service.set_config({"port": v}))
         self._port_spinbox.setStyleSheet("""
             QSpinBox {

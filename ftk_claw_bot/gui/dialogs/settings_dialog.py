@@ -27,7 +27,7 @@ class SettingsDialog(QDialog):
         self._load_settings()
         self._apply_styles()
         
-        I18nManager().language_changed.connect(self._retranslate_ui)
+        I18nManager._get_signals().language_changed.connect(self._retranslate_ui)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -95,7 +95,7 @@ class SettingsDialog(QDialog):
 
         workspace_layout = QHBoxLayout()
         self.workspace_edit = QLineEdit()
-        self.workspace_edit.setPlaceholderText("D:\\clawbot_workspace")
+        self.workspace_edit.setPlaceholderText(".\clawbot_workspace")
         self.browse_btn = QPushButton(tr("btn.browse", "浏览..."))
         self.browse_btn.setObjectName("smallButton")
         self.browse_btn.clicked.connect(self._browse_workspace)
