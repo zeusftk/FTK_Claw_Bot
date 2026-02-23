@@ -167,15 +167,10 @@ FTK_Claw_Bot/
 | 类别 | 技术 |
 |------|------|
 | GUI 框架 | PyQt6 |
-| 日志 | Loguru |
-| 系统操作 | psutil, pyautogui, pywinauto |
-| 图像处理 | Pillow |
-| 加密 | cryptography |
-| Windows API | pywin32 |
-| 文件监控 | watchdog |
+| 系统操作 | pyautogui, pywinauto |
 | Web 框架 | FastAPI, Uvicorn |
-| AI 推理 | ONNX Runtime, NumPy |
-| HTTP 客户端 | Requests |
+| AI 推理 | ONNX Runtime|
+
 
 ## ⌨️ 快捷键
 
