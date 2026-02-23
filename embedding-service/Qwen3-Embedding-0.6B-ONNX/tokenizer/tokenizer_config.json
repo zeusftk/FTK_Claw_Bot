@@ -1,7 +1,0 @@
-{
-  "bos_token": "<s>",
-  "eos_token": "</s>",
-  "pad_token": "<pad>",
-  "model_max_length": 512,
-  "tokenizer_class": "AutoTokenizer"
-}
