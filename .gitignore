@@ -7,6 +7,7 @@ config/
 logs/
 debug.log
 opencode_client/
+model_int8.onnx
 
 # Nuitka 打包相关
 build_nuitka.py
