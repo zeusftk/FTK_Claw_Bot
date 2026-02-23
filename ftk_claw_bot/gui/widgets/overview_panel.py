@@ -254,6 +254,119 @@ class ExportProgressDialog(QDialog):
         super().closeEvent(event)
 
 
+class UpgradeProgressDialog(QDialog):
+    """Bot 升级进度对话框"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._progress_value = 0
+        self._timer = QTimer()
+        self._init_ui()
+        self._apply_styles()
+    
+    def _init_ui(self):
+        self.setWindowTitle(tr("overview.upgrade.title", "升级 Bot"))
+        self.setFixedSize(450, 200)
+        self.setWindowFlags(Qt.WindowType.Dialog)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
+        
+        layout.addStretch()
+        
+        title_label = QLabel(tr("overview.upgrade.title", "升级 Bot"))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_font = QFont()
+        title_font.setPointSize(20)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        layout.addWidget(title_label)
+        
+        layout.addStretch()
+        
+        self.status_label = QLabel(tr("overview.upgrade.preparing", "准备升级..."))
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_font = QFont()
+        status_font.setPointSize(10)
+        self.status_label.setFont(status_font)
+        layout.addWidget(self.status_label)
+        
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(6)
+        layout.addWidget(self.progress_bar)
+        
+        layout.addStretch()
+        
+        hint_label = QLabel(tr("overview.upgrade.wait", "请稍候，升级过程中请勿关闭窗口..."))
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_font = QFont()
+        hint_font.setPointSize(9)
+        hint_label.setFont(hint_font)
+        layout.addWidget(hint_label)
+    
+    def _apply_styles(self):
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #0d1117;
+                color: #f0f6fc;
+            }
+            QLabel {
+                color: #f0f6fc;
+            }
+            QProgressBar {
+                background-color: #21262d;
+                border: none;
+                border-radius: 3px;
+            }
+            QProgressBar::chunk {
+                background-color: #bb8009;
+                border-radius: 3px;
+            }
+        """)
+    
+    def start_animation(self):
+        """开始进度动画"""
+        self._progress_value = 0
+        self._timer.timeout.connect(self._update_progress)
+        self._timer.start(100)
+    
+    def _update_progress(self):
+        """更新进度"""
+        self._progress_value += 1
+        if self._progress_value > 90:
+            self._progress_value = 90
+        self.progress_bar.setValue(self._progress_value)
+        
+        if self._progress_value < 20:
+            self.status_label.setText(tr("overview.upgrade.converting_path", "转换路径..."))
+        elif self._progress_value < 40:
+            self.status_label.setText(tr("overview.upgrade.copying_file", "复制文件..."))
+        elif self._progress_value < 60:
+            self.status_label.setText(tr("overview.upgrade.installing", "安装 wheel 文件..."))
+        elif self._progress_value < 80:
+            self.status_label.setText(tr("overview.upgrade.restarting", "重启服务..."))
+        else:
+            self.status_label.setText(tr("overview.upgrade.verifying", "验证安装..."))
+    
+    def stop_animation(self, success: bool = True, message: str = ""):
+        """停止进度动画"""
+        self._timer.stop()
+        self.progress_bar.setValue(100)
+        if success:
+            self.status_label.setText(tr("overview.upgrade.success", "升级成功！") + (f"\n{message}" if message else ""))
+        else:
+            self.status_label.setText(tr("overview.upgrade.failed", "升级失败") + f"\n{message}")
+    
+    def closeEvent(self, event):
+        """关闭事件 - 停止定时器"""
+        self._timer.stop()
+        super().closeEvent(event)
+
+
 class StatCard(QFrame):
     def __init__(self, title: str, value: str = "0", icon: str = "", parent=None):
         super().__init__(parent)
@@ -466,21 +579,24 @@ class OverviewPanel(QWidget):
         _debug_log("[OverviewPanel._init_ui] 创建活动记录组...")
         activity_group = QGroupBox(tr("overview.activity", "最近活动"))
         activity_group.setObjectName("activityGroup")
+        activity_group.setStyleSheet("QGroupBox { background-color: #161b22; }")
         activity_layout = QVBoxLayout(activity_group)
 
         activity_scroll = QScrollArea()
         activity_scroll.setWidgetResizable(True)
         activity_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         activity_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        activity_scroll.setStyleSheet("QScrollArea { background-color: transparent; } QScrollArea > QWidget > QWidget { background-color: transparent; }")
         
         activity_content = QWidget()
+        activity_content.setStyleSheet("background-color: transparent;")
         activity_content_layout = QVBoxLayout(activity_content)
         activity_content_layout.setContentsMargins(0, 0, 0, 0)
         
         self.activity_list = QLabel(tr("overview.no_activity", "暂无活动记录"))
         self.activity_list.setWordWrap(True)
         self.activity_list.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.activity_list.setStyleSheet("color: #8b949e; padding: 8px;")
+        self.activity_list.setStyleSheet("color: #8b949e; padding: 8px; background-color: transparent;")
         activity_content_layout.addWidget(self.activity_list)
         activity_content_layout.addStretch()
         
@@ -661,6 +777,10 @@ class OverviewPanel(QWidget):
                     workspace_btn = self._create_action_btn("📁", tr("overview.tooltip.open_workspace", "打开工作空间: {name}").format(name=distro.name))
                     workspace_btn.clicked.connect(lambda checked, n=distro.name, p=distro_config.windows_workspace: self._open_distro_workspace(n, p))
                     action_layout.addWidget(workspace_btn)
+                
+                upgrade_btn = self._create_action_btn("⬆", tr("overview.tooltip.upgrade_distro", "升级 Bot: {name}").format(name=distro.name), hover_color="#bb8009", pressed_color="#845306")
+                upgrade_btn.clicked.connect(lambda checked, n=distro.name: self._upgrade_distro(n))
+                action_layout.addWidget(upgrade_btn)
             else:
                 start_btn = self._create_action_btn("▶", tr("overview.tooltip.start_distro", "启动分发: {name}").format(name=distro.name), "#238636", "#2ea043", "#196c2e")
                 start_btn.clicked.connect(lambda checked, n=distro.name: self._start_distro(n))
@@ -684,7 +804,7 @@ class OverviewPanel(QWidget):
     def _create_action_btn(self, text: str, tooltip: str, bg_color: str = "#21262d", hover_color: str = "#30363d", pressed_color: str = "#161b22") -> QPushButton:
         btn = QPushButton(text)
         btn.setToolTip(tooltip)
-        btn.setFixedSize(100, 36)
+        btn.setFixedSize(60, 36)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(f"""
             QPushButton {{
@@ -1281,6 +1401,93 @@ class OverviewPanel(QWidget):
         del self._export_progress
         del self._export_distro_name
         del self._export_output_path
+
+    def _upgrade_distro(self, distro_name: str):
+        """升级指定分发的 Bot"""
+        whl_path, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("overview.upgrade.select_whl", "选择 wheel 文件"),
+            "",
+            "Wheel Files (*.whl);;All Files (*)"
+        )
+        if not whl_path:
+            return
+        
+        reply = show_question(
+            self,
+            tr("overview.upgrade.confirm", "确认升级"),
+            tr("overview.upgrade.confirm_msg", "确定要升级 '{name}' 的 Bot 吗？\n\nWheel 文件: {whl}").format(name=distro_name, whl=os.path.basename(whl_path)),
+            yes_text=tr("btn.confirm", "确认"),
+            no_text=tr("btn.cancel", "取消")
+        )
+        if not reply:
+            return
+        
+        self._do_upgrade(distro_name, whl_path)
+
+    def _do_upgrade(self, distro_name: str, whl_path: str):
+        """执行升级操作"""
+        from ...services import ServiceRegistry
+        
+        upgrader = ServiceRegistry.get("clawbot_upgrader")
+        if not upgrader:
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("overview.upgrade.service_unavailable", "升级服务不可用"))
+            return
+        
+        upgrader.set_wsl_manager(self._wsl_manager)
+        
+        progress = UpgradeProgressDialog(self)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.show()
+        progress.start_animation()
+        
+        if not hasattr(self, '_upgrade_callback_signal'):
+            self._upgrade_callback_signal = ThreadSafeSignal(self._on_upgrade_complete)
+        
+        self._upgrade_progress = progress
+        self._upgrade_distro_name = distro_name
+        self._upgrade_whl_path = whl_path
+        
+        def run_upgrade():
+            results = upgrader.upgrade_all(whl_path, [distro_name])
+            self._upgrade_callback_signal.emit(results)
+        
+        thread = threading.Thread(target=run_upgrade, daemon=True)
+        thread.start()
+
+    def _on_upgrade_complete(self, results):
+        """升级完成回调"""
+        if not hasattr(self, '_upgrade_progress'):
+            return
+        
+        progress = self._upgrade_progress
+        distro_name = self._upgrade_distro_name
+        
+        if distro_name in results:
+            success, message = results[distro_name]
+            progress.stop_animation(success, message)
+            
+            if success:
+                self.add_activity(tr("overview.upgrade.activity_success", "WSL '{name}' Bot 升级成功").format(name=distro_name))
+                QTimer.singleShot(1500, progress.close)
+                self._refresh_status()
+            else:
+                show_critical(
+                    self, 
+                    tr("overview.upgrade.failed_title", "升级失败"), 
+                    tr("overview.upgrade.failed_msg", "升级 '{name}' 失败:\n{error}").format(name=distro_name, error=message)
+                )
+                progress.close()
+        else:
+            error_msg = results.get("error", ("Unknown error",))[1] if "error" in results else "Unknown error"
+            progress.stop_animation(False, error_msg)
+            show_critical(self, tr("overview.upgrade.failed_title", "升级失败"), error_msg)
+            progress.close()
+        
+        del self._upgrade_progress
+        del self._upgrade_distro_name
+        if hasattr(self, '_upgrade_whl_path'):
+            del self._upgrade_whl_path
 
     def _navigate_to_panel(self, index: int):
         parent = self.parent()

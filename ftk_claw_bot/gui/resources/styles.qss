@@ -293,3 +293,21 @@ QDialog QWidget#qt_msgbox_title {
     background-color: #252526;
     border-bottom: 1px solid #3c3c3c;
 }
+
+/* 本地服务面板卡片 */
+QFrame#serviceCard {
+    background-color: #2d2d30;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+/* 滚动区域内容 */
+QWidget#scrollContent {
+    background-color: #1e1e1e;
+}
+
+QScrollArea {
+    background-color: #1e1e1e;
+    border: none;
+}

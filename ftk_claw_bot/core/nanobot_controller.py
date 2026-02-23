@@ -557,6 +557,11 @@ WantedBy=multi-user.target
                     existing_config["channels"][channel_name]["enabled"] = channel_data.get("enabled", False)
                     logger.info(f"✓ 更新 channels.{channel_name}.enabled = {channel_data.get('enabled', False)}")
         
+        # 更新 memory
+        if "memory" in ftp_config:
+            existing_config["memory"] = ftp_config["memory"]
+            logger.info(f"✓ 更新 memory 配置: {ftp_config['memory']}")
+        
         # 4. 保存更新后的配置
         logger.info(f"步骤4: 保存更新后的配置")
         config_json = json.dumps(existing_config, indent=2, ensure_ascii=False)

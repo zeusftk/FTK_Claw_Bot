@@ -17,6 +17,7 @@ from .channel_config_dialog import (
     WhatsAppDialog,
 )
 from .skills_config_widget import SkillsConfigWidget
+from .local_services_panel import LocalServicesPanel
 
 __all__ = [
     "ConfigPanel",
@@ -36,4 +37,5 @@ __all__ = [
     "QQDialog",
     "WhatsAppDialog",
     "SkillsConfigWidget",
+    "LocalServicesPanel",
 ]

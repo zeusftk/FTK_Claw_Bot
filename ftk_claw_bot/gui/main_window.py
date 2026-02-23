@@ -21,7 +21,7 @@ from ..core.config_sync_manager import ConfigSyncManager
 from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
 from ..utils import make_thread_safe, I18nManager, tr
 from ..constants import Bridge, VERSION
-from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel
+from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel, LocalServicesPanel
 from .styles import get_stylesheet
 from .dialogs import SettingsDialog
 
@@ -158,7 +158,7 @@ class MainWindow(QMainWindow):
         title_layout.addWidget(title_sub)
 
         nav_layout.addWidget(title_container)
-
+        
         self.nav_list = QListWidget()
         self.nav_list.setObjectName("navList")
         self.nav_list.setSpacing(5)
@@ -168,11 +168,12 @@ class MainWindow(QMainWindow):
         self.nav_list.addItem(QListWidgetItem(tr("nav.chat", "聊天")))
         self.nav_list.addItem(QListWidgetItem(tr("nav.bridge", "桥接")))
         self.nav_list.addItem(QListWidgetItem(tr("nav.log", "日志查看")))
+        self.nav_list.addItem(QListWidgetItem(tr("nav.local_services", "本地服务")))
         self.nav_list.setCurrentRow(0)
-        nav_layout.addWidget(self.nav_list)
-
-        nav_layout.addStretch()
-
+        nav_layout.addWidget(self.nav_list, 4)
+        
+        nav_layout.addStretch(1)
+        
         version_label = QLabel(f"v{VERSION}")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setObjectName("versionLabel")
@@ -212,6 +213,8 @@ class MainWindow(QMainWindow):
         )
         _debug_log("[MainWindow._init_ui] 创建 LogPanel...")
         self.log_panel = LogPanel()
+        _debug_log("[MainWindow._init_ui] 创建 LocalServicesPanel...")
+        self.local_services_panel = LocalServicesPanel(self._wsl_manager)
         _debug_log("[MainWindow._init_ui] 所有面板创建完成")
 
         self.content_stack.addWidget(self.overview_panel)
@@ -220,6 +223,7 @@ class MainWindow(QMainWindow):
         self.content_stack.addWidget(self.chat_panel)
         self.content_stack.addWidget(self.bridge_panel)
         self.content_stack.addWidget(self.log_panel)
+        self.content_stack.addWidget(self.local_services_panel)
 
         main_layout.addWidget(self.content_stack, 1)
 
@@ -254,6 +258,7 @@ class MainWindow(QMainWindow):
         self.nav_list.item(3).setText(tr("nav.chat", "聊天"))
         self.nav_list.item(4).setText(tr("nav.bridge", "桥接"))
         self.nav_list.item(5).setText(tr("nav.log", "日志查看"))
+        self.nav_list.item(6).setText(tr("nav.local_services", "本地服务"))
         self.wsl_status_label.setText(tr("status.wsl_not_detected", "WSL: 未检测"))
         self.nanobot_status_label.setText(tr("status.clawbot_not_running", "Clawbot: 未运行"))
         self.resource_label.setText(tr("status.cpu_mem", "CPU: -- | MEM: --"))
@@ -895,6 +900,9 @@ class MainWindow(QMainWindow):
                 return
             elif key == Qt.Key.Key_6:
                 self.nav_list.setCurrentRow(5)
+                return
+            elif key == Qt.Key.Key_7:
+                self.nav_list.setCurrentRow(6)
                 return
             elif key == Qt.Key.Key_S:
                 self._save_current_config()

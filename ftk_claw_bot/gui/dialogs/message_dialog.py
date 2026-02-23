@@ -99,8 +99,8 @@ class CustomMessageDialog(QDialog):
         """应用样式"""
         self.setStyleSheet("""
             QDialog {
-                background-color: #2d2d30;
-                border: 1px solid #3c3c3c;
+                background-color: #161b22;
+                border: 1px solid #30363d;
                 border-radius: 8px;
             }
         """)

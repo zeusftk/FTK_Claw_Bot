@@ -214,6 +214,34 @@ class Application:
             _debug_log(f"[INIT-16] 事件发布失败: {e}")
             logger.error(f"事件发布失败: {e}")
         
+        if progress_callback:
+            progress_callback("正在启动自启动服务...", 95)
+        
+        _debug_log("[INIT-17] 启动自启动服务...")
+        try:
+            from .services import ServiceRegistry
+            
+            auto_start_services = ServiceRegistry.get_auto_start_services()
+            total_services = len(auto_start_services)
+            
+            if total_services > 0:
+                def on_service_progress(service_id, service_name, index, total):
+                    progress = 95 + int((index / total) * 5)
+                    if progress_callback:
+                        progress_callback(f"正在启动服务: {service_name}...", progress)
+                
+                results = ServiceRegistry.start_auto_start_services(progress_callback=on_service_progress)
+                for service_id, success in results.items():
+                    logger.info(f"服务 {service_id} 启动: {'成功' if success else '失败'}")
+            
+            _debug_log("[INIT-17] 自启动服务启动完成")
+        except Exception as e:
+            _debug_log(f"[INIT-17] 自启动服务启动失败: {e}")
+            logger.error(f"自启动服务启动失败: {e}")
+        
+        if progress_callback:
+            progress_callback("初始化完成", 100)
+        
         _debug_log("[INIT] 服务初始化全部完成!")
     
     def init_services_async(self, progress_callback=None, completion_callback=None):
@@ -307,6 +335,27 @@ class Application:
                 
                 event_bus.publish(EventType.APP_STARTED, {"distros": len(distros) if distros else 0, "plugins": len(plugin_manager.get_all())})
                 
+                if progress_callback:
+                    progress_callback("正在启动自启动服务...", 95)
+                
+                from .services import ServiceRegistry
+                
+                auto_start_services = ServiceRegistry.get_auto_start_services()
+                total_services = len(auto_start_services)
+                
+                if total_services > 0:
+                    def on_service_progress_async(service_id, service_name, index, total):
+                        progress = 95 + int((index / total) * 5)
+                        if progress_callback:
+                            progress_callback(f"正在启动服务: {service_name}...", progress)
+                    
+                    results = ServiceRegistry.start_auto_start_services(progress_callback=on_service_progress_async)
+                    for service_id, success in results.items():
+                        logger.info(f"服务 {service_id} 启动: {'成功' if success else '失败'}")
+                
+                if progress_callback:
+                    progress_callback("初始化完成", 100)
+                
                 if completion_callback:
                     completion_callback(True, None)
             except Exception as e:
@@ -364,13 +413,9 @@ class Application:
         else:
             _debug_log("[RUN-02] 警告: 主窗口为 None!")
         
-        _debug_log("[RUN-03] 发布 APP_STARTED 事件...")
-        event_bus.publish(EventType.APP_STARTED, {})
-        _debug_log("[RUN-03] 事件发布完成")
-        
-        _debug_log("[RUN-04] 调用 QApplication.exec()...")
+        _debug_log("[RUN-03] 调用 QApplication.exec()...")
         result = self._app.exec()
-        _debug_log(f"[RUN-04] QApplication.exec() 返回, exit_code: {result}")
+        _debug_log(f"[RUN-03] QApplication.exec() 返回, exit_code: {result}")
         return result
     
     def shutdown(self):

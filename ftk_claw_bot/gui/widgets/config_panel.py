@@ -16,6 +16,7 @@ from PyQt6.QtGui import QFont
 
 from ...core import ConfigManager, WSLManager
 from ...models import NanobotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
+from ...services import ServiceRegistry, ServiceStatus
 from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.thread_safe import ThreadSafeSignal
 from ...utils.i18n import tr, I18nManager
@@ -400,6 +401,26 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         self.form_layout.addWidget(gateway_card)
 
+        memory_card = ConfigCard(tr("config.card.memory", "Memory 设置"))
+        
+        self.memory_enabled_check = QCheckBox(tr("config.label.enable_memory_api", "启用 Embedding API"))
+        memory_card.add_widget(self.memory_enabled_check)
+        
+        embedding_url_row = QHBoxLayout()
+        embedding_url_row.setSpacing(8)
+        self.embedding_url_edit = QLineEdit()
+        self.embedding_url_edit.setPlaceholderText(tr("config.placeholder.embedding_url", "http://localhost:8765"))
+        self.embedding_url_edit.setText(self._get_default_embedding_url())
+        
+        use_default_btn = QPushButton(tr("config.label.use_default", "使用默认"))
+        use_default_btn.setObjectName("smallButton")
+        use_default_btn.clicked.connect(self._use_default_embedding_url)
+        embedding_url_row.addWidget(self.embedding_url_edit)
+        embedding_url_row.addWidget(use_default_btn)
+        memory_card.add_row(tr("config.label.embedding_url", "Embedding URL"), embedding_url_row)
+        
+        self.form_layout.addWidget(memory_card)
+
         channels_card = self._create_channels_card()
         self.form_layout.addWidget(channels_card)
 
@@ -737,6 +758,9 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.gateway_port_edit.setText(str(config.gateway_port))
         self._validate_gateway_port()
         
+        self.embedding_url_edit.setText(config.embedding_url or self._get_default_embedding_url())
+        self.memory_enabled_check.setChecked(bool(config.embedding_url))
+        
         self._load_channel_configs()
         self._load_skills_config()
 
@@ -756,6 +780,21 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if folder:
             self.windows_ws_edit.setText(folder)
             self._update_wsl_path()
+
+    def _get_default_embedding_url(self) -> str:
+        """获取默认的 Embedding URL（本地服务）"""
+        service = ServiceRegistry.get("embedding")
+        if service:
+            info = service.get_status()
+            if info.port:
+                from .local_services_panel import get_windows_host_ip
+                host_ip = get_windows_host_ip()
+                return f"http://{host_ip}:{info.port}"
+        return "http://localhost:8765"
+    
+    def _use_default_embedding_url(self):
+        """使用默认的 Embedding URL"""
+        self.embedding_url_edit.setText(self._get_default_embedding_url())
 
     def _new_config(self):
         self._current_config = None
@@ -860,6 +899,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             log_level=self.log_level_combo.currentText(),
             gateway_host=self.gateway_host_edit.text() or "0.0.0.0",
             gateway_port=gateway_port,
+            embedding_url=self.embedding_url_edit.text().strip() if self.memory_enabled_check.isChecked() else "",
             channels=self._current_config.channels if self._current_config else ChannelsConfig(),
             skills=self._skills_widget.get_config(),
         )

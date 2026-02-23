@@ -153,6 +153,11 @@ class ConfigManager:
         skills = wsl_config.get("skills", {})
         if skills:
             self._apply_skills_config(ftk_config, skills)
+        
+        memory = wsl_config.get("memory", {})
+        embedding_api = memory.get("embedding_api", {})
+        if embedding_api.get("base_url"):
+            ftk_config.embedding_url = embedding_api["base_url"]
     
     def _apply_channels_config(self, ftk_config: NanobotConfig, channels: dict):
         from ..models import (

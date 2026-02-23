@@ -248,6 +248,8 @@ trusted-host = pypi.tuna.tsinghua.edu.cn
 
         self._emit_log("初始化 clawbot 配置...")
         self._run_wsl_command("nanobot onboard", timeout=60)
+        ##删除 whl
+        self._run_wsl_command(f"rm -f /tmp/{whl_name}")
 
         return True, ""
 
