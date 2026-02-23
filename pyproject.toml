@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ftk-claw-bot"
-version = "1.0.4"
+version = "1.0.6"
 description = "Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作"
 readme = "README.md"
 license = {text = "MIT"}
