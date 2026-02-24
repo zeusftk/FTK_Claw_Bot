@@ -1,11 +1,13 @@
 import os
 import subprocess
+import time
 from typing import Optional, Callable, Tuple
 from pathlib import Path
 
 from loguru import logger
 
-f"""
+"""
+测试：
 curl -sk --connect-timeout 5 -o /dev/null -w '%{http_code}' 'https://mirrors.tuna.tsinghua.edu.cn/ubuntu/' 2>/dev/null
 """
 
@@ -205,6 +207,7 @@ class WSLInitializer:
 
         steps = [
             ("导入 Ubuntu 镜像", self._import_tar, (tar_path, install_location), False),
+            ("验证 WSL 网络", self._verify_wsl_network, (), False),
             ("配置镜像源", self._configure_mirror, (), False),
             ("更新系统包", self._update_apt, (), True),
             ("安装基础工具", self._install_basic_tools, (), True),
@@ -258,6 +261,81 @@ class WSLInitializer:
         if not result.success:
             return False, f"导入失败: {result.stderr}"
 
+        return True, ""
+
+    def _verify_wsl_network(self) -> Tuple[bool, str]:
+        self._emit_log("验证 WSL 分发状态...")    
+        for i in range(20):
+            time.sleep(10)
+            success, stdout, stderr = self._run_wsl_command("echo 'WSL OK'", timeout=10)
+            if success:
+                break
+            if i > 0 and i % 5 == 0:
+                restart_success = self._wsl_manager.stop_distro(self._distro_name)
+                time.sleep(15)
+                if restart_success:
+                    restart_success = self._wsl_manager.start_distro(self._distro_name)
+                    time.sleep(15)
+                if not restart_success:
+                    return False, f"分发启动失败: {stderr}"
+        
+        if not success:
+            self._emit_log(f"WSL 分发响应异常: {stderr}")
+            return False, f"分发响应异常: {stderr}"
+        
+        self._emit_log("检查 curl 命令...")
+        success, stdout, stderr = self._run_wsl_command("which curl", timeout=10)
+        if not success or not stdout.strip():
+            self._emit_log("curl 未安装，尝试安装...")
+            success, _, stderr = self._run_wsl_command("apt update && apt install -y curl", timeout=120)
+            if not success:
+                return False, f"安装 curl 失败: {stderr}"
+        
+        self._emit_log("测试网络连接...")
+        test_urls = [
+            "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/",
+            "https://mirrors.ustc.edu.cn/ubuntu/",
+            "http://archive.ubuntu.com/ubuntu/",
+        ]
+        
+        network_ok = False
+        last_error = ""
+        for test_url in test_urls:
+            success, stdout, stderr = self._run_wsl_command(
+                f"curl -sk --connect-timeout 10 -o /dev/null -w '%{{http_code}}' '{test_url}' 2>/dev/null",
+                timeout=15
+            )
+            http_code = stdout.strip()
+            if success and http_code and http_code != "000":
+                self._emit_log(f"网络测试成功: (HTTP {http_code})")
+                network_ok = True
+                break
+            else:
+                last_error = f"HTTP {http_code}" if http_code else stderr
+                self._emit_log(f"网络测试失败: {test_url} ({last_error})")
+        
+        if not network_ok:
+            self._emit_log("网络连接异常，尝试重启分发...")
+            if self._wsl_manager.stop_distro(self._distro_name):
+                time.sleep(2)
+                if self._wsl_manager.start_distro(self._distro_name):
+                    time.sleep(3)
+                    self._emit_log("分发已重启，重新测试网络...")
+                    for test_url in test_urls:
+                        success, stdout, stderr = self._run_wsl_command(
+                            f"curl -sk --connect-timeout 10 -o /dev/null -w '%{{http_code}}' '{test_url}' 2>/dev/null",
+                            timeout=15
+                        )
+                        http_code = stdout.strip()
+                        if success and http_code and http_code != "000":
+                            self._emit_log(f"重启后网络测试成功: {test_url} (HTTP {http_code})")
+                            network_ok = True
+                            break
+            
+            if not network_ok:
+                return False, f"网络连接失败，重启分发后仍无法连接: {last_error}"
+        
+        self._emit_log("WSL 分发验证通过")
         return True, ""
 
     def _configure_mirror(self) -> Tuple[bool, str]:
@@ -326,15 +404,18 @@ class WSLInitializer:
         self._run_wsl_command("ln -sf /usr/bin/pip3 /usr/bin/pip")
 
         pip_mirrors = [
-            "http://mirrors.aliyun.com/pypi/simple/",
+            "https://mirrors.aliyun.com/pypi/simple/",
             "https://pypi.mirrors.ustc.edu.cn/simple/",
-            "https://pypi.tuna.tsinghua.edu.cn/simple/"
+            "https://pypi.tuna.tsinghua.edu.cn/simple/",
+            "https://pypi.org/simple/"
         ]
 
         self._emit_log("升级 pip...")
         success, stdout = False, ""
         for mirror in pip_mirrors:
             self._run_wsl_command(f"pip config set global.index-url {mirror}")
+            tmpdomain=mirror.split("/")[2]
+            self._run_wsl_command(f"pip config set global.extra-index-url {tmpdomain}")
             self._run_wsl_command("python -m pip install --upgrade pip")
             success, stdout, _ = self._run_wsl_command("python --version")
             if success:
@@ -381,7 +462,7 @@ class WSLInitializer:
 
         success, stdout, _ = self._run_wsl_command("nanobot --version")
         if success:
-            version = stdout.replace('\n', ' ').replace('\r', ' ').strip().replace('nanobot ', '')
+            version = stdout.replace('\n', '').replace('\r', '').strip().replace('nanobot', '')
             self._emit_log(f"clawbot 版本: {version}")
 
         self._emit_log("初始化 clawbot 配置...")
