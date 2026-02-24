@@ -1,8 +1,13 @@
+[English](README_en.md) | [简体中文](README.md)
+
 # FTK_Claw_Bot - 抓虾机器人
 
 FTK_Claw_Bot - Windows 平台的虾群控制工具，openclaw 平替方案。专注 WSL2 环境下 bot 管理与控制，支持单机多 bot 实例并行运行、bot 群聊。提供完整 Windows 系统操作桥接（鼠标/键盘/截图/窗口/剪贴板），现代化 PyQt6 图形界面，插件系统支持无限扩展，WSL2 桥接代理实现跨系统协作。
 
 ## ✨ 功能特性
+<div align="center">
+<img src="preview.gif"  alt="FTK_Claw_Bot " width="800"/>
+</div>
 
 ### 🔧 核心功能
 

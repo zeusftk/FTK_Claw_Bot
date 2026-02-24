@@ -5,10 +5,12 @@ from pathlib import Path
 
 from loguru import logger
 
+##修复环境中的遗留依赖
 necessary_packages = [
     "netifaces",
 ]
 
+# 镜像源配置
 MIRROR_SOURCES = [
     {
         "name": "tsinghua",
