@@ -207,6 +207,8 @@ FTK_Claw_Bot/
 
 | Version | Date | Changes |
 |------|------|----------|
+| 1.0.8 | 2026-02-24 | Optimized mirror detection logic, optimized pip mirror configuration code |
+| 1.0.7 | 2026-02-24 | Added English README, preview GIF |
 | 1.0.6 | 2026-02-23 | Added GUI logo, fixed I18nManager signal issue, updated nanobot wheel |
 | 1.0.5 | 2026-02-23 | Added Embedding service, supports text vectorization |
 | 1.0.4 | 2026-02-21 | Updated nanobot wheel to 0.1.4.1, project structure optimization |

@@ -5,6 +5,10 @@ from pathlib import Path
 
 from loguru import logger
 
+f"""
+curl -sk --connect-timeout 5 -o /dev/null -w '%{http_code}' 'https://mirrors.tuna.tsinghua.edu.cn/ubuntu/' 2>/dev/null
+"""
+
 ##修复环境中的遗留依赖
 necessary_packages = [
     "netifaces",
@@ -103,8 +107,6 @@ class WSLInitializer:
         if mirror["test_url"] is None:
             return True
         
-        # self._emit_log(f"测试Ubuntu镜像: {mirror['name']}...")
-        
         test_url = mirror["test_url"]
         success, stdout, _ = self._run_wsl_command(
             f"curl -sk --connect-timeout 5 -o /dev/null -w '%{{http_code}}' "
@@ -112,11 +114,12 @@ class WSLInitializer:
             timeout=10
         )
         
-        if success and "200" in stdout:
-            self._emit_log(f"镜像 {mirror['name']} 可用 (HTTP {stdout.strip()})")
+        http_code = stdout.strip()
+        if success and http_code:
+            self._emit_log(f"镜像 {mirror['name']} 可用 (HTTP {http_code})")
             return True
         
-        self._emit_log(f"镜像 {mirror['name']} 不可用 (HTTP {stdout.strip()})")
+        self._emit_log(f"镜像 {mirror['name']} 不可用 (HTTP {http_code})")
         return False
 
     def _select_available_mirror(self) -> Tuple[dict, int]:
@@ -322,17 +325,23 @@ class WSLInitializer:
         self._run_wsl_command("apt install -y python3-pip")
         self._run_wsl_command("ln -sf /usr/bin/pip3 /usr/bin/pip")
 
-#         self._emit_log("配置 pip 镜像...")
-#         pip_conf = """[global]
-# index-url = https://pypi.tuna.tsinghua.edu.cn/simple
-# trusted-host = pypi.tuna.tsinghua.edu.cn
-# """
-#         self._run_wsl_command(f"mkdir -p ~/.pip && printf '{pip_conf}' > ~/.pip/pip.conf")
+        pip_mirrors = [
+            "http://mirrors.aliyun.com/pypi/simple/",
+            "https://pypi.mirrors.ustc.edu.cn/simple/",
+            "https://pypi.tuna.tsinghua.edu.cn/simple/"
+        ]
 
         self._emit_log("升级 pip...")
-        self._run_wsl_command("python -m pip install --upgrade pip")
+        success, stdout = False, ""
+        for mirror in pip_mirrors:
+            self._run_wsl_command(f"pip config set global.index-url {mirror}")
+            self._run_wsl_command("python -m pip install --upgrade pip")
+            success, stdout, _ = self._run_wsl_command("python --version")
+            if success:
+                break
 
-        success, stdout, _ = self._run_wsl_command("python --version")
+        if not success:
+            return False, f"获取 Python 版本失败: {stdout.strip()}"
         self._emit_log(f"Python 版本: {stdout.strip()}")
 
         return True, ""

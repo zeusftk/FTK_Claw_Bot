@@ -172,7 +172,7 @@ class BasicInfoPage(QWidget):
         name_layout.addWidget(name_label)
         
         self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("例如: my-nanobot")
+        self.name_edit.setPlaceholderText("例如: my-clawbot")
         name_layout.addWidget(self.name_edit, 1)
         
         self.name_hint_label = QLabel("")

@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 APP_NAME = "FTK_Claw_Bot"
 APP_AUTHOR = "FTK Team"
 APP_EMAIL = "zeusftk@gmail.com"
