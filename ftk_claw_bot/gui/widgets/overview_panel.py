@@ -521,13 +521,12 @@ class OverviewPanel(QWidget):
 
         _debug_log("[OverviewPanel._init_ui] 创建分发表格...")
         self.distro_table = QTableWidget()
-        self.distro_table.setColumnCount(8)
+        self.distro_table.setColumnCount(7)
         self.distro_table.setHorizontalHeaderLabels([
             tr("table.distro_name", "分发名称"),
             tr("table.version", "版本"),
             tr("table.status", "状态"),
             tr("table.port", "Port"),
-            tr("table.kernel", "内核版本"),
             tr("table.cpu", "CPU%"),
             tr("table.memory", "内存%"),
             tr("table.actions", "操作")
@@ -538,43 +537,22 @@ class OverviewPanel(QWidget):
         self.distro_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self.distro_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         self.distro_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
-        self.distro_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
-        self.distro_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.distro_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         self.distro_table.setColumnWidth(1, 70)
         self.distro_table.setColumnWidth(2, 80)
         self.distro_table.setColumnWidth(3, 120)
-        self.distro_table.setColumnWidth(4, 100)
+        self.distro_table.setColumnWidth(4, 60)
         self.distro_table.setColumnWidth(5, 60)
-        self.distro_table.setColumnWidth(6, 60)
         self.distro_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.distro_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.distro_table.setAlternatingRowColors(False)
         self.distro_table.verticalHeader().setVisible(False)
         self.distro_table.verticalHeader().setDefaultSectionSize(80)
-        self.distro_table.setMinimumHeight(300)
+        self.distro_table.setMinimumHeight(450)
         distro_layout.addWidget(self.distro_table)
 
         layout.addWidget(distro_group)
         _debug_log("[OverviewPanel._init_ui] 分发管理组创建完成")
-
-        _debug_log("[OverviewPanel._init_ui] 创建快速操作组...")
-        quick_actions_group = QGroupBox(tr("overview.quick_actions", "快速操作"))
-        quick_actions_group.setObjectName("quickActions")
-        quick_layout = QHBoxLayout(quick_actions_group)
-        quick_layout.setSpacing(12)
-
-        self.send_msg_btn = QPushButton(f"💬 {tr('btn.send_message', '发送消息')}")
-        self.send_msg_btn.setObjectName("primary")
-        self.view_log_btn = QPushButton(f"📋 {tr('btn.view_log', '查看日志')}")
-        self.edit_config_btn = QPushButton(f"⚙ {tr('btn.edit_config', '编辑配置')}")
-
-        for btn in [self.send_msg_btn, self.view_log_btn, self.edit_config_btn]:
-            btn.setMinimumHeight(40)
-            btn.setMinimumWidth(130)
-            quick_layout.addWidget(btn)
-
-        layout.addWidget(quick_actions_group)
-        _debug_log("[OverviewPanel._init_ui] 快速操作组创建完成")
 
         _debug_log("[OverviewPanel._init_ui] 创建活动记录组...")
         activity_group = QGroupBox(tr("overview.activity", "最近活动"))
@@ -661,9 +639,6 @@ class OverviewPanel(QWidget):
         self.import_btn.clicked.connect(self._import_distro)
         self.create_btn.clicked.connect(self._create_distro)
         self.export_btn.clicked.connect(self._export_distro)
-        self.send_msg_btn.clicked.connect(self._send_message)
-        self.view_log_btn.clicked.connect(self._show_log_panel)
-        self.edit_config_btn.clicked.connect(self._show_config_panel)
     
     def _retranslate_ui(self):
         self.distro_count_card._title_label.setText(tr("overview.stats.distro_count", "WSL 分发"))
@@ -678,16 +653,11 @@ class OverviewPanel(QWidget):
         self.create_btn.setText(f"🆕 {tr('btn.create', '创建分发')}")
         self.export_btn.setText(f"📤 {tr('btn.export', '导出分发')}")
         
-        self.send_msg_btn.setText(f"💬 {tr('btn.send_message', '发送消息')}")
-        self.view_log_btn.setText(f"📋 {tr('btn.view_log', '查看日志')}")
-        self.edit_config_btn.setText(f"⚙ {tr('btn.edit_config', '编辑配置')}")
-        
         self.distro_table.setHorizontalHeaderLabels([
             tr("table.distro_name", "分发名称"),
             tr("table.version", "版本"),
             tr("table.status", "状态"),
             tr("table.port", "Port"),
-            tr("table.kernel", "内核版本"),
             tr("table.cpu", "CPU%"),
             tr("table.memory", "内存%"),
             tr("table.actions", "操作")
@@ -729,9 +699,6 @@ class OverviewPanel(QWidget):
             port_item = QTableWidgetItem("")
             port_item.setBackground(bg_color)
             
-            kernel_item = QTableWidgetItem("")
-            kernel_item.setBackground(bg_color)
-            
             cpu_item = QTableWidgetItem("")
             cpu_item.setBackground(bg_color)
             
@@ -743,10 +710,6 @@ class OverviewPanel(QWidget):
                 if config and config.gateway_port:
                     port_item.setText(str(config.gateway_port))
                     port_item.setForeground(QColor("#58a6ff"))
-                
-                kernel_version = self._wsl_manager.get_distro_kernel_version(distro.name)
-                if kernel_version:
-                    kernel_item.setText(kernel_version)
                 
                 resources = self._wsl_manager.get_resource_usage(distro.name)
                 if resources:
@@ -796,10 +759,9 @@ class OverviewPanel(QWidget):
             self.distro_table.setItem(row, 1, version_item)
             self.distro_table.setItem(row, 2, status_item)
             self.distro_table.setItem(row, 3, port_item)
-            self.distro_table.setItem(row, 4, kernel_item)
-            self.distro_table.setItem(row, 5, cpu_item)
-            self.distro_table.setItem(row, 6, memory_item)
-            self.distro_table.setCellWidget(row, 7, action_widget)
+            self.distro_table.setItem(row, 4, cpu_item)
+            self.distro_table.setItem(row, 5, memory_item)
+            self.distro_table.setCellWidget(row, 6, action_widget)
 
     def _create_action_btn(self, text: str, tooltip: str, bg_color: str = "#21262d", hover_color: str = "#30363d", pressed_color: str = "#161b22") -> QPushButton:
         btn = QPushButton(text)

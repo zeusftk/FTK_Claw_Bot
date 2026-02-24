@@ -61,8 +61,8 @@ ftkclawbot
 
 ### 直接使用，二进制包
 适合无需 Python 环境的用户，开箱即用：
-1. 下载 `init_wsl` 
-2. 双击运行,目录下的 `FTK_Claw_Bot_x.x.x.exe`
+1. 下载 `init_wsl` 和 `FTK_Claw_Bot_x.x.x.exe`
+2. 双击运行`FTK_Claw_Bot_x.x.x.exe`
 
 > **注意**：首次运行使用 `wsl --version` 检查 WSL 版本，确保为 WSL2。
 
