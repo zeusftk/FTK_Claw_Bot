@@ -661,7 +661,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
     def _on_provider_changed(self, provider: str):
         """当提供商变更时显示/隐藏 URL 输入框"""
-        oauth_providers = {"qwen_portal", "openai_codex"}
+        oauth_providers = {"qwen_portal"}
         is_oauth = provider in oauth_providers
         
         self.apiKey_edit.setVisible(not is_oauth)
@@ -1282,7 +1282,9 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         """OAuth 登录完成回调"""
         self.oauth_login_btn.setEnabled(True)
         
-        if success:
+        is_success = success or "login successful" in stdout.lower() or "oauth login successful" in stdout.lower()
+        
+        if is_success:
             self.oauth_status_label.setText(tr("config.status.logged_in", "已登录"))
             self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
             QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.oauth_success", "Qwen Portal OAuth 登录成功！"))

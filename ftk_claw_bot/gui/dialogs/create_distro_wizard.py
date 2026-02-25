@@ -381,7 +381,7 @@ class InitProgressPage(QWidget):
             "配置镜像源",
             "更新系统包",
             "安装基础工具",
-            "安装 Python 3.11",
+            "安装更新pip工具",
             "安装 clawbot",
             "安装 Node.js",
             "配置系统服务"
