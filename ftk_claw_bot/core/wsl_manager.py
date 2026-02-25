@@ -365,7 +365,6 @@ class WSLManager:
         timeout: int = 30
     ) -> CommandResult:
         cmd = ["wsl.exe", "-d", distro_name, "-u", "root", "--", "bash", "-c", command]
-
         try:
             result = subprocess.run(
                 cmd,

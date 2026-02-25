@@ -488,10 +488,10 @@
     "command.error_no_distro": "请选择 WSL 分发",
     "command.error_no_command": "请输入要执行的命令",
     "command.executing": "正在执行命令...",
-    "command.distro_label": "分发:",
-    "command.command_label": "命令:",
+    "command.distro_label": "分发: {name}",
+    "command.command_label": "命令: {cmd}",
     "command.completed": "执行完成 (返回码: {code})",
-    "command.stderr_prefix": "[stderr] ",
+    "command.stderr_prefix": "[stderr] {text}",
     
     "log.title": "日志查看",
     "log.level": "日志级别:",

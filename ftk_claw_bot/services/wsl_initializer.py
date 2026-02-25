@@ -207,11 +207,11 @@ class WSLInitializer:
 
         steps = [
             ("导入 Ubuntu 镜像", self._import_tar, (tar_path, install_location), False),
-            ("验证 WSL 网络", self._verify_wsl_network, (), False),
+            ("验证 WSL 分发版本", self._verify_wsl_network, (), False),
             ("配置镜像源", self._configure_mirror, (), False),
             ("更新系统包", self._update_apt, (), True),
             ("安装基础工具", self._install_basic_tools, (), True),
-            ("安装 Python 3.11", self._install_python, (), True),
+            ("安装更新pip工具", self._install_python, (), True),
             ("安装 clawbot", self._install_clawbot, (whl_path,), False),
         ]
 
@@ -264,10 +264,10 @@ class WSLInitializer:
         return True, ""
 
     def _verify_wsl_network(self) -> Tuple[bool, str]:
-        self._emit_log("验证 WSL 分发状态...")    
+        self._emit_log("验证 WSL 分发版本及状态...")    
         for i in range(20):
-            time.sleep(10)
-            success, stdout, stderr = self._run_wsl_command("echo 'WSL OK'", timeout=10)
+            time.sleep(5)
+            success, stdout, stderr = self._run_wsl_command("cat /etc/os-release | grep PRETTY_NAME", timeout=10)
             if success:
                 break
             if i > 0 and i % 5 == 0:
@@ -282,7 +282,10 @@ class WSLInitializer:
         if not success:
             self._emit_log(f"WSL 分发响应异常: {stderr}")
             return False, f"分发响应异常: {stderr}"
-        
+
+        if "Ubuntu 24.04.1 LTS" not in stdout:
+            return False, f"分发版本错误: {stdout.strip()},请确保分发版本为 Ubuntu 24.04.1 LTS"
+
         self._emit_log("检查 curl 命令...")
         success, stdout, stderr = self._run_wsl_command("which curl", timeout=10)
         if not success or not stdout.strip():
@@ -380,29 +383,29 @@ class WSLInitializer:
 
         return True, ""
 
-    def _install_python(self) -> Tuple[bool, str]:
-        self._emit_log(f"Python安装...")
+    def _install_python(self) -> Tuple[bool, str]: 
+        self._emit_log(f"Python venv安装...")
         success, _, stderr = self._run_wsl_command(
-            "add-apt-repository -y ppa:deadsnakes/ppa && apt update",
-            timeout=120
-        )
-        if not success:
-            return False, f"添加 PPA 失败: {stderr}"
-        
-        success, _, stderr = self._run_wsl_command(
-            "apt install -y python3.11 python3.11-venv python3.11-dev python3-pip",
+            "apt install -y  python3.12-venv",
             timeout=600
         )
         if not success:
-            return False, f"安装 Python 失败: {stderr}"
-        
-        ##配置 Python 符号链接
-        self._run_wsl_command("update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1")
-        self._run_wsl_command("update-alternatives --install /usr/bin/python3 python /usr/bin/python3.11 1")
-        self._run_wsl_command("ln -sf /usr/bin/python3 /usr/bin/python")
-        self._run_wsl_command("apt install -y python3-pip")
-        self._run_wsl_command("ln -sf /usr/bin/pip3 /usr/bin/pip")
+            return False, f"安装 Python 3.12 venv 失败: {stderr}"
 
+        self._run_wsl_command("python3 -m venv /bot_venv")
+        self._run_wsl_command("source /bot_venv/bin/activate")
+        success, stdout, stderr = self._run_wsl_command("test -f /bot_venv/bin/activate && echo 'exists' || echo 'missing'")
+        if not success or "missing" in stdout:
+            return False, f"bot_venv 创建失败: {stderr}"
+        else:
+            #添加到自启动
+            self._run_wsl_command("echo 'source /bot_venv/bin/activate' >> ~/.bashrc")
+            self._run_wsl_command("ln -sf /bot_venv/bin/python /usr/bin/python")
+            self._run_wsl_command("ln -sf /bot_venv/bin/pip /usr/bin/pip")
+
+        
+
+        self._emit_log("升级 pip...")
         pip_mirrors = [
             "https://mirrors.aliyun.com/pypi/simple/",
             "https://pypi.mirrors.ustc.edu.cn/simple/",
@@ -410,21 +413,20 @@ class WSLInitializer:
             "https://pypi.org/simple/"
         ]
 
-        self._emit_log("升级 pip...")
         success, stdout = False, ""
         for mirror in pip_mirrors:
             self._run_wsl_command(f"pip config set global.index-url {mirror}")
             tmpdomain=mirror.split("/")[2]
-            self._run_wsl_command(f"pip config set global.extra-index-url {tmpdomain}")
-            self._run_wsl_command("python -m pip install --upgrade pip")
-            success, stdout, _ = self._run_wsl_command("python --version")
+            self._run_wsl_command(f"pip config set global.trusted-host {tmpdomain}")
+            self._run_wsl_command("pip install --upgrade pip")
+            success, stdout, _ = self._run_wsl_command("pip --version")
             if success:
                 break
 
         if not success:
-            return False, f"获取 Python 版本失败: {stdout.strip()}"
-        self._emit_log(f"Python 版本: {stdout.strip()}")
-
+            return False, f"获取 pip 版本失败: {stdout.strip()}"
+        
+        self._emit_log(f"pip 版本: {stdout.strip()} 配置完成")
         return True, ""
 
     def _install_clawbot(self, whl_path: str) -> Tuple[bool, str]:
@@ -459,7 +461,7 @@ class WSLInitializer:
             return False, f"安装 clawbot 失败: {stderr}"
 
         self._run_wsl_command(f"rm -f /tmp/{whl_name}")
-
+        self._run_wsl_command(f"ln -sf /bot_venv/bin/nanobot /usr/bin/nanobot")
         success, stdout, _ = self._run_wsl_command("nanobot --version")
         if success:
             version = stdout.replace('\n', '').replace('\r', '').strip().replace('nanobot', '')
@@ -486,8 +488,28 @@ class WSLInitializer:
         success, stdout, _ = self._run_wsl_command("node --version 2>/dev/null || echo 'N/A'")
         self._emit_log(f"Node.js 版本: {stdout.strip()}")
 
-        success, stdout, _ = self._run_wsl_command("npm --version 2>/dev/null || echo 'N/A'")
-        self._emit_log(f"npm 版本: {stdout.strip()}")
+        ##安装 npm
+        self._run_wsl_command("apt install npm -y")
+        ##检查 npm 的路径
+        success, stdout, _ = self._run_wsl_command("which npm 2>/dev/null || echo 'N/A'")
+        restart_success = True
+        for i in range(3):
+            if "/usr/bin/npm" in stdout:
+                success, stdout, _ = self._run_wsl_command("npm --version 2>/dev/null || echo 'N/A'")
+                self._emit_log(f"npm 版本: {stdout.strip()}")
+                break
+            ##重启wsl
+            restart_success = self._wsl_manager.stop_distro(self._distro_name)
+            time.sleep(15)
+            if restart_success:
+                restart_success = self._wsl_manager.start_distro(self._distro_name)
+                time.sleep(15)
+                self._run_wsl_command("apt install npm -y")
+                success, stdout, _ = self._run_wsl_command("which npm 2>/dev/null || echo 'N/A'")
+        if not restart_success:
+            return False, f"npm 安装失败: {stderr}"
+
+
 
         ### 安装 opencode
         self._emit_log("安装 opencode...")
@@ -543,7 +565,7 @@ Group=root
 WorkingDirectory=/root
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=HOME=/root
-ExecStart=/usr/bin/python -m nanobot gateway
+ExecStart=nanobot gateway
 Restart=always
 RestartSec=10
 StandardOutput=journal

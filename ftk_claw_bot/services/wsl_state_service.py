@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from loguru import logger
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QMetaObject, Qt, pyqtSlot
 
 from ..events import EventBus, EventType
 from ..models import WSLDistro
@@ -47,6 +47,7 @@ class WSLStateService(QObject):
         self._previous_distro_names: set = set()
         self._previous_running_names: set = set()
         self._initialized = True
+        self._pending_refresh = False
         logger.info("WSLStateService 初始化完成")
     
     @classmethod
@@ -63,7 +64,24 @@ class WSLStateService(QObject):
     def stop_monitoring(self):
         self._timer.stop()
         logger.info("WSLStateService 停止监控")
-    
+
+    def request_refresh_from_thread(self):
+        """从非Qt线程安全地请求刷新状态
+        
+        此方法可从任何线程调用，会自动将刷新操作调度到Qt主线程执行。
+        使用防抖机制避免频繁刷新。
+        """
+        if self._pending_refresh:
+            return
+        self._pending_refresh = True
+        QMetaObject.invokeMethod(self, "_do_thread_safe_refresh", Qt.ConnectionType.QueuedConnection)
+
+    @pyqtSlot()
+    def _do_thread_safe_refresh(self):
+        """在Qt主线程中执行的实际刷新操作"""
+        self._pending_refresh = False
+        self._refresh_state()
+
     def _refresh_state(self):
         if not self._wsl_manager:
             return

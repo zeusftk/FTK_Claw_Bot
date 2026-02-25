@@ -130,21 +130,22 @@ class CommandPanel(QWidget):
         timeout = self.timeout_spin.value()
         
         self.output_edit.append(tr("command.executing", "> 正在执行命令..."))
-        self.output_edit.append(tr("command.distro_label", "> 分发: {}").format(distro_name))
-        self.output_edit.append(tr("command.command_label", "> 命令: {}").format(command))
+        self.output_edit.append(tr("command.distro_label", "> 分发: {name}").format(name=distro_name))
+        self.output_edit.append(tr("command.command_label", "> 命令: {cmd}").format(cmd=command))
         self.output_edit.append("-" * 50)
         
         result = self._wsl_manager.execute_command(
             distro_name, command, timeout
         )
-        
+
+        self.output_edit.append(tr("command.success", f"> >{result.success}"))
         if result.stdout:
             self.output_edit.append(result.stdout)
         if result.stderr:
-            self.output_edit.append(tr("command.stderr_prefix", "[stderr] {}").format(result.stderr))
+            self.output_edit.append(tr("command.stderr_prefix", "[stderr] {text}").format(text=result.stderr))
         
         self.output_edit.append("-" * 50)
-        self.output_edit.append(tr("command.completed", "> 执行完成 (返回码: {})").format(result.return_code))
+        self.output_edit.append(tr("command.completed", "> 执行完成 (返回码: {code})").format(code=result.return_code))
         self.output_edit.append("")
         self.command_executed.emit(distro_name)
 

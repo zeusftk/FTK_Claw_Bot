@@ -481,10 +481,10 @@
     "command.error_no_distro": "Please select a WSL distro",
     "command.error_no_command": "Please enter a command to execute",
     "command.executing": "Executing command...",
-    "command.distro_label": "Distro:",
-    "command.command_label": "Command:",
+    "command.distro_label": "Distro: {name}",
+    "command.command_label": "Command: {cmd}",
     "command.completed": "Execution completed (return code: {code})",
-    "command.stderr_prefix": "[stderr] ",
+    "command.stderr_prefix": "[stderr] {text}",
     
     "log.title": "Log Viewer",
     "log.level": "Log Level:",

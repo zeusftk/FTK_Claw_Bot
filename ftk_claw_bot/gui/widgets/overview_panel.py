@@ -438,8 +438,9 @@ class OverviewPanel(QWidget):
         self._apply_styles()
         _debug_log("[OverviewPanel] _apply_styles 完成")
         
-        _debug_log("[OverviewPanel] 注册 WSL 回调...")
-        self._wsl_manager.register_callback(self._on_wsl_state_changed)
+        _debug_log("[OverviewPanel] 创建线程安全的 WSL 回调...")
+        self._safe_wsl_state_callback = ThreadSafeSignal(self._on_wsl_state_changed)
+        self._wsl_manager.register_callback(self._safe_wsl_state_callback.emit)
         _debug_log("[OverviewPanel] WSL 回调注册完成")
         
         _debug_log("[OverviewPanel] 调用 _refresh_status...")
