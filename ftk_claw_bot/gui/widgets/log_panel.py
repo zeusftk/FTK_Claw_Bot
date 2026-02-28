@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
 from typing import List, Optional
 from PyQt6.QtWidgets import (
@@ -62,7 +63,7 @@ class LogPanel(QWidget):
 
         source_label = QLabel(tr("log.source", "来源:"))
         self.source_combo = QComboBox()
-        self.source_combo.addItems([tr("log.all", "全部"), tr("log.source_nanobot", "Nanobot"), tr("log.source_bridge", "Bridge"), tr("log.source_wsl", "WSL"), tr("log.source_ftk", "FTK_Claw_Bot")])
+        self.source_combo.addItems([tr("log.all", "全部"), tr("log.source_clawbot", "Clawbot"), tr("log.source_bridge", "Bridge"), tr("log.source_wsl", "WSL"), tr("log.source_ftk", "FTK_Claw_Bot")])
         self.source_combo.currentTextChanged.connect(self._on_filter_changed)
         
         time_label = QLabel(tr("log.time_range", "时间范围:"))
@@ -141,7 +142,7 @@ class LogPanel(QWidget):
         if source_filter != tr("log.all", "全部"):
             # 检查来源是否匹配（需要反向映射翻译后的来源名称）
             source_map = {
-                tr("log.source_nanobot", "Nanobot"): "Nanobot",
+                tr("log.source_clawbot", "Clawbot"): "Clawbot",
                 tr("log.source_bridge", "Bridge"): "Bridge",
                 tr("log.source_wsl", "WSL"): "WSL",
                 tr("log.source_ftk", "FTK_Claw_Bot"): "FTK_Claw_Bot"

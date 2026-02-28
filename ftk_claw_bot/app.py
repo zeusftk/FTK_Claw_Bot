@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import sys
 import threading
@@ -16,9 +17,9 @@ from .container import container
 from .events import event_bus, EventType
 from .plugins import PluginManager
 from .utils import setup_logger
-from .core import WSLManager, NanobotController, ConfigManager
+from .core import WSLManager, ClawbotController, ConfigManager
 from .services import MonitorService, WindowsBridge
-from .models import NanobotConfig
+from .models import ClawbotConfig
 from .gui import MainWindow
 from .gui.widgets import SplashScreen
 
@@ -35,8 +36,8 @@ def _debug_log(msg: str):
 def get_app_dir() -> Path:
     """获取应用目录，兼容打包和开发环境
     
-    Nuitka onefile 模式下，资源被解压到临时目录，
-    __file__ 会正确指向临时目录中的模块路径
+    Nuitka onefile 模式下，资源被解压到临时目录中，
+    __file__ 会正确指向临时目录中的模块路径。
     """
     return Path(__file__).parent
 
@@ -106,10 +107,10 @@ class Application:
         container.config_manager = config_manager
         _debug_log("[INIT-03] ConfigManager 创建成功")
         
-        _debug_log("[INIT-04] 创建 NanobotController...")
-        nanobot_controller = NanobotController(wsl_manager)
-        container.nanobot_controller = nanobot_controller
-        _debug_log("[INIT-04] NanobotController 创建成功")
+        _debug_log("[INIT-04] 创建 ClawbotController...")
+        clawbot_controller = ClawbotController(wsl_manager)
+        container.clawbot_controller = clawbot_controller
+        _debug_log("[INIT-04] ClawbotController 创建成功")
         
         if progress_callback:
             progress_callback("正在获取 WSL 分发列表...", 30)
@@ -129,7 +130,7 @@ class Application:
                 
                 config = config_manager.get(distro.name)
                 if not config:
-                    config = NanobotConfig(
+                    config = ClawbotConfig(
                         name=distro.name,
                         distro_name=distro.name
                     )
@@ -143,7 +144,7 @@ class Application:
         if distros:
             config_manager.load_and_sync_from_wsl(
                 wsl_manager, 
-                nanobot_controller, 
+                clawbot_controller, 
                 valid_distro_names
             )
         _debug_log("[INIT-06] 配置同步完成")
@@ -152,7 +153,7 @@ class Application:
             progress_callback("正在启动监控服务...", 85)
         
         _debug_log("[INIT-07] 创建 MonitorService...")
-        monitor_service = MonitorService(wsl_manager, nanobot_controller)
+        monitor_service = MonitorService(wsl_manager, clawbot_controller)
         container.monitor_service = monitor_service
         _debug_log("[INIT-07] MonitorService 创建成功")
         
@@ -247,7 +248,7 @@ class Application:
         if progress_callback:
             progress_callback("初始化完成", 100)
         
-        _debug_log("[INIT] 服务初始化全部完成!")
+        _debug_log("[INIT] 服务初始化全部完成")
     
     def init_services_async(self, progress_callback=None, completion_callback=None):
         """异步初始化服务
@@ -271,8 +272,8 @@ class Application:
                 config_manager = ConfigManager()
                 container.config_manager = config_manager
                 
-                nanobot_controller = NanobotController(wsl_manager)
-                container.nanobot_controller = nanobot_controller
+                clawbot_controller = ClawbotController(wsl_manager)
+                container.clawbot_controller = clawbot_controller
                 
                 if progress_callback:
                     progress_callback("正在获取 WSL 分发列表...", 30)
@@ -290,7 +291,7 @@ class Application:
                         
                         config = config_manager.get(distro.name)
                         if not config:
-                            config = NanobotConfig(
+                            config = ClawbotConfig(
                                 name=distro.name,
                                 distro_name=distro.name
                             )
@@ -303,14 +304,14 @@ class Application:
                 if distros:
                     config_manager.load_and_sync_from_wsl(
                         wsl_manager, 
-                        nanobot_controller, 
+                        clawbot_controller, 
                         valid_distro_names
                     )
                 
                 if progress_callback:
                     progress_callback("正在启动监控服务...", 85)
                 
-                monitor_service = MonitorService(wsl_manager, nanobot_controller)
+                monitor_service = MonitorService(wsl_manager, clawbot_controller)
                 container.monitor_service = monitor_service
                 
                 default_config = config_manager.get_default()
@@ -377,7 +378,7 @@ class Application:
             self._window = MainWindow(
                 wsl_manager=container.wsl_manager,
                 config_manager=container.config_manager,
-                nanobot_controller=container.nanobot_controller,
+                clawbot_controller=container.clawbot_controller,
                 monitor_service=container.monitor_service,
                 windows_bridge=container.windows_bridge,
                 skip_init=True

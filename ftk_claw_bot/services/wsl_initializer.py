@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import subprocess
 import time
@@ -412,7 +413,7 @@ class WSLInitializer:
             "https://pypi.tuna.tsinghua.edu.cn/simple/",
             "https://pypi.org/simple/"
         ]
-
+        # pip config set global.trusted-host https://mirrors.aliyun.com/pypi/simple/
         success, stdout = False, ""
         for mirror in pip_mirrors:
             self._run_wsl_command(f"pip config set global.index-url {mirror}")
@@ -461,14 +462,14 @@ class WSLInitializer:
             return False, f"安装 clawbot 失败: {stderr}"
 
         self._run_wsl_command(f"rm -f /tmp/{whl_name}")
-        self._run_wsl_command(f"ln -sf /bot_venv/bin/nanobot /usr/bin/nanobot")
-        success, stdout, _ = self._run_wsl_command("nanobot --version")
+        self._run_wsl_command(f"ln -sf /bot_venv/bin/clawbot /usr/bin/clawbot")
+        success, stdout, _ = self._run_wsl_command("clawbot --version")
         if success:
-            version = stdout.replace('\n', '').replace('\r', '').strip().replace('nanobot', '')
+            version = stdout.replace('\n', '').replace('\r', '').strip().replace('clawbot', '')
             self._emit_log(f"clawbot 版本: {version}")
 
         self._emit_log("初始化 clawbot 配置...")
-        self._run_wsl_command("nanobot onboard", timeout=60)
+        self._run_wsl_command("clawbot onboard", timeout=60)
         ##删除 whl
         self._run_wsl_command(f"rm -f /tmp/{whl_name}")
 
@@ -542,20 +543,20 @@ class WSLInitializer:
         return True, ""
 
     def _setup_service(self) -> Tuple[bool, str]:
-        self._emit_log("验证 nanobot 配置...")
+        self._emit_log("验证 clawbot 配置...")
 
         success, stdout, _ = self._run_wsl_command(
-            "test -f /root/.nanobot/config.json && echo 'OK' || echo 'MISSING'"
+            "test -f /root/.clawbot/config.json && echo 'OK' || echo 'MISSING'"
         )
 
         if "MISSING" in stdout:
             self._emit_log("配置不存在，重新运行 onboard...")
-            self._run_wsl_command("nanobot onboard", timeout=60)
+            self._run_wsl_command("clawbot onboard", timeout=60)
 
         self._emit_log("创建 systemd 服务...")
 
         service_content = """[Unit]
-Description=Nanobot AI Agent Service
+Description=Clawbot AI Agent Service
 After=network.target
 
 [Service]
@@ -565,7 +566,7 @@ Group=root
 WorkingDirectory=/root
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=HOME=/root
-ExecStart=nanobot gateway
+ExecStart=clawbot gateway
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -576,16 +577,16 @@ WantedBy=multi-user.target
 """
 
         success, _, stderr = self._run_wsl_command(
-            f"printf '{service_content}' > /etc/systemd/system/nanobot.service"
+            f"printf '{service_content}' > /etc/systemd/system/clawbot.service"
         )
 
         if not success:
             return False, f"创建服务文件失败: {stderr}"
 
-        self._emit_log("启用 nanobot 服务...")
-        self._run_wsl_command("systemctl daemon-reload && systemctl enable nanobot.service")
+        self._emit_log("启用 clawbot 服务...")
+        self._run_wsl_command("systemctl daemon-reload && systemctl enable clawbot.service")
 
-        self._emit_log("启动 nanobot 服务...")
-        self._run_wsl_command("systemctl start nanobot.service 2>/dev/null || echo 'Service will start on next boot'")
+        self._emit_log("启动 clawbot 服务...")
+        self._run_wsl_command("systemctl start clawbot.service 2>/dev/null || echo 'Service will start on next boot'")
 
         return True, ""

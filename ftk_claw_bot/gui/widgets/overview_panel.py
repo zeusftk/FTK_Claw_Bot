@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import glob
 import time
@@ -27,7 +28,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
 
-from ...core import WSLManager, NanobotController, ConfigManager
+from ...core import WSLManager, ClawbotController, ConfigManager
 from ...models import DistroStatus, WSLDistro
 from ...gui.dialogs import show_info, show_critical, show_question, show_warning
 from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
@@ -413,7 +414,7 @@ class OverviewPanel(QWidget):
     def __init__(
         self,
         wsl_manager: WSLManager,
-        nanobot_controller: NanobotController,
+        clawbot_controller: ClawbotController,
         config_manager: ConfigManager,
         parent=None
     ):
@@ -422,7 +423,7 @@ class OverviewPanel(QWidget):
         _debug_log("[OverviewPanel] super().__init__() 完成")
         
         self._wsl_manager = wsl_manager
-        self._nanobot_controller = nanobot_controller
+        self._clawbot_controller = clawbot_controller
         self._config_manager = config_manager
         _debug_log("[OverviewPanel] 成员变量赋值完成")
 
@@ -1060,7 +1061,7 @@ class OverviewPanel(QWidget):
         wizard = CreateDistroWizard(
             self._wsl_manager, 
             self._config_manager,
-            self._nanobot_controller,
+            self._clawbot_controller,
             self
         )
         wizard.distro_created.connect(self._on_distro_created)

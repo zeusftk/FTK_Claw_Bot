@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from typing import Optional, Any, Callable, Dict
 from threading import Lock
 from loguru import logger
@@ -78,12 +79,12 @@ class Container:
         self.register("config_manager", value)
     
     @property
-    def nanobot_controller(self):
-        return self.get("nanobot_controller")
+    def clawbot_controller(self):
+        return self.get("clawbot_controller")
     
-    @nanobot_controller.setter
-    def nanobot_controller(self, value):
-        self.register("nanobot_controller", value)
+    @clawbot_controller.setter
+    def clawbot_controller(self, value):
+        self.register("clawbot_controller", value)
     
     @property
     def monitor_service(self):

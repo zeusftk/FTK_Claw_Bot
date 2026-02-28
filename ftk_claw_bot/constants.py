@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
 from enum import Enum
 from typing import Dict, Any, Optional
 from pathlib import Path
 
 
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 APP_NAME = "FTK_Claw_Bot"
 APP_AUTHOR = "FTK Team"
 APP_EMAIL = "zeusftk@gmail.com"
@@ -49,8 +50,8 @@ class Bridge:
     DEFAULT_WINDOWS_PORT = 9527
 
 
-class Nanobot:
-    DEFAULT_WORKSPACE = "/home/user/nanobot"
+class Clawbot:
+    DEFAULT_WORKSPACE = "/home/user/clawbot"
     DEFAULT_PROVIDER = "qwen_portal"
     DEFAULT_MODEL = "qwen-portal/coder-model"
     DEFAULT_LOG_LEVEL = "INFO"
@@ -61,7 +62,7 @@ class Nanobot:
 class Monitor:
     DEFAULT_INTERVAL = 5.0
     WSL_CHECK_INTERVAL = 10.0
-    NANOBOT_CHECK_INTERVAL = 5.0
+    CLAWBOT_CHECK_INTERVAL = 5.0
 
 
 class Language:
@@ -87,7 +88,7 @@ PANEL_NAMES = {
     "chat": "聊天",
     "bridge": "桥接",
     "log": "日志查看",
-    "nanobot": "clawbot",
+    "clawbot": "clawbot",
     "skills": "技能管理",
 }
 

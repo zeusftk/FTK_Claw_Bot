@@ -1,7 +1,7 @@
 from .ipc_server import IPCServer
 from .windows_bridge import WindowsBridge, WindowsAutomation
 from .monitor_service import MonitorService
-from .nanobot_chat_client import NanobotChatClient, ConnectionStatus
+from .clawbot_chat_client import ClawbotChatClient, ConnectionStatus
 from .wsl_state_service import WSLStateService, init_wsl_state_service, get_wsl_state_service
 
 from .service_registry import (
@@ -18,7 +18,7 @@ __all__ = [
     "WindowsBridge",
     "WindowsAutomation",
     "MonitorService",
-    "NanobotChatClient",
+    "ClawbotChatClient",
     "ConnectionStatus",
     "WSLStateService",
     "init_wsl_state_service",

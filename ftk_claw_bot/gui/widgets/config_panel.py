@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import threading
 from os import curdir
@@ -15,7 +16,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from ...core import ConfigManager, WSLManager
-from ...models import NanobotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
+from ...models import ClawbotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
 from ...services import ServiceRegistry, ServiceStatus
 from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.thread_safe import ThreadSafeSignal
@@ -84,13 +85,13 @@ class ConfigCard(QFrame):
 class ConfigPanel(QWidget, WSLStateAwareMixin):
     config_saved = pyqtSignal(str)
 
-    def __init__(self, config_manager: ConfigManager, wsl_manager: WSLManager, nanobot_controller=None, parent=None):
+    def __init__(self, config_manager: ConfigManager, wsl_manager: WSLManager, clawbot_controller=None, parent=None):
         super().__init__(parent)
         WSLStateAwareMixin._init_wsl_state_aware(self)
         self._config_manager = config_manager
         self._wsl_manager = wsl_manager
-        self._nanobot_controller = nanobot_controller
-        self._current_config: Optional[NanobotConfig] = None
+        self._clawbot_controller = clawbot_controller
+        self._current_config: Optional[ClawbotConfig] = None
 
         self._init_ui()
         self._load_configs()
@@ -547,7 +548,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         for distro in distros:
             config = self._config_manager.get(distro.name)
             if not config:
-                config = NanobotConfig(
+                config = ClawbotConfig(
                     name=distro.name,
                     distro_name=distro.name
                 )
@@ -555,7 +556,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 logger.info(f"为 WSL 分发 '{distro.name}' 创建新配置")
             
             # 尝试从WSL读取配置
-            if self._nanobot_controller:
+            if self._clawbot_controller:
                 try:
                     distro_obj = self._wsl_manager.get_distro(distro.name)
                     distro_running = distro_obj and distro_obj.is_running
@@ -564,7 +565,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                         logger.info(f"WSL 分发 '{distro.name}' 未运行，尝试启动")
                         self._wsl_manager.start_distro(distro.name)
                     
-                    wsl_config = self._nanobot_controller.read_config_from_wsl(distro.name)
+                    wsl_config = self._clawbot_controller.read_config_from_wsl(distro.name)
                     if wsl_config and wsl_config != {}:
                         logger.info(f"从 WSL 分发 '{distro.name}' 读取到配置")
                         self._config_manager.apply_wsl_config_to_ftk(config, wsl_config, self._wsl_manager)
@@ -728,7 +729,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             self._current_config = config
             self._populate_form(config)
 
-    def _populate_form(self, config: NanobotConfig):
+    def _populate_form(self, config: ClawbotConfig):
         self.config_title.setText(f"{tr('config.details', '配置详情')}: {config.name}")
         self.name_edit.setText(config.name)
         index = self.distro_combo.findText(config.distro_name)
@@ -816,7 +817,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                config = NanobotConfig.from_dict(data)
+                config = ClawbotConfig.from_dict(data)
                 
                 # 验证唯一性
                 all_configs = self._config_manager.get_all()
@@ -883,7 +884,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         logger.info(f"Enable Web Search: {self.web_search_check.isChecked()}")
         logger.info(f"Gateway Port: {gateway_port}")
 
-        config = NanobotConfig(
+        config = ClawbotConfig(
             name=name,
             distro_name=distro_name,
             workspace=wsl_ws,
@@ -918,9 +919,9 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             # 同步配置到 WSL 分发
             sync_success = False
             sync_message = ""
-            if self._nanobot_controller:
+            if self._clawbot_controller:
                 logger.info(f"步骤3: 同步配置到 WSL 分发: {config.distro_name}")
-                sync_success = self._nanobot_controller.sync_config_to_wsl(config)
+                sync_success = self._clawbot_controller.sync_config_to_wsl(config)
                 if sync_success:
                     sync_message = "\n✓ 配置已同步到 WSL 分发"
                     logger.info(f"✓ WSL 配置同步成功: {config.distro_name}")
@@ -930,10 +931,10 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             
             logger.info(f"========== 配置保存流程完成 ==========")
             
-            # 检查是否有正在运行的 nanobot 实例
+            # 检查是否有正在运行的 clawbot 实例
             need_restart = False
-            if self._nanobot_controller:
-                instance = self._nanobot_controller.get_instance(name)
+            if self._clawbot_controller:
+                instance = self._clawbot_controller.get_instance(name)
                 if instance and instance.status.value == "running":
                     need_restart = True
             
@@ -944,8 +945,8 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
-                    logger.info(f"正在重启 nanobot: {name}")
-                    success = self._nanobot_controller.restart(name)
+                    logger.info(f"正在重启 clawbot: {name}")
+                    success = self._clawbot_controller.restart(name)
                     if success:
                         QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.saved_and_restarted", "已保存配置并重启 clawbot: {name}{sync_message}").format(name=name, sync_message=sync_message))
                     else:
@@ -1103,9 +1104,9 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 if not start_success:
                     return {"success": False, "error": f"WSL 分发 '{distro_name}' 无法启动"}
             
-            if self._nanobot_controller:
+            if self._clawbot_controller:
                 # 不在这里调用 _sync_providers_from_wsl，避免在后台线程修改 UI
-                wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
+                wsl_config = self._clawbot_controller.read_config_from_wsl(distro_name)
                 
                 if wsl_config and wsl_config != {}:
                     return {"success": True, "config": wsl_config, "distro_name": distro_name}
@@ -1127,7 +1128,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             if result.get("success"):
                 # 在主线程中同步提供商
                 self._sync_providers_from_wsl(result["distro_name"])
-                self._populate_from_nanobot_config(result["config"])
+                self._populate_from_clawbot_config(result["config"])
                 QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.reset_success", "已从 WSL 分发 '{name}' 重置配置").format(name=result['distro_name']))
             else:
                 error_msg = result.get("error", "未知错误")
@@ -1144,7 +1145,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
     def _import_from_wsl(self):
         """从 WSL 导入配置"""
-        if not self._nanobot_controller:
+        if not self._clawbot_controller:
             QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.controller_not_initialized", "clawbot 控制器未初始化"))
             return
         
@@ -1155,18 +1156,18 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         logger.info(f"从 WSL 导入配置: {distro_name}")
         
-        wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
+        wsl_config = self._clawbot_controller.read_config_from_wsl(distro_name)
         if not wsl_config:
             QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.cannot_read_wsl_config", "无法从 WSL 分发 '{distro}' 读取配置").format(distro=distro_name))
             return
         
         logger.info(f"成功读取 WSL 配置")
-        self._populate_from_nanobot_config(wsl_config)
+        self._populate_from_clawbot_config(wsl_config)
         QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.imported_from_wsl", "已从 WSL 分发 '{distro}' 导入配置").format(distro=distro_name))
     
     def _sync_providers_from_wsl(self, distro_name: str):
         """从 WSL 配置同步提供商选项"""
-        wsl_config = self._nanobot_controller.read_config_from_wsl(distro_name)
+        wsl_config = self._clawbot_controller.read_config_from_wsl(distro_name)
         if not wsl_config:
             return
         
@@ -1185,11 +1186,11 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 self.provider_combo.addItem(provider_name)
                 logger.info(f"添加新提供商: {provider_name}")
     
-    def _populate_from_nanobot_config(self, nanobot_config: dict):
+    def _populate_from_clawbot_config(self, clawbot_config: dict):
         """从 clawbot 配置填充表单"""
-        logger.info(f"_populate_from_nanobot_config: {nanobot_config}")
+        logger.info(f"_populate_from_clawbot_config: {clawbot_config}")
         
-        agents = nanobot_config.get("agents", {}).get("defaults", {})
+        agents = clawbot_config.get("agents", {}).get("defaults", {})
         if "model" in agents:
             # 如果模型不在下拉列表中，添加它
             model_text = agents["model"]
@@ -1200,7 +1201,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if "workspace" in agents:
             pass
         
-        providers = nanobot_config.get("providers", {})
+        providers = clawbot_config.get("providers", {})
         for provider_name, provider_cfg in providers.items():
             # 只要有 provider 就处理，不只是有 apiKey
             logger.info(f"处理 provider: {provider_name}, cfg: {provider_cfg}")
@@ -1226,7 +1227,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             self._on_provider_changed(self.provider_combo.currentText())
             break
         
-        gateway = nanobot_config.get("gateway", {})
+        gateway = clawbot_config.get("gateway", {})
         if "host" in gateway:
             self.gateway_host_edit.setText(gateway["host"])
             logger.info(f"设置 gateway_host: {gateway['host']}")
@@ -1235,7 +1236,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             logger.info(f"设置 gateway_port: {gateway['port']}")
             self._validate_gateway_port()
         
-        tools = nanobot_config.get("tools", {})
+        tools = clawbot_config.get("tools", {})
         web_search = tools.get("web", {}).get("search", {})
         if web_search.get("apiKey"):
             self.web_search_check.setChecked(True)
@@ -1270,7 +1271,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "nanobot provider login qwen-portal",
+                "clawbot provider login qwen-portal",
                 timeout=180
             )
             self._oauth_callback_signal.emit(result.success, result.stdout, result.stderr)

@@ -3,24 +3,24 @@ import time
 from typing import Callable, Dict, Optional
 from datetime import datetime
 
-from ..core import WSLManager, NanobotController
-from ..models import DistroStatus, NanobotStatus
+from ..core import WSLManager, ClawbotController
+from ..models import DistroStatus, ClawbotStatus
 
 
 class MonitorService:
-    def __init__(self, wsl_manager: WSLManager, nanobot_controller: NanobotController):
+    def __init__(self, wsl_manager: WSLManager, clawbot_controller: ClawbotController):
         self._wsl_manager = wsl_manager
-        self._nanobot_controller = nanobot_controller
+        self._clawbot_controller = clawbot_controller
         self._running = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._refresh_interval: float = 5.0
         self._callbacks: Dict[str, list] = {
             "wsl_status": [],
-            "nanobot_status": [],
+            "clawbot_status": [],
             "resources": [],
         }
         self._last_distro_status: Dict[str, DistroStatus] = {}
-        self._last_nanobot_status: Dict[str, NanobotStatus] = {}
+        self._last_clawbot_status: Dict[str, ClawbotStatus] = {}
 
     def start(self, interval: float = 5.0):
         if self._running:
@@ -41,7 +41,7 @@ class MonitorService:
         while self._running:
             try:
                 self._check_wsl_status()
-                self._check_nanobot_status()
+                self._check_clawbot_status()
                 self._check_resources()
             except Exception:
                 pass
@@ -61,25 +61,25 @@ class MonitorService:
                     "is_running": distro.is_running,
                 })
 
-    def _check_nanobot_status(self):
-        """Check nanobot instance status and notify callbacks of changes."""
-        from ..models import NanobotStatus
+    def _check_clawbot_status(self):
+        """Check clawbot instance status and notify callbacks of changes."""
+        from ..models import ClawbotStatus
 
         try:
             # Get all instances from controller
-            instances = getattr(self._nanobot_controller, '_instances', {})
+            instances = getattr(self._clawbot_controller, '_instances', {})
 
             for instance_name, instance in instances.items():
-                old_status = self._last_nanobot_status.get(instance_name)
+                old_status = self._last_clawbot_status.get(instance_name)
                 current_status = instance.status
 
                 # Only notify if status changed
                 if old_status != current_status:
-                    self._last_nanobot_status[instance_name] = current_status
-                    self._notify_callbacks("nanobot_status", {
+                    self._last_clawbot_status[instance_name] = current_status
+                    self._notify_callbacks("clawbot_status", {
                         "instance_name": instance_name,
                         "status": current_status.value,
-                        "is_running": current_status == NanobotStatus.RUNNING,
+                        "is_running": current_status == ClawbotStatus.RUNNING,
                         "pid": instance.pid,
                         "last_error": instance.last_error,
                     })

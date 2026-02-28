@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from typing import Protocol, Dict, Any, Optional, Callable, List
 from dataclasses import dataclass
 from enum import Enum

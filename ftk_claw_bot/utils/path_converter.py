@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Windows ↔ WSL2 path conversion utilities."""
 
 from pathlib import Path, PureWindowsPath

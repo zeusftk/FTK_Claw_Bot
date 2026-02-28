@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 FTK_Claw_Bot - Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作
 """

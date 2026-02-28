@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 import json
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from ..models import NanobotConfig
+from ..models import ClawbotConfig
 from .wsl_manager import WSLManager
 
 
@@ -49,23 +50,23 @@ class ConfigSyncManager:
     def __init__(self, wsl_manager: WSLManager):
         self._wsl_manager = wsl_manager
     
-    def convert_ftk_to_nanobot(self, ftk_config: NanobotConfig, base_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """将 FTK_claw_bot 的 NanobotConfig 转换为 clawbot 配置格式
+    def convert_ftk_to_clawbot(self, ftk_config: ClawbotConfig, base_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """将 FTK_claw_bot 的 ClawbotConfig 转换为 clawbot 配置格式
         
         Args:
             ftk_config: FTK 配置对象
             base_config: 基础配置（用于合并）
         
         Returns:
-            完整的 nanobot 配置字典
+            完整的 clawbot 配置字典
         """
-        return ftk_config.to_full_nanobot_config(base_config)
+        return ftk_config.to_full_clawbot_config(base_config)
     
-    def convert_nanobot_to_ftk(self, nanobot_config: Dict[str, Any]) -> Dict[str, Any]:
+    def convert_clawbot_to_ftk(self, clawbot_config: Dict[str, Any]) -> Dict[str, Any]:
         """将 clawbot 配置转换为 FTK_claw_bot 可识别的格式
         
         Args:
-            nanobot_config: nanobot 配置字典
+            clawbot_config: clawbot 配置字典
         
         Returns:
             FTK 可识别的配置字典
@@ -74,7 +75,7 @@ class ConfigSyncManager:
         
         result = {}
         
-        agents = nanobot_config.get("agents", {}).get("defaults", {})
+        agents = clawbot_config.get("agents", {}).get("defaults", {})
         if "model" in agents:
             result["model"] = agents["model"]
         
@@ -86,7 +87,7 @@ class ConfigSyncManager:
                 result["windows_workspace"] = windows_path
                 result["sync_to_mnt"] = True
         
-        providers = nanobot_config.get("providers", {})
+        providers = clawbot_config.get("providers", {})
         for provider_name, provider_cfg in providers.items():
             if provider_cfg.get("apiKey"):
                 result["provider"] = provider_name
@@ -97,13 +98,13 @@ class ConfigSyncManager:
                     result["model"] = provider_cfg["model"]
                 break
         
-        gateway = nanobot_config.get("gateway", {})
+        gateway = clawbot_config.get("gateway", {})
         if "host" in gateway:
             result["gateway_host"] = gateway["host"]
         if "port" in gateway:
             result["gateway_port"] = gateway["port"]
         
-        tools = nanobot_config.get("tools", {})
+        tools = clawbot_config.get("tools", {})
         web_search = tools.get("web", {}).get("search", {})
         if web_search.get("apiKey"):
             result["enable_web_search"] = True
@@ -120,7 +121,7 @@ class ConfigSyncManager:
         
         Args:
             distro_name: WSL 分发名称
-            config_path: 配置文件路径（可选，默认 ~/.nanobot/config.json）
+            config_path: 配置文件路径（可选，默认 ~/.clawbot/config.json）
         
         Returns:
             配置字典（保持原始 camelCase 键名），失败返回 None
@@ -128,7 +129,7 @@ class ConfigSyncManager:
         from loguru import logger
         
         if config_path is None:
-            config_path = "~/.nanobot/config.json"
+            config_path = "~/.clawbot/config.json"
         
         result = self._wsl_manager.execute_command(
             distro_name,
@@ -148,19 +149,19 @@ class ConfigSyncManager:
         """写入配置到 WSL
         
         优化：
-        1. 先备份原有 config.json
+        1. 先备份原 config.json
         2. 覆盖修改 config.json
         
         Args:
             distro_name: WSL 分发名称
             config: 配置字典
-            config_path: 配置文件路径（可选，默认 ~/.nanobot/config.json）
+            config_path: 配置文件路径（可选，默认 ~/.clawbot/config.json）
         
         Returns:
             是否成功
         """
         if config_path is None:
-            config_path = "~/.nanobot/config.json"
+            config_path = "~/.clawbot/config.json"
         
         config_json = json.dumps(config, indent=2, ensure_ascii=False)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -177,12 +178,12 @@ EOF
         result = self._wsl_manager.execute_command(distro_name, cmd)
         return result.success
     
-    def sync_ftk_to_wsl(self, ftk_config: NanobotConfig, merge: bool = True) -> bool:
+    def sync_ftk_to_wsl(self, ftk_config: ClawbotConfig, merge: bool = True) -> bool:
         """同步 FTK 配置到 WSL
         
         Args:
             ftk_config: FTK 配置对象
-            merge: 是否合并模式（True=保留 nanobot 其他配置，False=完全覆盖）
+            merge: 是否合并模式（True=保留 clawbot 其他配置，False=完全覆盖）
         
         Returns:
             是否成功
@@ -191,7 +192,7 @@ EOF
         if merge:
             base_config = self.read_from_wsl(ftk_config.distro_name) or {}
         
-        full_config = self.convert_ftk_to_nanobot(ftk_config, base_config)
+        full_config = self.convert_ftk_to_clawbot(ftk_config, base_config)
         return self.write_to_wsl(ftk_config.distro_name, full_config)
     
     def sync_wsl_to_ftk(self, distro_name: str) -> Optional[Dict[str, Any]]:
@@ -203,8 +204,8 @@ EOF
         Returns:
             FTK 可识别的配置字典，失败返回 None
         """
-        nanobot_config = self.read_from_wsl(distro_name)
-        if nanobot_config is None:
+        clawbot_config = self.read_from_wsl(distro_name)
+        if clawbot_config is None:
             return None
         
-        return self.convert_nanobot_to_ftk(nanobot_config)
+        return self.convert_clawbot_to_ftk(clawbot_config)

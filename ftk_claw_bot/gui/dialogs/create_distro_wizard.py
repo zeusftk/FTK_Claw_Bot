@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import re
 import threading
@@ -17,7 +18,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from ...models import (
-    NanobotConfig, ChannelsConfig, SkillsConfig,
+    ClawbotConfig, ChannelsConfig, SkillsConfig,
     WhatsAppConfig, TelegramConfig, DiscordConfig, FeishuConfig,
     DingTalkConfig, SlackConfig, SlackDMConfig, EmailConfig,
     QQConfig, MochatConfig, CHANNEL_INFO
@@ -221,15 +222,15 @@ class BasicInfoPage(QWidget):
 
         bat_layout = QHBoxLayout()
         bat_layout.setSpacing(12)
-        bat_label = QLabel("Nanobot 包:")
+        bat_label = QLabel("Clawbot 包:")
         bat_label.setFixedWidth(100)
         bat_layout.addWidget(bat_label)
 
         self.whl_path_edit = QLineEdit()
-        self.whl_path_edit.setPlaceholderText("选择 nanobot wheel 文件 (.whl)")
+        self.whl_path_edit.setPlaceholderText("选择 clawbot wheel 文件 (.whl)")
         default_whl = os.path.join(os.getcwd(), "init_wsl")
         if os.path.exists(default_whl):
-            whl_files = [f for f in os.listdir(default_whl) if f.startswith("nanobot") and f.endswith(".whl")]
+            whl_files = [f for f in os.listdir(default_whl) if f.startswith("clawbot") and f.endswith(".whl")]
             if whl_files:
                 self.whl_path_edit.setText(os.path.join(default_whl, whl_files[0]))
         bat_layout.addWidget(self.whl_path_edit, 1)
@@ -245,7 +246,7 @@ class BasicInfoPage(QWidget):
             "提示:\n"
             "• 分发名称只能包含字母、数字、下划线和横杠\n"
             "• 安装位置可选，留空则使用默认位置\n"
-            "• Ubuntu 镜像和 Nanobot 包可通过浏览按钮选择"
+            "• Ubuntu 镜像和 Clawbot 包可通过浏览按钮选择"
         )
         hint_label.setStyleSheet("color: #8b949e; font-size: 12px; line-height: 1.6;")
         layout.addWidget(hint_label)
@@ -268,7 +269,7 @@ class BasicInfoPage(QWidget):
 
     def _browse_whl(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择 nanobot wheel 文件", "", "Wheel 文件 (*.whl);;所有文件 (*)"
+            self, "选择 clawbot wheel 文件", "", "Wheel 文件 (*.whl);;所有文件 (*)"
         )
         if file_path:
             self.whl_path_edit.setText(file_path)
@@ -320,10 +321,10 @@ class BasicInfoPage(QWidget):
 
         whl_path = self.whl_path_edit.text().strip()
         if not whl_path:
-            show_warning(self, "错误", "请选择 nanobot wheel 文件")
+            show_warning(self, "错误", "请选择 clawbot wheel 文件")
             return False
         if not os.path.exists(whl_path):
-            show_warning(self, "错误", f"nanobot wheel 文件不存在: {whl_path}")
+            show_warning(self, "错误", f"clawbot wheel 文件不存在: {whl_path}")
             return False
 
         return True
@@ -555,7 +556,7 @@ class WorkspacePage(QWidget):
         
         hint_label = QLabel(
             "提示:\n"
-            "• 工作空间用于存储 nanobot 的数据和配置\n"
+            "• 工作空间用于存储 clawbot 的数据和配置\n"
             "• Gateway 端口用于 API 访问"
         )
         hint_label.setStyleSheet("color: #8b949e; font-size: 12px; line-height: 1.6;")
@@ -855,7 +856,7 @@ class LLMConfigPage(QWidget):
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "nanobot provider login qwen-portal",
+                "clawbot provider login qwen-portal",
                 timeout=180
             )
             self._oauth_signal.emit(result.success, result.stdout, result.stderr)
@@ -914,7 +915,7 @@ class LLMConfigPage(QWidget):
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "nanobot provider login qwen-portal",
+                "clawbot provider login qwen-portal",
                 timeout=180
             )
             self._oauth_signal.emit(result.success, result.stdout, result.stderr)
@@ -1080,11 +1081,11 @@ class ApplyConfigPage(QWidget):
     status_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int, int)
     
-    def __init__(self, wsl_manager, config_manager, nanobot_controller, parent=None):
+    def __init__(self, wsl_manager, config_manager, clawbot_controller, parent=None):
         super().__init__(parent)
         self._wsl_manager = wsl_manager
         self._config_manager = config_manager
-        self._nanobot_controller = nanobot_controller
+        self._clawbot_controller = clawbot_controller
         self._config_data: Dict[str, Any] = {}
         self._init_ui()
     
@@ -1138,7 +1139,7 @@ class ApplyConfigPage(QWidget):
             channels = self._config_data.get("channels", ChannelsConfig())
             logger.info(f"channels 类型: {type(channels)}")
             
-            config = NanobotConfig(
+            config = ClawbotConfig(
                 name=distro_name,
                 distro_name=distro_name,
                 windows_workspace=self._config_data.get("windows_workspace", ""),
@@ -1152,16 +1153,16 @@ class ApplyConfigPage(QWidget):
                 channels=channels,
                 skills=SkillsConfig()
             )
-            logger.info(f"NanobotConfig 创建成功: {config.name}")
+            logger.info(f"ClawbotConfig 创建成功: {config.name}")
             
             self.status_changed.emit("保存本地配置...")
             self._config_manager.save(config)
             logger.info("本地配置保存成功")
             
             self.status_changed.emit("写入 WSL 配置...")
-            if self._nanobot_controller:
+            if self._clawbot_controller:
                 try:
-                    sync_success = self._nanobot_controller.sync_config_to_wsl(config)
+                    sync_success = self._clawbot_controller.sync_config_to_wsl(config)
                     if sync_success:
                         logger.info("WSL 配置同步成功")
                     else:
@@ -1246,11 +1247,11 @@ class CreateDistroWizard(QDialog):
     
     distro_created = pyqtSignal(str)
     
-    def __init__(self, wsl_manager, config_manager, nanobot_controller=None, parent=None):
+    def __init__(self, wsl_manager, config_manager, clawbot_controller=None, parent=None):
         super().__init__(parent)
         self._wsl_manager = wsl_manager
         self._config_manager = config_manager
-        self._nanobot_controller = nanobot_controller
+        self._clawbot_controller = clawbot_controller
         self._current_step = 0
         self._config_data: Dict[str, Any] = {}
         
@@ -1315,7 +1316,7 @@ class CreateDistroWizard(QDialog):
         self.apply_config_page = ApplyConfigPage(
             self._wsl_manager, 
             self._config_manager,
-            self._nanobot_controller,
+            self._clawbot_controller,
             self
         )
         self.success_page = SuccessPage(self)

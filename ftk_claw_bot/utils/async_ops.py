@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import threading
 from typing import Callable, TypeVar, Optional, Any
 from dataclasses import dataclass

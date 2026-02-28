@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import json
 from typing import Dict, List, Optional, Set
@@ -5,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from loguru import logger
 
-from ..models import NanobotConfig, ChannelsConfig, SkillsConfig
+from ..models import ClawbotConfig, ChannelsConfig, SkillsConfig
 from ..constants import Paths, VERSION
 
 
@@ -19,7 +20,7 @@ class ConfigManager:
         self._config_dir = config_dir
         self._main_config_path = str(Path(config_dir) / "config.json")
         self._clawbot_configs_dir = str(Path(config_dir) / "clawbot_configs")
-        self._configs: Dict[str, NanobotConfig] = {}
+        self._configs: Dict[str, ClawbotConfig] = {}
         self._default_config_name: str = self.DEFAULT_CONFIG_NAME
         self._main_config: dict = {}
 
@@ -30,7 +31,7 @@ class ConfigManager:
         Path(self._config_dir).mkdir(parents=True, exist_ok=True)
         Path(self._clawbot_configs_dir).mkdir(parents=True, exist_ok=True)
 
-    def load(self, valid_distro_names: Optional[Set[str]] = None) -> Dict[str, NanobotConfig]:
+    def load(self, valid_distro_names: Optional[Set[str]] = None) -> Dict[str, ClawbotConfig]:
         """加载配置
         
         Args:
@@ -45,7 +46,7 @@ class ConfigManager:
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
                             data = json.load(f)
-                        config = NanobotConfig.from_dict(data)
+                        config = ClawbotConfig.from_dict(data)
                         if config.distro_name and ('\x00' in config.distro_name or config.distro_name == '*'):
                             config.distro_name = ""
                         
@@ -65,12 +66,12 @@ class ConfigManager:
 
         return self._configs
     
-    def load_and_sync_from_wsl(self, wsl_manager, nanobot_controller, valid_distro_names: Optional[Set[str]] = None) -> Dict[str, NanobotConfig]:
+    def load_and_sync_from_wsl(self, wsl_manager, clawbot_controller, valid_distro_names: Optional[Set[str]] = None) -> Dict[str, ClawbotConfig]:
         """加载配置并从 WSL 同步
         
         Args:
             wsl_manager: WSLManager 实例
-            nanobot_controller: NanobotController 实例
+            clawbot_controller: clawbotController 实例
             valid_distro_names: 有效的 WSL 分发名称集合
         
         Returns:
@@ -80,21 +81,21 @@ class ConfigManager:
         
         for config_name, config in list(self._configs.items()):
             if config.distro_name and valid_distro_names and config.distro_name in valid_distro_names:
-                logger.info(f"尝试从 WSL 分发 '{config.distro_name}' 同步配置到 '{config_name}'")
+                logger.info(f"尝试从 WSL 分发 '{config.distro_name}' 同步配置 '{config_name}'")
                 try:
-                    wsl_config = nanobot_controller.read_config_from_wsl(config.distro_name)
+                    wsl_config = clawbot_controller.read_config_from_wsl(config.distro_name)
                     if wsl_config and wsl_config != {}:
                         self.apply_wsl_config_to_ftk(config, wsl_config, wsl_manager)
                         self.save(config)
-                        logger.info(f"已从 WSL 同步配置到 '{config_name}'")
+                        logger.info(f"已从 WSL 同步配置 '{config_name}'")
                     else:
-                        logger.info(f"WSL 中没有配置或配置为空，跳过同步: '{config_name}'")
+                        logger.info(f"WSL 中没有配置或配置为空，跳过同步 '{config_name}'")
                 except Exception as e:
                     logger.warning(f"从 WSL 同步配置失败 '{config_name}': {e}")
         
         return self._configs
     
-    def apply_wsl_config_to_ftk(self, ftk_config: NanobotConfig, wsl_config: dict, wsl_manager=None):
+    def apply_wsl_config_to_ftk(self, ftk_config: ClawbotConfig, wsl_config: dict, wsl_manager=None):
         """将 WSL 配置应用到 FTK 配置
         
         Args:
@@ -160,32 +161,32 @@ class ConfigManager:
             ftk_config.embedding_url = embedding_api["base_url"]
         ftk_config.embedding_enabled = embedding_api.get("enabled", True)
     
-    def _apply_channels_config(self, ftk_config: NanobotConfig, channels: dict):
+    def _apply_channels_config(self, ftk_config: ClawbotConfig, channels: dict):
         from ..models import (
             WhatsAppConfig, TelegramConfig, DiscordConfig, FeishuConfig,
             DingTalkConfig, SlackConfig, EmailConfig, QQConfig, MochatConfig
         )
         
         if "telegram" in channels:
-            ftk_config.channels.telegram = TelegramConfig.from_nanobot_config(channels["telegram"])
+            ftk_config.channels.telegram = TelegramConfig.from_clawbot_config(channels["telegram"])
         if "discord" in channels:
-            ftk_config.channels.discord = DiscordConfig.from_nanobot_config(channels["discord"])
+            ftk_config.channels.discord = DiscordConfig.from_clawbot_config(channels["discord"])
         if "feishu" in channels:
-            ftk_config.channels.feishu = FeishuConfig.from_nanobot_config(channels["feishu"])
+            ftk_config.channels.feishu = FeishuConfig.from_clawbot_config(channels["feishu"])
         if "dingtalk" in channels:
-            ftk_config.channels.dingtalk = DingTalkConfig.from_nanobot_config(channels["dingtalk"])
+            ftk_config.channels.dingtalk = DingTalkConfig.from_clawbot_config(channels["dingtalk"])
         if "slack" in channels:
-            ftk_config.channels.slack = SlackConfig.from_nanobot_config(channels["slack"])
+            ftk_config.channels.slack = SlackConfig.from_clawbot_config(channels["slack"])
         if "email" in channels:
-            ftk_config.channels.email = EmailConfig.from_nanobot_config(channels["email"])
+            ftk_config.channels.email = EmailConfig.from_clawbot_config(channels["email"])
         if "qq" in channels:
-            ftk_config.channels.qq = QQConfig.from_nanobot_config(channels["qq"])
+            ftk_config.channels.qq = QQConfig.from_clawbot_config(channels["qq"])
         if "whatsapp" in channels:
-            ftk_config.channels.whatsapp = WhatsAppConfig.from_nanobot_config(channels["whatsapp"])
+            ftk_config.channels.whatsapp = WhatsAppConfig.from_clawbot_config(channels["whatsapp"])
         if "mochat" in channels:
-            ftk_config.channels.mochat = MochatConfig.from_nanobot_config(channels["mochat"])
+            ftk_config.channels.mochat = MochatConfig.from_clawbot_config(channels["mochat"])
     
-    def _apply_skills_config(self, ftk_config: NanobotConfig, skills: dict):
+    def _apply_skills_config(self, ftk_config: ClawbotConfig, skills: dict):
         from ..models import SkillInfo
         
         if "enabled_skills" in skills:
@@ -219,11 +220,10 @@ class ConfigManager:
     def save_main_config(self):
         self._save_main_config()
 
-    def save(self, config: NanobotConfig) -> bool:
+    def save(self, config: ClawbotConfig) -> bool:
         try:
             config.updated_at = datetime.now()
 
-            # 允许覆盖已有配置（因为配置名称等于WSL分发名称，一一对应）
             file_path = os.path.join(self._clawbot_configs_dir, f"{config.name}.json")
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)
@@ -255,13 +255,13 @@ class ConfigManager:
         except Exception:
             return False
 
-    def get(self, config_name: str) -> Optional[NanobotConfig]:
+    def get(self, config_name: str) -> Optional[ClawbotConfig]:
         return self._configs.get(config_name)
 
-    def get_all(self) -> Dict[str, NanobotConfig]:
+    def get_all(self) -> Dict[str, ClawbotConfig]:
         return self._configs.copy()
 
-    def get_default(self) -> Optional[NanobotConfig]:
+    def get_default(self) -> Optional[ClawbotConfig]:
         return self._configs.get(self._default_config_name)
 
     def get_default_name(self) -> str:
@@ -298,13 +298,13 @@ class ConfigManager:
 
         return True
 
-    def create_default_config(self, distro_name: str = "") -> NanobotConfig:
+    def create_default_config(self, distro_name: str = "") -> ClawbotConfig:
         if not distro_name or distro_name == "*":
             distro_name = ""
-        config = NanobotConfig(
+        config = ClawbotConfig(
             name=self.DEFAULT_CONFIG_NAME,
             distro_name=distro_name,
-            workspace="~/.nanobot",
+            workspace="~/.clawbot",
             provider="custom",
             model=" ",
             log_level="INFO",

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from enum import Enum
 from typing import Callable, Dict, List, Any
 from dataclasses import dataclass
@@ -12,10 +13,10 @@ class EventType(Enum):
     WSL_DISTRO_IMPORTED = "wsl_distro_imported"
     WSL_LIST_CHANGED = "wsl_list_changed"
     
-    NANOBOT_STARTED = "nanobot_started"
-    NANOBOT_STOPPED = "nanobot_stopped"
-    NANOBOT_STATUS_CHANGED = "nanobot_status_changed"
-    NANOBOT_LOG = "nanobot_log"
+    CLAWBOT_STARTED = "clawbot_started"
+    CLAWBOT_STOPPED = "clawbot_stopped"
+    CLAWBOT_STATUS_CHANGED = "clawbot_status_changed"
+    CLAWBOT_LOG = "clawbot_log"
     
     CONFIG_UPDATED = "config_updated"
     CONFIG_CREATED = "config_created"

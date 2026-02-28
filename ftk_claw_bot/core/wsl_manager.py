@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import subprocess
 import re
 import threading
@@ -610,13 +611,13 @@ class WSLManager:
             )
         
         if not os.path.exists(str(install_location)):
-            # 自定义安装目录
             install_location = str(Path(os.getcwd()) / "WSL_installed" / distro_name)
         else:
             install_location = str(Path(install_location) / distro_name)
 
         logger.info(f"安装目录: {install_location}")
-        Path(install_location).mkdir(parents=True, exist_ok=True)
+        os.makedirs(install_location, exist_ok=True)
+      
         
         cmd = [
             "wsl.exe",

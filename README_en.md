@@ -90,9 +90,9 @@ FTK_Claw_Bot/
 │   │   ├── bridge_manager.py           # Bridge manager
 │   │   ├── config_manager.py           # Configuration manager
 │   │   ├── config_sync_manager.py      # Config sync manager
-│   │   ├── multi_nanobot_gateway_manager.py  # Multi-Bot gateway manager
-│   │   ├── nanobot_controller.py       # Bot controller
-│   │   ├── nanobot_gateway_manager.py  # Gateway manager
+│   │   ├── multi_clawbot_gateway_manager.py  # Multi-Bot gateway manager
+│   │   ├── clawbot_controller.py       # Bot controller
+│   │   ├── clawbot_gateway_manager.py  # Gateway manager
 │   │   ├── port_manager.py             # Port manager
 │   │   ├── skill_manager.py            # Skill manager
 │   │   └── wsl_manager.py              # WSL manager
@@ -104,6 +104,7 @@ FTK_Claw_Bot/
 │   │   │   ├── skill_editor.py         # Skill editor
 │   │   │   └── waiting_dialog.py       # Waiting dialog
 │   │   ├── mixins/           # Mixin classes
+│   │   │   └── wsl_state_aware.py      # WSL state aware mixin
 │   │   ├── resources/        # Resource files
 │   │   ├── widgets/          # Widgets
 │   │   │   ├── channel_config_dialog.py # Channel config
@@ -124,7 +125,7 @@ FTK_Claw_Bot/
 │   │   └── wsl.py            # WSL interface
 │   ├── models/               # Data models
 │   │   ├── channel_config.py # Channel config model
-│   │   ├── nanobot_config.py # Bot config model
+│   │   ├── clawbot_config.py # Bot config model
 │   │   ├── skill.py          # Skill model
 │   │   ├── skill_config.py   # Skill config model
 │   │   └── wsl_distro.py     # WSL distribution model
@@ -141,13 +142,18 @@ FTK_Claw_Bot/
 │   │   │   └── service.py    # Service management
 │   │   ├── ipc_server.py     # IPC server
 │   │   ├── monitor_service.py # Monitor service
-│   │   ├── nanobot_chat_client.py # Chat client
+│   │   ├── clawbot_chat_client.py # Chat client
+│   │   ├── clawbot_upgrader.py     # Bot upgrade service
 │   │   ├── service_registry.py # Service registry
 │   │   ├── windows_bridge.py # Windows bridge
 │   │   ├── wsl_initializer.py # WSL initialization service
 │   │   └── wsl_state_service.py # WSL state service
+│   ├── translations/         # Internationalization
+│   │   ├── en_US.json        # English translation
+│   │   └── zh_CN.json        # Chinese translation
 │   ├── utils/                # Utility functions
 │   │   ├── async_ops.py      # Async operations
+│   │   ├── i18n.py           # Internationalization utility
 │   │   ├── logger.py         # Logger utility
 │   │   ├── path_converter.py # Path converter
 │   │   ├── path_utils.py     # Path utilities
@@ -209,9 +215,9 @@ FTK_Claw_Bot/
 |------|------|----------|
 | 1.0.8 | 2026-02-24 | Optimized mirror detection logic, optimized pip mirror configuration code |
 | 1.0.7 | 2026-02-24 | Added English README, preview GIF |
-| 1.0.6 | 2026-02-23 | Added GUI logo, fixed I18nManager signal issue, updated nanobot wheel |
+| 1.0.6 | 2026-02-23 | Added GUI logo, fixed I18nManager signal issue, updated clawbot wheel |
 | 1.0.5 | 2026-02-23 | Added Embedding service, supports text vectorization |
-| 1.0.4 | 2026-02-21 | Updated nanobot wheel to 0.1.4.1, project structure optimization |
+| 1.0.4 | 2026-02-21 | Updated clawbot wheel to 0.1.4.1, project structure optimization |
 | 1.0.3 | 2026-02-20 | Documentation sync update, directory structure optimization |
 | 1.0.2 | 2026-02-18 | Layout optimization, default provider adjustment, progress dialog fix |
 | 1.0.1 | 2026-02-17 | Unified version management, plugin system, naming convention documentation |

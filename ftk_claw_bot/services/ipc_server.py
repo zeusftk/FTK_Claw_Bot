@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import socket
 import json
 import threading
@@ -109,7 +110,7 @@ class IPCServer:
                     self._client_info[client_socket] = {
                         "address": address,
                         "distro_name": None,
-                        "nanobot_name": None,
+                        "clawbot_name": None,
                         "workspace": None,
                         "connected_at": datetime.now().isoformat()
                     }
@@ -218,7 +219,7 @@ class IPCServer:
             if client_socket in self._client_info:
                 self._client_info[client_socket].update({
                     "distro_name": params.get("distro_name"),
-                    "nanobot_name": params.get("nanobot_name"),
+                    "clawbot_name": params.get("clawbot_name"),
                     "workspace": params.get("workspace"),
                     "identified_at": datetime.now().isoformat()
                 })

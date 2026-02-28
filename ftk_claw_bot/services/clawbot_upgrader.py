@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 from typing import Dict, Any, Tuple, List, Optional, Callable
 
@@ -119,20 +120,20 @@ class ClawbotUpgrader:
         
         self._wsl_manager.execute_command(distro_name, f"rm -f /tmp/{whl_name}")
         
-        logger.info(f"[{distro_name}] 重启 nanobot 服务...")
+        logger.info(f"[{distro_name}] 重启 clawbot 服务...")
         r = self._wsl_manager.execute_command(
-            distro_name, "sudo systemctl restart nanobot", timeout=60
+            distro_name, "sudo systemctl restart clawbot", timeout=60
         )
         if not r.success:
             logger.warning(f"[{distro_name}] systemctl 重启失败，尝试直接启动")
             self._wsl_manager.execute_command(
-                distro_name, "pkill -f 'nanobot gateway' || true"
+                distro_name, "pkill -f 'clawbot gateway' || true"
             )
             self._wsl_manager.execute_command(
-                distro_name, "nohup nanobot gateway > /dev/null 2>&1 &"
+                distro_name, "nohup clawbot gateway > /dev/null 2>&1 &"
             )
         
-        r = self._wsl_manager.execute_command(distro_name, "nanobot --version")
+        r = self._wsl_manager.execute_command(distro_name, "clawbot --version")
         if r.success:
             version = r.stdout.strip()
             logger.info(f"[{distro_name}] 升级成功: {version}")

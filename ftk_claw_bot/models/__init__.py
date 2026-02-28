@@ -1,5 +1,5 @@
 from .wsl_distro import WSLDistro, DistroStatus
-from .nanobot_config import NanobotConfig, NanobotStatus, NanobotInstance
+from .clawbot_config import ClawbotConfig, ClawbotStatus, ClawbotInstance
 from .skill import Skill
 from .channel_config import (
     ChannelsConfig,
@@ -26,9 +26,9 @@ from .skill_config import (
 __all__ = [
     "WSLDistro",
     "DistroStatus",
-    "NanobotConfig",
-    "NanobotStatus",
-    "NanobotInstance",
+    "ClawbotConfig",
+    "ClawbotStatus",
+    "ClawbotInstance",
     "Skill",
     "ChannelsConfig",
     "WhatsAppConfig",

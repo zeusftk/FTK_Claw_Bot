@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
@@ -26,7 +27,7 @@ class WhatsAppConfig:
             allow_from=data.get("allow_from", []),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "bridgeUrl": self.bridge_url,
@@ -35,7 +36,7 @@ class WhatsAppConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "WhatsAppConfig":
+    def from_clawbot_config(cls, data: dict) -> "WhatsAppConfig":
         return cls(
             enabled=data.get("enabled", False),
             bridge_url=data.get("bridgeUrl", "ws://localhost:3001"),
@@ -68,7 +69,7 @@ class TelegramConfig:
             proxy=data.get("proxy"),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         result = {
             "enabled": self.enabled,
             "token": self.token,
@@ -79,7 +80,7 @@ class TelegramConfig:
         return result
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "TelegramConfig":
+    def from_clawbot_config(cls, data: dict) -> "TelegramConfig":
         return cls(
             enabled=data.get("enabled", False),
             token=data.get("token", ""),
@@ -115,7 +116,7 @@ class DiscordConfig:
             intents=data.get("intents", 37377),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "token": self.token,
@@ -125,7 +126,7 @@ class DiscordConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "DiscordConfig":
+    def from_clawbot_config(cls, data: dict) -> "DiscordConfig":
         return cls(
             enabled=data.get("enabled", False),
             token=data.get("token", ""),
@@ -165,7 +166,7 @@ class FeishuConfig:
             allow_from=data.get("allow_from", []),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "appId": self.app_id,
@@ -176,7 +177,7 @@ class FeishuConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "FeishuConfig":
+    def from_clawbot_config(cls, data: dict) -> "FeishuConfig":
         return cls(
             enabled=data.get("enabled", False),
             app_id=data.get("appId", ""),
@@ -211,7 +212,7 @@ class DingTalkConfig:
             allow_from=data.get("allow_from", []),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "clientId": self.client_id,
@@ -220,7 +221,7 @@ class DingTalkConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "DingTalkConfig":
+    def from_clawbot_config(cls, data: dict) -> "DingTalkConfig":
         return cls(
             enabled=data.get("enabled", False),
             client_id=data.get("clientId", ""),
@@ -250,7 +251,7 @@ class SlackDMConfig:
             allow_from=data.get("allow_from", []),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "policy": self.policy,
@@ -258,7 +259,7 @@ class SlackDMConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "SlackDMConfig":
+    def from_clawbot_config(cls, data: dict) -> "SlackDMConfig":
         return cls(
             enabled=data.get("enabled", True),
             policy=data.get("policy", "open"),
@@ -306,7 +307,7 @@ class SlackConfig:
             dm=SlackDMConfig.from_dict(dm_data) if dm_data else SlackDMConfig(),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "mode": self.mode,
@@ -316,11 +317,11 @@ class SlackConfig:
             "userTokenReadOnly": self.user_token_read_only,
             "groupPolicy": self.group_policy,
             "groupAllowFrom": self.group_allow_from,
-            "dm": self.dm.to_nanobot_config(),
+            "dm": self.dm.to_clawbot_config(),
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "SlackConfig":
+    def from_clawbot_config(cls, data: dict) -> "SlackConfig":
         dm_data = data.get("dm", {})
         return cls(
             enabled=data.get("enabled", False),
@@ -331,7 +332,7 @@ class SlackConfig:
             user_token_read_only=data.get("userTokenReadOnly", True),
             group_policy=data.get("groupPolicy", "mention"),
             group_allow_from=data.get("groupAllowFrom", []),
-            dm=SlackDMConfig.from_nanobot_config(dm_data) if dm_data else SlackDMConfig(),
+            dm=SlackDMConfig.from_clawbot_config(dm_data) if dm_data else SlackDMConfig(),
         )
 
 
@@ -410,7 +411,7 @@ class EmailConfig:
             allow_from=data.get("allow_from", []),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "consentGranted": self.consent_granted,
@@ -436,7 +437,7 @@ class EmailConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "EmailConfig":
+    def from_clawbot_config(cls, data: dict) -> "EmailConfig":
         return cls(
             enabled=data.get("enabled", False),
             consent_granted=data.get("consentGranted", False),
@@ -486,7 +487,7 @@ class QQConfig:
             allow_from=data.get("allow_from", []),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "appId": self.app_id,
@@ -495,7 +496,7 @@ class QQConfig:
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "QQConfig":
+    def from_clawbot_config(cls, data: dict) -> "QQConfig":
         return cls(
             enabled=data.get("enabled", False),
             app_id=data.get("appId", ""),
@@ -515,11 +516,11 @@ class MochatMentionConfig:
     def from_dict(cls, data: dict) -> "MochatMentionConfig":
         return cls(require_in_groups=data.get("require_in_groups", False))
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {"requireInGroups": self.require_in_groups}
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "MochatMentionConfig":
+    def from_clawbot_config(cls, data: dict) -> "MochatMentionConfig":
         return cls(require_in_groups=data.get("requireInGroups", False))
 
 
@@ -534,11 +535,11 @@ class MochatGroupRule:
     def from_dict(cls, data: dict) -> "MochatGroupRule":
         return cls(require_mention=data.get("require_mention", False))
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {"requireMention": self.require_mention}
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "MochatGroupRule":
+    def from_clawbot_config(cls, data: dict) -> "MochatGroupRule":
         return cls(require_mention=data.get("requireMention", False))
 
 
@@ -622,7 +623,7 @@ class MochatConfig:
             reply_delay_ms=data.get("reply_delay_ms", 120000),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
             "enabled": self.enabled,
             "baseUrl": self.base_url,
@@ -642,14 +643,14 @@ class MochatConfig:
             "sessions": self.sessions,
             "panels": self.panels,
             "allowFrom": self.allow_from,
-            "mention": self.mention.to_nanobot_config(),
-            "groups": {k: v.to_nanobot_config() for k, v in self.groups.items()},
+            "mention": self.mention.to_clawbot_config(),
+            "groups": {k: v.to_clawbot_config() for k, v in self.groups.items()},
             "replyDelayMode": self.reply_delay_mode,
             "replyDelayMs": self.reply_delay_ms,
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "MochatConfig":
+    def from_clawbot_config(cls, data: dict) -> "MochatConfig":
         mention_data = data.get("mention", {})
         groups_data = data.get("groups", {})
         return cls(
@@ -671,8 +672,8 @@ class MochatConfig:
             sessions=data.get("sessions", []),
             panels=data.get("panels", []),
             allow_from=data.get("allowFrom", []),
-            mention=MochatMentionConfig.from_nanobot_config(mention_data) if mention_data else MochatMentionConfig(),
-            groups={k: MochatGroupRule.from_nanobot_config(v) for k, v in groups_data.items()},
+            mention=MochatMentionConfig.from_clawbot_config(mention_data) if mention_data else MochatMentionConfig(),
+            groups={k: MochatGroupRule.from_clawbot_config(v) for k, v in groups_data.items()},
             reply_delay_mode=data.get("replyDelayMode", "non-mention"),
             reply_delay_ms=data.get("replyDelayMs", 120000),
         )
@@ -717,31 +718,31 @@ class ChannelsConfig:
             mochat=MochatConfig.from_dict(data.get("mochat", {})),
         )
 
-    def to_nanobot_config(self) -> dict:
+    def to_clawbot_config(self) -> dict:
         return {
-            "whatsapp": self.whatsapp.to_nanobot_config(),
-            "telegram": self.telegram.to_nanobot_config(),
-            "discord": self.discord.to_nanobot_config(),
-            "feishu": self.feishu.to_nanobot_config(),
-            "dingtalk": self.dingtalk.to_nanobot_config(),
-            "slack": self.slack.to_nanobot_config(),
-            "email": self.email.to_nanobot_config(),
-            "qq": self.qq.to_nanobot_config(),
-            "mochat": self.mochat.to_nanobot_config(),
+            "whatsapp": self.whatsapp.to_clawbot_config(),
+            "telegram": self.telegram.to_clawbot_config(),
+            "discord": self.discord.to_clawbot_config(),
+            "feishu": self.feishu.to_clawbot_config(),
+            "dingtalk": self.dingtalk.to_clawbot_config(),
+            "slack": self.slack.to_clawbot_config(),
+            "email": self.email.to_clawbot_config(),
+            "qq": self.qq.to_clawbot_config(),
+            "mochat": self.mochat.to_clawbot_config(),
         }
 
     @classmethod
-    def from_nanobot_config(cls, data: dict) -> "ChannelsConfig":
+    def from_clawbot_config(cls, data: dict) -> "ChannelsConfig":
         return cls(
-            whatsapp=WhatsAppConfig.from_nanobot_config(data.get("whatsapp", {})),
-            telegram=TelegramConfig.from_nanobot_config(data.get("telegram", {})),
-            discord=DiscordConfig.from_nanobot_config(data.get("discord", {})),
-            feishu=FeishuConfig.from_nanobot_config(data.get("feishu", {})),
-            dingtalk=DingTalkConfig.from_nanobot_config(data.get("dingtalk", {})),
-            slack=SlackConfig.from_nanobot_config(data.get("slack", {})),
-            email=EmailConfig.from_nanobot_config(data.get("email", {})),
-            qq=QQConfig.from_nanobot_config(data.get("qq", {})),
-            mochat=MochatConfig.from_nanobot_config(data.get("mochat", {})),
+            whatsapp=WhatsAppConfig.from_clawbot_config(data.get("whatsapp", {})),
+            telegram=TelegramConfig.from_clawbot_config(data.get("telegram", {})),
+            discord=DiscordConfig.from_clawbot_config(data.get("discord", {})),
+            feishu=FeishuConfig.from_clawbot_config(data.get("feishu", {})),
+            dingtalk=DingTalkConfig.from_clawbot_config(data.get("dingtalk", {})),
+            slack=SlackConfig.from_clawbot_config(data.get("slack", {})),
+            email=EmailConfig.from_clawbot_config(data.get("email", {})),
+            qq=QQConfig.from_clawbot_config(data.get("qq", {})),
+            mochat=MochatConfig.from_clawbot_config(data.get("mochat", {})),
         )
 
     def get_enabled_channels(self) -> List[str]:
