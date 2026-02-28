@@ -49,13 +49,18 @@ class BridgeRequest:
 
     @classmethod
     def from_json(cls, json_str: str) -> "BridgeRequest":
-        data = json.loads(json_str)
-        return cls(
-            command=CommandType(data["command"]),
-            params=data.get("params", {}),
-            request_id=data.get("request_id", ""),
-            target_type=TargetType(data.get("target_type", "generic"))
-        )
+        try:
+            data = json.loads(json_str)
+            return cls(
+                command=CommandType(data["command"]),
+                params=data.get("params", {}),
+                request_id=data.get("request_id", ""),
+                target_type=TargetType(data.get("target_type", "generic"))
+            )
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {e}") from e
+        except (KeyError, ValueError) as e:
+            raise ValueError(f"Invalid request data: {e}") from e
 
 
 @dataclass
