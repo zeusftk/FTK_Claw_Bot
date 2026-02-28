@@ -3,6 +3,8 @@ from .windows_bridge import WindowsBridge, WindowsAutomation
 from .monitor_service import MonitorService
 from .clawbot_chat_client import ClawbotChatClient, ConnectionStatus
 from .wsl_state_service import WSLStateService, init_wsl_state_service, get_wsl_state_service
+from .action_router import ActionRouter
+from .web_agent_executor import WebAgentExecutor
 
 from .service_registry import (
     ServiceRegistry, register_service, ServiceInfo, ServiceStatus
@@ -29,4 +31,6 @@ __all__ = [
     "ServiceStatus",
     "register_embedding_service",
     "EmbeddingService",
+    "ActionRouter",
+    "WebAgentExecutor",
 ]
