@@ -1,10 +1,10 @@
+# -*- coding: utf-8 -*-
 import asyncio
-import logging
 from typing import Any, Optional
 from pathlib import Path
 import sys
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class WebAgentExecutor:
