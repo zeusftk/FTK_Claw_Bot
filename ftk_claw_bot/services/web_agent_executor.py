@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import concurrent.futures
 from typing import Any, Optional
 from pathlib import Path
 import sys
@@ -74,6 +75,28 @@ class WebAgentExecutor:
         except Exception as e:
             logger.error(f"WebAgent action {action} failed: {e}")
             return None
+    
+    def execute_sync(self, action: str, params: dict) -> Optional[dict]:
+        """
+        Synchronous wrapper for execute.
+        
+        Args:
+            action: Action name (click, fill, navigate, etc.)
+            params: Action parameters
+            
+        Returns:
+            Result dict or None if failed
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.execute(action, params))
+                    return future.result(timeout=params.get("timeout", self._timeout))
+            else:
+                return loop.run_until_complete(self.execute(action, params))
+        except RuntimeError:
+            return asyncio.run(self.execute(action, params))
     
     async def _execute_action(self, action: str, params: dict) -> Optional[dict]:
         """Internal action execution."""
@@ -183,3 +206,16 @@ class WebAgentExecutor:
             finally:
                 self._agent = None
                 self._initialized = False
+    
+    def shutdown_sync(self):
+        """Synchronous wrapper for shutdown."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.shutdown())
+                    future.result(timeout=10)
+            else:
+                loop.run_until_complete(self.shutdown())
+        except RuntimeError:
+            asyncio.run(self.shutdown())

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Callable, Awaitable
+from typing import Callable, Dict, Any
 
 from loguru import logger
 
@@ -10,22 +10,23 @@ from ..bridge.protocol import TargetType, ExecutorType
 class ActionRouter:
     """
     Routes IPC requests to appropriate executors with fallback support.
+    Synchronous version for IPC compatibility.
     """
 
     def __init__(
         self,
-        automation_executor: Callable[[str, dict], Awaitable[dict]],
+        automation_executor: Callable[[str, dict], dict],  # Sync callable
         web_agent_timeout: int = 10
     ):
         """
         Args:
-            automation_executor: Async function to execute automation actions
+            automation_executor: Sync function to execute automation actions
             web_agent_timeout: Timeout for WebAgent operations
         """
         self._automation_executor = automation_executor
         self._web_agent = WebAgentExecutor(timeout=web_agent_timeout)
 
-    async def route(self, payload: dict) -> dict:
+    def route(self, payload: dict) -> dict:
         """
         Route request to appropriate executor.
 
@@ -40,19 +41,19 @@ class ActionRouter:
         params = payload.get("params", {})
 
         if target_type == TargetType.BROWSER.value:
-            return await self._handle_browser_action(action, params)
+            return self._handle_browser_action(action, params)
         elif target_type == TargetType.DESKTOP.value:
             # Future: DesktopAgent
             # For now, fallback to automation
             logger.info("Desktop agent not implemented, using automation")
-            return await self._execute_automation(action, params, fallback=True)
+            return self._execute_automation(action, params, fallback=True)
         else:
-            return await self._execute_automation(action, params, fallback=False)
+            return self._execute_automation(action, params, fallback=False)
 
-    async def _handle_browser_action(self, action: str, params: dict) -> dict:
+    def _handle_browser_action(self, action: str, params: dict) -> dict:
         """Handle browser action with fallback."""
         try:
-            result = await self._web_agent.execute(action, params)
+            result = self._web_agent.execute_sync(action, params)
 
             if result is not None:
                 return {
@@ -68,9 +69,9 @@ class ActionRouter:
             logger.error(f"WebAgent exception: {e}, falling back")
 
         # Fallback to automation
-        return await self._execute_automation(action, params, fallback=True)
+        return self._execute_automation(action, params, fallback=True)
 
-    async def _execute_automation(
+    def _execute_automation(
         self,
         action: str,
         params: dict,
@@ -78,7 +79,7 @@ class ActionRouter:
     ) -> dict:
         """Execute using automation executor."""
         try:
-            result = await self._automation_executor(action, params)
+            result = self._automation_executor(action, params)
             return {
                 "success": True,
                 "result": result,
@@ -94,6 +95,6 @@ class ActionRouter:
                 "fallback": fallback
             }
 
-    async def shutdown(self):
+    def shutdown(self):
         """Shutdown all executors."""
-        await self._web_agent.shutdown()
+        self._web_agent.shutdown_sync()

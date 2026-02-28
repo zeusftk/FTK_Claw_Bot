@@ -1,6 +1,5 @@
 import subprocess
 import threading
-import asyncio
 from typing import Optional, Tuple, List, Any, Callable
 from dataclasses import dataclass
 
@@ -319,6 +318,7 @@ class WindowsBridge:
         self._ipc_server = IPCServer(port=self._port)
         self._automation = WindowsAutomation()
         self._action_router: Optional[ActionRouter] = None
+        self._router_lock = threading.Lock()
         self._register_handlers()
 
     @property
@@ -358,15 +358,17 @@ class WindowsBridge:
         self._ipc_server.register_handler("execute", self._handle_execute)
 
     def _init_action_router(self) -> ActionRouter:
-        """Initialize ActionRouter with automation executor."""
+        """Initialize ActionRouter with automation executor (thread-safe)."""
         if self._action_router is None:
-            self._action_router = ActionRouter(
-                automation_executor=self._execute_automation_action
-            )
+            with self._router_lock:
+                if self._action_router is None:
+                    self._action_router = ActionRouter(
+                        automation_executor=self._execute_automation_action
+                    )
         return self._action_router
 
-    async def _execute_automation_action(self, action: str, params: dict) -> dict:
-        """Async wrapper for automation actions to be used by ActionRouter."""
+    def _execute_automation_action(self, action: str, params: dict) -> dict:
+        """Sync wrapper for automation actions to be used by ActionRouter."""
         # Map action to handler method
         handler_map = {
             "mouse_click": self._handle_mouse_click,
@@ -404,23 +406,8 @@ class WindowsBridge:
                 "params": params,
                 "target_type": target_type
             }
-            # Run async route in sync context
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # If we're already in an async context, create a new loop in a thread
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            asyncio.run,
-                            router.route(payload)
-                        )
-                        result = future.result(timeout=30)
-                else:
-                    result = loop.run_until_complete(router.route(payload))
-            except RuntimeError:
-                # No event loop exists, create one
-                result = asyncio.run(router.route(payload))
+            # Direct sync call - no async bridging needed
+            result = router.route(payload)
 
             # Unwrap the result for backward compatibility
             if result.get("success"):
@@ -454,22 +441,10 @@ class WindowsBridge:
 
     def stop(self):
         self._ipc_server.stop()
-        # Shutdown ActionRouter if initialized
+        # Shutdown ActionRouter if initialized (sync call)
         if self._action_router:
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            asyncio.run,
-                            self._action_router.shutdown()
-                        )
-                        future.result(timeout=5)
-                else:
-                    loop.run_until_complete(self._action_router.shutdown())
-            except RuntimeError:
-                asyncio.run(self._action_router.shutdown())
+                self._action_router.shutdown()
             except Exception:
                 pass  # Ignore shutdown errors
 
