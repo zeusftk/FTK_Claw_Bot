@@ -79,13 +79,18 @@ class BridgeResponse:
 
     @classmethod
     def from_json(cls, json_str: str) -> "BridgeResponse":
-        data = json.loads(json_str)
-        executor_value = data.get("executor")
-        return cls(
-            success=data.get("success", False),
-            result=data.get("result"),
-            error=data.get("error"),
-            request_id=data.get("request_id", ""),
-            executor=ExecutorType(executor_value) if executor_value else None,
-            fallback=data.get("fallback", False)
-        )
+        try:
+            data = json.loads(json_str)
+            executor_value = data.get("executor")
+            return cls(
+                success=data.get("success", False),
+                result=data.get("result"),
+                error=data.get("error"),
+                request_id=data.get("request_id", ""),
+                executor=ExecutorType(executor_value) if executor_value else None,
+                fallback=data.get("fallback", False)
+            )
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON: {e}") from e
+        except ValueError as e:
+            raise ValueError(f"Invalid enum value: {e}") from e
