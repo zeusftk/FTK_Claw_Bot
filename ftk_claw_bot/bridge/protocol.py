@@ -5,6 +5,7 @@ import json
 
 
 class CommandType(Enum):
+    EXECUTE = "execute"
     MOUSE_CLICK = "mouse_click"
     MOUSE_MOVE = "mouse_move"
     MOUSE_DRAG = "mouse_drag"
