@@ -1,7 +1,11 @@
 import subprocess
 import threading
-from typing import Optional, Tuple, List, Any
+import asyncio
+from typing import Optional, Tuple, List, Any, Callable
 from dataclasses import dataclass
+
+from .action_router import ActionRouter
+from ..bridge.protocol import TargetType
 
 PYAUTOGUI_AVAILABLE = True
 PIL_AVAILABLE = True
@@ -314,6 +318,7 @@ class WindowsBridge:
         self._port = port or self.DEFAULT_PORT
         self._ipc_server = IPCServer(port=self._port)
         self._automation = WindowsAutomation()
+        self._action_router: Optional[ActionRouter] = None
         self._register_handlers()
 
     @property
@@ -349,12 +354,124 @@ class WindowsBridge:
         self._ipc_server.register_handler("set_clipboard", self._handle_set_clipboard)
         self._ipc_server.register_handler("get_screen_size", self._handle_get_screen_size)
         self._ipc_server.register_handler("get_mouse_position", self._handle_get_mouse_position)
+        # Register unified execute handler for ActionRouter routing
+        self._ipc_server.register_handler("execute", self._handle_execute)
+
+    def _init_action_router(self) -> ActionRouter:
+        """Initialize ActionRouter with automation executor."""
+        if self._action_router is None:
+            self._action_router = ActionRouter(
+                automation_executor=self._execute_automation_action
+            )
+        return self._action_router
+
+    async def _execute_automation_action(self, action: str, params: dict) -> dict:
+        """Async wrapper for automation actions to be used by ActionRouter."""
+        # Map action to handler method
+        handler_map = {
+            "mouse_click": self._handle_mouse_click,
+            "mouse_move": self._handle_mouse_move,
+            "mouse_drag": self._handle_mouse_drag,
+            "mouse_scroll": self._handle_mouse_scroll,
+            "keyboard_type": self._handle_keyboard_type,
+            "keyboard_press": self._handle_keyboard_press,
+            "keyboard_hotkey": self._handle_keyboard_hotkey,
+            "screenshot": self._handle_screenshot,
+            "find_window": self._handle_find_window,
+            "launch_app": self._handle_launch_app,
+            "get_clipboard": self._handle_get_clipboard,
+            "set_clipboard": self._handle_set_clipboard,
+            "get_screen_size": self._handle_get_screen_size,
+            "get_mouse_position": self._handle_get_mouse_position,
+        }
+        handler = handler_map.get(action)
+        if handler:
+            return handler(params)
+        return {"success": False, "error": f"Unknown action: {action}"}
+
+    def _route_action(self, action: str, params: dict) -> dict:
+        """
+        Route action through ActionRouter if target_type is browser/desktop.
+        Otherwise, use existing automation directly for backward compatibility.
+        """
+        target_type = params.get("target_type", TargetType.GENERIC.value)
+
+        # Check if routing is needed
+        if target_type in (TargetType.BROWSER.value, TargetType.DESKTOP.value):
+            router = self._init_action_router()
+            payload = {
+                "action": action,
+                "params": params,
+                "target_type": target_type
+            }
+            # Run async route in sync context
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're already in an async context, create a new loop in a thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            router.route(payload)
+                        )
+                        result = future.result(timeout=30)
+                else:
+                    result = loop.run_until_complete(router.route(payload))
+            except RuntimeError:
+                # No event loop exists, create one
+                result = asyncio.run(router.route(payload))
+
+            # Unwrap the result for backward compatibility
+            if result.get("success"):
+                return result.get("result", result)
+            return result
+
+        # Default: use existing automation handlers
+        handler_map = {
+            "mouse_click": self._handle_mouse_click,
+            "mouse_move": self._handle_mouse_move,
+            "mouse_drag": self._handle_mouse_drag,
+            "mouse_scroll": self._handle_mouse_scroll,
+            "keyboard_type": self._handle_keyboard_type,
+            "keyboard_press": self._handle_keyboard_press,
+            "keyboard_hotkey": self._handle_keyboard_hotkey,
+            "screenshot": self._handle_screenshot,
+            "find_window": self._handle_find_window,
+            "launch_app": self._handle_launch_app,
+            "get_clipboard": self._handle_get_clipboard,
+            "set_clipboard": self._handle_set_clipboard,
+            "get_screen_size": self._handle_get_screen_size,
+            "get_mouse_position": self._handle_get_mouse_position,
+        }
+        handler = handler_map.get(action)
+        if handler:
+            return handler(params)
+        return {"success": False, "error": f"Unknown action: {action}"}
 
     def start(self) -> bool:
         return self._ipc_server.start()
 
     def stop(self):
         self._ipc_server.stop()
+        # Shutdown ActionRouter if initialized
+        if self._action_router:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._action_router.shutdown()
+                        )
+                        future.result(timeout=5)
+                else:
+                    loop.run_until_complete(self._action_router.shutdown())
+            except RuntimeError:
+                asyncio.run(self._action_router.shutdown())
+            except Exception:
+                pass  # Ignore shutdown errors
 
     def _handle_mouse_click(self, params: dict) -> dict:
         x = params.get("x", 0)
@@ -453,6 +570,28 @@ class WindowsBridge:
     def _handle_get_mouse_position(self, params: dict) -> dict:
         pos = self._automation.get_mouse_position()
         return {"success": True, "x": pos[0], "y": pos[1]}
+
+    def _handle_execute(self, params: dict) -> dict:
+        """
+        Unified execute handler that routes requests through ActionRouter.
+        
+        Expected params:
+            - action: The action to execute (e.g., "mouse_click", "keyboard_type")
+            - params: Action-specific parameters
+            - target_type: Optional target type (browser, desktop, generic)
+        """
+        action = params.get("action")
+        action_params = params.get("params", {})
+        target_type = params.get("target_type")
+        
+        if not action:
+            return {"success": False, "error": "Missing 'action' in params"}
+        
+        # Merge target_type into action_params for routing
+        if target_type:
+            action_params = {**action_params, "target_type": target_type}
+        
+        return self._route_action(action, action_params)
 
     @property
     def is_running(self) -> bool:
