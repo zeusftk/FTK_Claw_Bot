@@ -100,6 +100,11 @@ class EmbeddingService(LocalService):
                 logger.info(f"[EMBEDDING] 进程已存在且存活，跳过")
                 return True
             
+            if self._health_check():
+                logger.info(f"[EMBEDDING] 端口 {self._port} 已有服务运行，跳过启动")
+                self._status = ServiceStatus.RUNNING
+                return True
+            
             try:
                 self._status = ServiceStatus.STARTING
                 self._error = None
