@@ -851,8 +851,17 @@ class MainWindow(QMainWindow):
             logger.warning("[MainWindow] 没有成功向任何 clawbot 发送消息")
 
     def _on_chat_message_received(self, message: str, clawbot_name: Optional[str] = None):
+        import threading
+        current_thread = threading.current_thread()
+        main_thread = threading.main_thread()
+        is_main_thread = current_thread == main_thread
+        
+        logger.debug(f"[Chat] 收到消息, 线程ID: {current_thread.ident}, 主线程: {main_thread.ident}, 是否主线程: {is_main_thread}, 来源: {clawbot_name}, 长度: {len(message) if message else 0}")
+        
+        if not is_main_thread:
+            logger.warning(f"[Chat] 警告: 在非主线程中收到消息，可能导致UI崩溃!")
+        
         try:
-            logger.debug(f"[MainWindow.Chat] 收到消息: {clawbot_name}, 长度: {len(message)}")
             self.chat_panel.add_message("assistant", message, clawbot_name)
             
             if self.chat_panel.is_group_chat_enabled() and self._group_chat_forward_allowed:
@@ -869,29 +878,32 @@ class MainWindow(QMainWindow):
     
     def _forward_to_other_bots(self, message: str, source_bot: str):
         selected_bots = list(self.chat_panel._selected_clawbots)
-        logger.info(f"[群聊转发] 源: {source_bot}, 目标列表: {selected_bots}")
+        logger.debug(f"[Chat.Forward] 开始转发消息, 来源: {source_bot}, 消息长度: {len(message)}, 目标列表: {selected_bots}")
         
         forward_count = 0
-        for bot_name in selected_bots:
-            if bot_name != source_bot:
-                if bot_name not in self._chat_clients:
-                    logger.warning(f"[群聊转发] {bot_name} 未连接，跳过")
-                    continue
+        try:
+            for bot_name in selected_bots:
+                if bot_name != source_bot:
+                    if bot_name not in self._chat_clients:
+                        logger.warning(f"[Chat.Forward] 跳过未连接的bot: {bot_name}, 原因: 不在客户端列表")
+                        continue
+                        
+                    chat_client = self._chat_clients[bot_name]
+                    if not chat_client.is_connected:
+                        logger.warning(f"[Chat.Forward] 跳过未连接的bot: {bot_name}, 状态: {chat_client.status}")
+                        continue
                     
-                chat_client = self._chat_clients[bot_name]
-                if not chat_client.is_connected:
-                    logger.warning(f"[群聊转发] {bot_name} 连接已断开，跳过")
-                    continue
-                
-                try:
-                    forward_msg = f"[{source_bot} 说]: {message}"
-                    chat_client.send_message(forward_msg)
-                    logger.debug(f"[群聊转发] 成功转发: {source_bot} -> {bot_name}")
-                    forward_count += 1
-                except Exception as e:
-                    logger.error(f"[群聊转发] 转发失败 {source_bot} -> {bot_name}: {e}")
+                    try:
+                        forward_msg = f"[{source_bot} 说]: {message}"
+                        chat_client.send_message(forward_msg)
+                        logger.debug(f"[Chat.Forward] 转发成功: {source_bot} -> {bot_name}")
+                        forward_count += 1
+                    except Exception as e:
+                        logger.error(f"[Chat.Forward] 转发失败 {source_bot} -> {bot_name}: {type(e).__name__}: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"[Chat.Forward] 转发过程异常: {type(e).__name__}: {e}", exc_info=True)
         
-        logger.info(f"[群聊转发] 完成，成功转发 {forward_count} 个目标")
+        logger.debug(f"[Chat.Forward] 完成，成功转发 {forward_count} 个目标")
 
     def _on_chat_status_changed(self, status: ConnectionStatus, bot_name: str = ""):
         # 注意：此方法目前未使用，因为我们直接在连接/断开时更新状态
