@@ -82,7 +82,7 @@ class Bridge:
 
 
 class Clawbot:
-    DEFAULT_WORKSPACE = "/home/user/clawbot"
+    DEFAULT_WORKSPACE = "~/.clawbot"
     DEFAULT_PROVIDER = "qwen_portal"
     DEFAULT_MODEL = "qwen-portal/coder-model"
     DEFAULT_LOG_LEVEL = "INFO"

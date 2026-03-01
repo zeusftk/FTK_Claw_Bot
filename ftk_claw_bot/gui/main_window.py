@@ -18,7 +18,8 @@ from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter
 
 from ..core import (
     WSLManager, ClawbotController, ConfigManager,
-    ClawbotGatewayManager, BridgeManager, GatewayStatus
+    ClawbotGatewayManager, BridgeManager, GatewayStatus,
+    GroupChatManager
 )
 from ..core.config_sync_manager import ConfigSyncManager
 from ..services import WindowsBridge, MonitorService, ClawbotChatClient, ConnectionStatus, init_wsl_state_service
@@ -102,10 +103,8 @@ class MainWindow(QMainWindow):
             self._chat_clients: dict[str, ClawbotChatClient] = {}
             self._client_count_timer = QTimer()
             self._client_count_timer.timeout.connect(self._update_client_count)
-            self._group_chat_forward_allowed = True
-            self._group_chat_timer = QTimer()
-            self._group_chat_timer.setSingleShot(True)
-            self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
+            self._group_chat_manager = GroupChatManager(self)
+            self._group_chat_manager.message_to_bot.connect(self._on_group_chat_message_to_bot)
             
             _debug_log("[MainWindow] 调用 _init_ui...")
             self._init_ui()
@@ -137,10 +136,8 @@ class MainWindow(QMainWindow):
             self._chat_clients: dict[str, ClawbotChatClient] = {}
             self._client_count_timer = QTimer()
             self._client_count_timer.timeout.connect(self._update_client_count)
-            self._group_chat_forward_allowed = True
-            self._group_chat_timer = QTimer()
-            self._group_chat_timer.setSingleShot(True)
-            self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
+            self._group_chat_manager = GroupChatManager(self)
+            self._group_chat_manager.message_to_bot.connect(self._on_group_chat_message_to_bot)
             
             self._init_ui()
             self._init_managers()
@@ -287,7 +284,7 @@ class MainWindow(QMainWindow):
         self.status_bar.addWidget(self.clawbot_status_label)
         self.status_bar.addWidget(QLabel(" | "))
         self.status_bar.addWidget(self.resource_label)
-        self.status_bar.addPermanentWidget(QLabel("FTK_Claw_Bot v0.1.0"))
+        self.status_bar.addPermanentWidget(QLabel(f"FTK_Claw_Bot v{VERSION}"))
 
         _debug_log("[MainWindow._init_ui] 应用样式...")
         self._apply_styles()
@@ -832,6 +829,7 @@ class MainWindow(QMainWindow):
                 True, 
                 f"{wsl_ip}:{config.gateway_port}"
             )
+            self._group_chat_manager.register_bot(clawbot_name)
         else:
             logger.error(f"❌ {clawbot_name} 连接失败！({gateway_url})")
             self.chat_panel.show_error(f"无法连接到 {clawbot_name} 的 gateway")
@@ -839,6 +837,8 @@ class MainWindow(QMainWindow):
     
     def _on_single_clawbot_disconnect(self, clawbot_name: str):
         logger.info(f"[MainWindow.Chat] 断开连接请求: {clawbot_name}")
+        
+        self._group_chat_manager.unregister_bot(clawbot_name)
         
         if clawbot_name in self._chat_clients:
             try:
@@ -881,6 +881,7 @@ class MainWindow(QMainWindow):
 
     def _on_chat_clear(self):
         self.chat_panel.clear_messages()
+        self._group_chat_manager.clear_all()
 
     def _on_chat_message_sent(self, message: str, selected_clawbots: list):
         logger.info(f"[MainWindow] 聊天消息发送: {message[:100]}..., 目标: {selected_clawbots}")
@@ -889,18 +890,16 @@ class MainWindow(QMainWindow):
             logger.warning("[MainWindow] 没有连接任何 clawbot")
             return
         
-        # 向所有已连接且被选中的 clawbot 发送消息
-        sent_count = 0
-        for clawbot_name in selected_clawbots:
-            if clawbot_name in self._chat_clients:
-                chat_client = self._chat_clients[clawbot_name]
-                if chat_client.is_connected:
-                    logger.debug(f"[MainWindow] 向 {clawbot_name} 发送消息")
-                    chat_client.send_message(message)
-                    sent_count += 1
-        
-        if sent_count == 0:
-            logger.warning("[MainWindow] 没有成功向任何 clawbot 发送消息")
+        if self.chat_panel.is_group_chat_enabled():
+            self._group_chat_manager.set_interval(self.chat_panel.get_group_chat_interval())
+            self._group_chat_manager.handle_user_message(message)
+        else:
+            for clawbot_name in selected_clawbots:
+                if clawbot_name in self._chat_clients:
+                    chat_client = self._chat_clients[clawbot_name]
+                    if chat_client.is_connected:
+                        logger.debug(f"[MainWindow] 向 {clawbot_name} 发送消息")
+                        chat_client.send_message(message)
 
     def _on_chat_message_received(self, message: str, clawbot_name: Optional[str] = None):
         logger.info(f"[MainWindow.Chat] 收到消息: bot={clawbot_name}, "
@@ -928,13 +927,8 @@ class MainWindow(QMainWindow):
         try:
             self.chat_panel.add_message("assistant", message, clawbot_name)
             
-            if self.chat_panel.is_group_chat_enabled() and self._group_chat_forward_allowed:
-                logger.debug("[MainWindow.Chat] 群聊模式启用，准备转发消息")
-                self._group_chat_forward_allowed = False
-                self._forward_to_other_bots(message, clawbot_name)
-                interval = self.chat_panel.get_group_chat_interval()
-                self._group_chat_timer.start(interval)
-                logger.debug(f"[MainWindow.Chat] 转发定时器已启动，间隔: {interval}ms")
+            if self.chat_panel.is_group_chat_enabled():
+                self._group_chat_manager.handle_bot_message(clawbot_name, message)
             
             elapsed = (time.perf_counter() - start_time) * 1000
             logger.debug(f"[MainWindow.Chat] 消息处理完成, 耗时: {elapsed:.2f}ms")
@@ -948,54 +942,37 @@ class MainWindow(QMainWindow):
                 "bot": clawbot_name
             })
     
-    def _on_group_chat_timer(self):
-        logger.debug(f"[MainWindow.Chat] 群聊转发定时器触发, 线程={_get_thread_info()}")
-        self._group_chat_forward_allowed = True
+    def _on_group_chat_message_to_bot(self, bot_name: str, trigger_reason: str, messages: list):
+        logger.info(f"[MainWindow.GroupChat] 发送消息给 {bot_name}, 原因: {trigger_reason}, 消息数: {len(messages)}")
+        
+        if bot_name not in self._chat_clients:
+            logger.warning(f"[MainWindow.GroupChat] {bot_name} 未连接")
+            return
+        
+        chat_client = self._chat_clients[bot_name]
+        if not chat_client.is_connected:
+            logger.warning(f"[MainWindow.GroupChat] {bot_name} 连接已断开")
+            return
+        
+        self._send_group_chat_message(bot_name, messages, trigger_reason)
     
-    def _forward_to_other_bots(self, message: str, source_bot: str):
-        forward_start = time.perf_counter()
-        selected_bots = list(self.chat_panel._selected_clawbots)
-        logger.info(f"[MainWindow.Forward] 开始转发: 源={source_bot}, "
-                   f"目标列表={selected_bots}, 消息长度={len(message)}")
+    def _send_group_chat_message(self, bot_name: str, messages: list, trigger_reason: str):
+        if bot_name not in self._chat_clients:
+            return
         
-        forward_count = 0
-        errors = []
+        chat_client = self._chat_clients[bot_name]
         
-        try:
-            for bot_name in selected_bots:
-                if bot_name == source_bot:
-                    continue
-                    
-                if bot_name not in self._chat_clients:
-                    logger.warning(f"[MainWindow.Forward] 跳过 {bot_name}: 不在客户端列表")
-                    errors.append(f"{bot_name}: not_in_clients")
-                    continue
-                    
-                chat_client = self._chat_clients[bot_name]
-                if not chat_client.is_connected:
-                    logger.warning(f"[MainWindow.Forward] 跳过 {bot_name}: 状态={chat_client.status.value}")
-                    errors.append(f"{bot_name}: not_connected")
-                    continue
-                
-                try:
-                    forward_msg = f"[{source_bot} 说]: {message}"
-                    send_result = chat_client.send_message(forward_msg)
-                    if send_result:
-                        forward_count += 1
-                        logger.debug(f"[MainWindow.Forward] 转发成功: {source_bot} -> {bot_name}")
-                    else:
-                        logger.warning(f"[MainWindow.Forward] 转发失败: {source_bot} -> {bot_name} (send_message返回False)")
-                        errors.append(f"{bot_name}: send_failed")
-                except Exception as e:
-                    logger.error(f"[MainWindow.Forward] 转发异常 {source_bot} -> {bot_name}: {type(e).__name__}: {e}")
-                    errors.append(f"{bot_name}: {type(e).__name__}")
-        except Exception as e:
-            logger.error(f"[MainWindow.Forward] 转发过程异常: {type(e).__name__}: {e}")
-            logger.error(f"[MainWindow.Forward] 堆栈跟踪:\n{traceback.format_exc()}")
+        payload = {
+            "type": "group_chat",
+            "messages": messages,
+            "mentioned_you": trigger_reason == "mentioned",
+            "trigger_reason": trigger_reason
+        }
         
-        elapsed = (time.perf_counter() - forward_start) * 1000
-        logger.info(f"[MainWindow.Forward] 完成: 成功={forward_count}, 错误={len(errors)}, "
-                   f"耗时={elapsed:.2f}ms, 错误详情={errors if errors else '无'}")
+        import json
+        message_json = json.dumps(payload, ensure_ascii=False)
+        chat_client.send_message(message_json)
+        logger.debug(f"[MainWindow.GroupChat] 已发送群聊消息给 {bot_name}")
 
     def _on_chat_status_changed(self, status: ConnectionStatus, bot_name: str = ""):
         # 注意：此方法目前未使用，因为我们直接在连接/断开时更新状态

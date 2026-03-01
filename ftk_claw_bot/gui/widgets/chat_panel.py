@@ -421,7 +421,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self._connection_status = {}
         self._connected_bot_info = {}
         self._bot_color_map = {}
-        self._group_chat_enabled = False
         
         self._init_ui()
         self._start_timer()
@@ -609,7 +608,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                 height: 16px;
             }
         """)
-        self.group_chat_checkbox.stateChanged.connect(self._on_group_chat_toggled)
         tools_layout.addWidget(self.group_chat_checkbox)
         
         self.group_chat_interval_spin = QSpinBox()
@@ -786,14 +784,11 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         else:
             self.tags_label.hide()
     
-    def _on_group_chat_toggled(self, state):
-        self._group_chat_enabled = state == Qt.CheckState.Checked.value
-    
     def is_group_chat_enabled(self) -> bool:
-        return self._group_chat_enabled
+        return self.group_chat_checkbox.isChecked()
     
     def get_group_chat_interval(self) -> int:
-        return self.group_chat_interval_spin.value() * 1000
+        return self.group_chat_interval_spin.value()
     
     def _refresh_clawbots(self):
         self._load_clawbots()
@@ -980,7 +975,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         
         if not self._selected_clawbots:
             logger.warning("[ChatPanel] 未选择任何 Clawbot")
-            QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Clawbot"))
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("chat.msg.select_at_least_one", "请至少选择一个 Clawbot"))
             return
         
         logger.info(f"[ChatPanel] 发送用户消息 (长度: {len(text)}, 目标: {list(self._selected_clawbots)})")
@@ -1045,9 +1040,8 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             format_time.setFontPointSize(9)
             cursor.insertText(f"{message.timestamp}\n", format_time)
             
-            format_content = QTextCharFormat()
-            format_content.setForeground(QColor("#c9d1d9"))
-            cursor.insertText(f"{message.content}\n\n", format_content)
+            self._insert_content_with_highlights(cursor, message.content)
+            cursor.insertText("\n\n")
             
             scrollbar = self.chat_text.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())
@@ -1058,6 +1052,33 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             logger.error(f"[ChatPanel] UI 追加异常: {type(e).__name__}: {e}")
             logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
             raise
+    
+    def _insert_content_with_highlights(self, cursor, content: str):
+        import re
+        
+        format_normal = QTextCharFormat()
+        format_normal.setForeground(QColor("#c9d1d9"))
+        
+        pattern = r'(@\w+)'
+        parts = re.split(pattern, content)
+        
+        for part in parts:
+            if not part:
+                continue
+            
+            if part.startswith('@'):
+                bot_name = part[1:]
+                if bot_name in self._bot_color_map:
+                    fg_color, bg_color = self._bot_color_map[bot_name]
+                    format_mention = QTextCharFormat()
+                    format_mention.setForeground(QColor(fg_color))
+                    format_mention.setBackground(QColor(bg_color))
+                    format_mention.setFontWeight(QFont.Weight.Bold)
+                    cursor.insertText(part, format_mention)
+                else:
+                    cursor.insertText(part, format_normal)
+            else:
+                cursor.insertText(part, format_normal)
     
     def _clear_clicked(self):
         self._messages.clear()

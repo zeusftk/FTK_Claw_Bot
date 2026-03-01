@@ -6,6 +6,7 @@ from .clawbot_gateway_manager import ClawbotGatewayManager, GatewayStatus
 from .multi_clawbot_gateway_manager import MultiClawbotGatewayManager
 from .bridge_manager import BridgeManager
 from .config_sync_manager import ConfigSyncManager
+from .group_chat_manager import GroupChatManager, BotChatState
 
 __all__ = [
     "WSLManager",
@@ -17,4 +18,6 @@ __all__ = [
     "GatewayStatus",
     "BridgeManager",
     "ConfigSyncManager",
+    "GroupChatManager",
+    "BotChatState",
 ]
