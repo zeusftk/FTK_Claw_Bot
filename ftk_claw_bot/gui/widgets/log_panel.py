@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QComboBox, QCheckBox, QFrame, QLineEdit
+    QTextEdit, QComboBox, QCheckBox, QLineEdit
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QTextCursor
@@ -168,7 +168,7 @@ class LogPanel(QWidget):
                 
                 if cutoff and entry_time < cutoff:
                     return False
-            except:
+            except Exception:
                 pass
         
         # 关键词搜索

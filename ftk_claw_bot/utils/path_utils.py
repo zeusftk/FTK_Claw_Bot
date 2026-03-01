@@ -1,7 +1,6 @@
 import os
 import re
 from pathlib import Path
-from typing import Optional, Tuple
 
 
 class PathUtils:
@@ -51,18 +50,21 @@ class PathUtils:
 
     @staticmethod
     def get_app_data_dir() -> str:
-        app_data = os.environ.get("APPDATA", "")
-        if app_data:
-            return os.path.join(app_data, "FTK_Claw_Bot")
-        return os.path.expanduser("~/.ftk_claw_bot")
+        """获取应用数据目录（兼容旧接口）"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return str(user_data.base)
 
     @staticmethod
     def get_default_workspace() -> str:
-        return os.path.join(PathUtils.get_app_data_dir(), "workspace")
+        """获取默认工作空间目录"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return str(user_data.workspace)
 
     @staticmethod
     def get_default_skills_dir() -> str:
-        return os.path.join(PathUtils.get_app_data_dir(), "skills")
+        """获取默认技能目录"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return str(user_data.skills)
 
     @staticmethod
     def normalize_path(path: str) -> str:

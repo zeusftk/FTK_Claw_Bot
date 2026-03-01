@@ -1,4 +1,4 @@
-from typing import Protocol, Optional, Dict, List
+from typing import Protocol, Dict
 from ..models import ClawbotConfig, ClawbotStatus
 
 

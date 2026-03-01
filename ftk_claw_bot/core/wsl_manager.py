@@ -5,7 +5,6 @@ import threading
 import traceback
 import time
 from typing import Dict, List, Optional, Callable
-from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 import os
@@ -425,8 +424,8 @@ class WSLManager:
                         if match:
                             idle = float(match.group(1))
                             resources["cpu_usage"] = 100.0 - idle
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[WSL] 获取资源信息失败: {e}")
 
         return resources
 

@@ -71,7 +71,6 @@ class ConfigSyncManager:
         Returns:
             FTK 可识别的配置字典
         """
-        from loguru import logger
         
         result = {}
         
@@ -114,6 +113,14 @@ class ConfigSyncManager:
         if windows_bridge.get("port"):
             result["bridge_port"] = windows_bridge["port"]
         
+        # 读取技能配置
+        skills_config = clawbot_config.get("skills", {})
+        if skills_config:
+            result["skills"] = {
+                "enabled_skills": skills_config.get("enabled", []),
+                "skill_priorities": skills_config.get("priorities", {})
+            }
+        
         return result
     
     def read_from_wsl(self, distro_name: str, config_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -126,7 +133,6 @@ class ConfigSyncManager:
         Returns:
             配置字典（保持原始 camelCase 键名），失败返回 None
         """
-        from loguru import logger
         
         if config_path is None:
             config_path = "~/.clawbot/config.json"

@@ -163,6 +163,9 @@ class WebAgentExecutor:
         selector = params.get("selector")
         if not selector:
             return None
+        if not self._agent:
+            logger.error("WebAgent not initialized")
+            return {"success": False, "error": "WebAgent not initialized"}
         try:
             text = await self._agent.page.locator(selector).inner_text()
             return {"success": True, "text": text}
@@ -174,6 +177,9 @@ class WebAgentExecutor:
         selector = params.get("selector")
         if not selector:
             return None
+        if not self._agent:
+            logger.error("WebAgent not initialized")
+            return {"success": False, "error": "WebAgent not initialized"}
         timeout = params.get("timeout", self._timeout * 1000)
         try:
             await self._agent.page.wait_for_selector(selector, timeout=timeout)
@@ -183,14 +189,23 @@ class WebAgentExecutor:
             return {"success": False, "error": str(e)}
     
     async def _get_page_content(self, params: dict) -> Optional[dict]:
+        if not self._agent:
+            logger.error("WebAgent not initialized")
+            return {"success": False, "error": "WebAgent not initialized"}
         content = await self._agent.get_page_content()
         return {"success": True, "content": content}
     
     async def _get_current_url(self, params: dict) -> Optional[dict]:
+        if not self._agent:
+            logger.error("WebAgent not initialized")
+            return {"success": False, "error": "WebAgent not initialized"}
         url = await self._agent.get_current_url()
         return {"success": True, "url": url}
     
     async def _extract_data(self, params: dict) -> Optional[dict]:
+        if not self._agent:
+            logger.error("WebAgent not initialized")
+            return {"success": False, "error": "WebAgent not initialized"}
         selectors = params.get("selectors", [])
         data = await self._agent.extract_data(selectors)
         return {"success": True, "data": data}

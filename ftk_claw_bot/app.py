@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
 import sys
 import threading
 from typing import Optional
 from pathlib import Path
-from datetime import datetime
 
 from loguru import logger
 
@@ -12,11 +10,12 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-from .constants import VERSION, APP_NAME, APP_AUTHOR, UI
+from .constants import VERSION, APP_NAME, APP_AUTHOR
 from .container import container
 from .events import event_bus, EventType
 from .plugins import PluginManager
 from .utils import setup_logger
+from .utils.crash_handler import install_crash_handler, uninstall_crash_handler, set_crash_context
 from .core import WSLManager, ClawbotController, ConfigManager
 from .services import MonitorService, WindowsBridge
 from .models import ClawbotConfig
@@ -74,6 +73,8 @@ class Application:
     
     def setup_logging(self, console: bool = True):
         setup_logger("ftk_claw_bot", console=console)
+        install_crash_handler()
+        logger.info("崩溃处理器已安装")
     
     def create_qt_app(self):
         self._app = QApplication(sys.argv)
@@ -206,11 +207,18 @@ class Application:
         
         _debug_log("[INIT-15] 启动 WindowsBridge...")
         try:
-            windows_bridge.start()
-            _debug_log("[INIT-15] WindowsBridge 启动成功")
+            if windows_bridge.start():
+                _debug_log("[INIT-15] WindowsBridge 启动成功")
+                logger.info(f"WindowsBridge 服务已启动，监听端口: {windows_bridge.port}")
+                container.windows_bridge_started = True
+            else:
+                _debug_log("[INIT-15] WindowsBridge 启动失败（可能端口被占用）")
+                logger.error(f"WindowsBridge 启动失败，端口 {windows_bridge.port} 可能已被占用")
+                container.windows_bridge_started = False
         except Exception as e:
             _debug_log(f"[INIT-15] WindowsBridge 启动失败: {e}")
             logger.error(f"WindowsBridge 启动失败: {e}")
+            container.windows_bridge_started = False
         
         _debug_log("[INIT-16] 发布 APP_STARTED 事件...")
         try:
@@ -337,7 +345,12 @@ class Application:
                 plugin_manager.initialize_all(self)
                 
                 monitor_service.start()
-                windows_bridge.start()
+                if windows_bridge.start():
+                    logger.info(f"WindowsBridge 服务已启动，监听端口: {windows_bridge.port}")
+                    container.windows_bridge_started = True
+                else:
+                    logger.error(f"WindowsBridge 启动失败，端口 {windows_bridge.port} 可能已被占用")
+                    container.windows_bridge_started = False
                 
                 event_bus.publish(EventType.APP_STARTED, {"distros": len(distros) if distros else 0, "plugins": len(plugin_manager.get_all())})
                 
@@ -425,6 +438,9 @@ class Application:
         return result
     
     def shutdown(self):
+        logger.info("开始应用关闭流程...")
+        set_crash_context("shutdown_phase", "in_progress")
+        
         event_bus.publish(EventType.APP_SHUTDOWN, {})
         
         if container.plugin_manager:
@@ -436,7 +452,10 @@ class Application:
         if container.windows_bridge:
             container.windows_bridge.stop()
         
+        set_crash_context("shutdown_phase", "completed")
         logger.info("应用已关闭")
+        
+        uninstall_crash_handler()
     
     @property
     def app(self):

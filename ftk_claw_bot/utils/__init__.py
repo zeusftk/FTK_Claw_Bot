@@ -6,6 +6,7 @@ from .thread_safe import ThreadSafeSignal, make_thread_safe
 from .async_ops import AsyncOperation, AsyncWSLOperations, AsyncResult
 from .performance import measure_time, PerformanceMonitor
 from .i18n import I18nManager, tr
+from .user_data_dir import UserDataDir, user_data
 
 __all__ = [
     "setup_logger",
@@ -22,4 +23,6 @@ __all__ = [
     "PerformanceMonitor",
     "I18nManager",
     "tr",
+    "UserDataDir",
+    "user_data",
 ]

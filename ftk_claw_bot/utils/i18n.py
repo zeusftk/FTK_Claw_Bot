@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Dict, Optional, Callable, List
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from ..constants import Language
+
 
 def _debug_log(msg: str):
     """调试日志"""
@@ -13,9 +15,6 @@ def _debug_log(msg: str):
         logger.info(msg)
     except Exception:
         pass
-
-
-from ..constants import Language
 
 
 class I18nSignals(QObject):
@@ -55,7 +54,7 @@ class I18nManager:
     def load_locale(cls, locale: str):
         _debug_log(f"[I18nManager.load_locale] 开始加载语言: {locale}")
         if locale not in Language.SUPPORTED:
-            _debug_log(f"[I18nManager.load_locale] 语言不在支持列表中，使用默认语言")
+            _debug_log("[I18nManager.load_locale] 语言不在支持列表中，使用默认语言")
             locale = Language.DEFAULT
         
         translations_dir = Path(__file__).parent.parent / "translations"
@@ -68,7 +67,7 @@ class I18nManager:
         
         if lang_file.exists():
             try:
-                _debug_log(f"[I18nManager.load_locale] 正在读取语言文件...")
+                _debug_log("[I18nManager.load_locale] 正在读取语言文件...")
                 with open(lang_file, "r", encoding="utf-8") as f:
                     cls._translations = json.load(f)
                 cls._current_locale = locale
@@ -78,18 +77,18 @@ class I18nManager:
                 cls._translations = {}
                 cls._current_locale = Language.DEFAULT
         else:
-            _debug_log(f"[I18nManager.load_locale] 语言文件不存在，使用空翻译")
+            _debug_log("[I18nManager.load_locale] 语言文件不存在，使用空翻译")
             cls._translations = {}
             cls._current_locale = Language.DEFAULT
         
-        _debug_log(f"[I18nManager.load_locale] 发送语言变更信号...")
+        _debug_log("[I18nManager.load_locale] 发送语言变更信号...")
         cls._get_signals().language_changed.emit()
         for callback in cls._callbacks:
             try:
                 callback()
             except Exception:
                 pass
-        _debug_log(f"[I18nManager.load_locale] 完成")
+        _debug_log("[I18nManager.load_locale] 完成")
     
     @classmethod
     def tr(cls, key: str, default: str = None) -> str:

@@ -43,8 +43,8 @@ class MonitorService:
                 self._check_wsl_status()
                 self._check_clawbot_status()
                 self._check_resources()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[Monitor] 监控循环异常: {e}")
 
             time.sleep(self._refresh_interval)
 
@@ -83,9 +83,8 @@ class MonitorService:
                         "pid": instance.pid,
                         "last_error": instance.last_error,
                     })
-        except Exception:
-            # Silently handle errors to prevent monitor loop from crashing
-            pass
+        except Exception as e:
+            logger.debug(f"[Monitor] 检查clawbot状态异常: {e}")
 
     def _check_resources(self):
         for distro_name, status in self._last_distro_status.items():
@@ -102,8 +101,8 @@ class MonitorService:
                         "ip_address": ip,
                         "timestamp": datetime.now().isoformat(),
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[Monitor] 获取资源信息异常: {distro_name}, {e}")
 
     def register_callback(self, event_type: str, callback: Callable):
         if event_type in self._callbacks:

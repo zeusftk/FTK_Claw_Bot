@@ -5,6 +5,8 @@ from .clawbot_chat_client import ClawbotChatClient, ConnectionStatus
 from .wsl_state_service import WSLStateService, init_wsl_state_service, get_wsl_state_service
 from .action_router import ActionRouter
 from .web_agent_executor import WebAgentExecutor
+from .web_automation import WebAutomation as PlaywrightWebAutomation
+from .app_whitelist import AppWhitelistManager, AppInfo, whitelist_manager
 
 from .service_registry import (
     ServiceRegistry, register_service, ServiceInfo, ServiceStatus
@@ -33,4 +35,9 @@ __all__ = [
     "EmbeddingService",
     "ActionRouter",
     "WebAgentExecutor",
+    "PlaywrightWebAutomation",
+    "clawbot_upgrader",
+    "AppWhitelistManager",
+    "AppInfo",
+    "whitelist_manager",
 ]

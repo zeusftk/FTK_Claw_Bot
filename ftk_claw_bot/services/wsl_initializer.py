@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
-import subprocess
 import time
 from typing import Optional, Callable, Tuple
-from pathlib import Path
 
 from loguru import logger
 
@@ -385,7 +383,7 @@ class WSLInitializer:
         return True, ""
 
     def _install_python(self) -> Tuple[bool, str]: 
-        self._emit_log(f"Python venv安装...")
+        self._emit_log("Python venv安装...")
         success, _, stderr = self._run_wsl_command(
             "apt install -y  python3.12-venv",
             timeout=600
@@ -446,7 +444,7 @@ class WSLInitializer:
         wsl_dir = stdout.strip()
         wsl_whl_path = f"{wsl_dir}/{whl_name}"
 
-        self._emit_log(f"复制 wheel 文件到 WSL...")
+        self._emit_log("复制 wheel 文件到 WSL...")
         success, _, stderr = self._run_wsl_command(f"cp '{wsl_whl_path}' /tmp/{whl_name}")
         if not success:
             return False, f"复制 wheel 文件失败: {stderr}"
@@ -462,7 +460,7 @@ class WSLInitializer:
             return False, f"安装 clawbot 失败: {stderr}"
 
         self._run_wsl_command(f"rm -f /tmp/{whl_name}")
-        self._run_wsl_command(f"ln -sf /bot_venv/bin/clawbot /usr/bin/clawbot")
+        self._run_wsl_command("ln -sf /bot_venv/bin/clawbot /usr/bin/clawbot")
         success, stdout, _ = self._run_wsl_command("clawbot --version")
         if success:
             version = stdout.replace('\n', '').replace('\r', '').strip().replace('clawbot', '')
@@ -528,17 +526,13 @@ class WSLInitializer:
             self._emit_log("opencode 未安装，跳过")
 
         # ### 安装 iflow
-        # self._emit_log("安装 iflow...")
-        # self._run_wsl_command("npm i -g @iflow-ai/iflow-cli@latest 2>/dev/null", timeout=300)
-        # success, stdout, _ = self._run_wsl_command("which iflow 2>/dev/null || echo 'not found'")
-        # if "not found" in stdout:
-        #     self._emit_log("尝试通过官方脚本安装 iflow...")
-        #     self._run_wsl_command("curl -fsSL https://iflow.ai/install | bash", timeout=300)
-        # success, stdout, _ = self._run_wsl_command("which iflow 2>/dev/null || echo 'not installed'")
-        # if "not installed" not in stdout:
-        #     self._emit_log(f"iflow 安装位置: {stdout.strip()}")
-        # else:
-        #     self._emit_log("iflow 未安装，跳过")
+        self._emit_log("安装 iflow...")
+        self._run_wsl_command("npm i -g @iflow-ai/iflow-cli@latest 2>/dev/null", timeout=300)
+        success, stdout, _ = self._run_wsl_command("which iflow 2>/dev/null || echo 'not found'")
+        if "not found" not in stdout:
+            self._emit_log(f"iflow 安装位置: {stdout.strip()}")
+        else:
+            self._emit_log("iflow 未安装，跳过")
 
         return True, ""
 

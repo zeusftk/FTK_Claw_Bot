@@ -160,7 +160,7 @@ class ClawbotController:
 
         try:
             if instance.config.distro_name:
-                result = self._wsl_manager.execute_command(
+                self._wsl_manager.execute_command(
                     instance.config.distro_name,
                     f"pkill -f 'clawbot.*{config_name}' || true"
                 )
@@ -243,7 +243,7 @@ class ClawbotController:
     async def _async_check_connectivity(self, gateway_url: str) -> bool:
         """Async method to check WebSocket connectivity."""
         try:
-            async with websockets.connect(gateway_url, open_timeout=5) as ws:
+            async with websockets.connect(gateway_url, open_timeout=5):
                 return True
         except Exception:
             return False
@@ -433,7 +433,7 @@ WantedBy=multi-user.target
         """
         from datetime import datetime
         
-        logger.info(f"========== 开始同步配置到 WSL ==========")
+        logger.info("========== 开始同步配置到 WSL ==========")
         logger.info(f"分发名称: {config.distro_name}")
         
         distro = self._wsl_manager.get_distro(config.distro_name)
@@ -449,7 +449,7 @@ WantedBy=multi-user.target
             logger.info(f"✓ WSL 分发启动成功: {config.distro_name}")
 
         # 1. 备份原有配置
-        logger.info(f"步骤1: 备份原有配置")
+        logger.info("步骤1: 备份原有配置")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_cmd = f"mkdir -p ~/.clawbot && [ -f ~/.clawbot/config.json ] && cp ~/.clawbot/config.json ~/.clawbot/config.json.bak_{timestamp} || true"
         logger.debug(f"执行备份命令: {backup_cmd}")
@@ -460,7 +460,7 @@ WantedBy=multi-user.target
             logger.warning(f"⚠ 配置备份可能失败: {backup_result.stderr}")
         
         # 2. 读取原有配置
-        logger.info(f"步骤2: 读取原有配置")
+        logger.info("步骤2: 读取原有配置")
         existing_config = {}
         read_cmd = "cat ~/.clawbot/config.json 2>/dev/null || echo '{}'"
         read_result = self._wsl_manager.execute_command(config.distro_name, read_cmd)
@@ -468,16 +468,16 @@ WantedBy=multi-user.target
         if read_result.success and read_result.stdout.strip():
             try:
                 existing_config = json.loads(read_result.stdout.strip())
-                logger.info(f"✓ 成功读取原有配置")
+                logger.info("✓ 成功读取原有配置")
                 logger.debug(f"原有配置内容: {json.dumps(existing_config, indent=2)[:300]}...")
             except Exception as e:
                 logger.warning(f"⚠ 解析原有配置失败: {e}，将使用空配置")
                 existing_config = {}
         else:
-            logger.info(f"原有配置不存在或为空，将创建新配置")
+            logger.info("原有配置不存在或为空，将创建新配置")
         
         # 3. 基于原有配置，只修改 FTK Bot 面板对应的字段
-        logger.info(f"步骤3: 基于原有配置更新字段")
+        logger.info("步骤3: 基于原有配置更新字段")
         ftp_config = config.to_full_clawbot_config()
         
         # 更新 agents.defaults
@@ -543,7 +543,7 @@ WantedBy=multi-user.target
                     
                     if "apiKey" in ftp_config["tools"]["web"]["search"]:
                         existing_config["tools"]["web"]["search"]["apiKey"] = ftp_config["tools"]["web"]["search"]["apiKey"]
-                        logger.info(f"✓ 更新 tools.web.search.apiKey")
+                        logger.info("✓ 更新 tools.web.search.apiKey")
         
         # 更新 channels
         if "channels" in ftp_config:
@@ -564,19 +564,19 @@ WantedBy=multi-user.target
             logger.info(f"✓ 更新 memory 配置: {ftp_config['memory']}")
         
         # 4. 保存更新后的配置
-        logger.info(f"步骤4: 保存更新后的配置")
+        logger.info("步骤4: 保存更新后的配置")
         config_json = json.dumps(existing_config, indent=2, ensure_ascii=False)
         logger.debug(f"要写入的配置内容: {config_json}")
         
         write_cmd = f"mkdir -p ~/.clawbot && cat > ~/.clawbot/config.json << 'EOF'\n{config_json}\nEOF"
-        logger.debug(f"执行写入命令")
+        logger.debug("执行写入命令")
         write_result = self._wsl_manager.execute_command(config.distro_name, write_cmd)
         
         if not write_result.success:
             logger.error(f"✗ 写入配置失败: {write_result.stderr}")
             return False
         
-        logger.info(f"✓ 配置保存成功: ~/.clawbot/config.json")
+        logger.info("✓ 配置保存成功: ~/.clawbot/config.json")
         
         # 验证配置是否写入成功
         verify_cmd = "cat ~/.clawbot/config.json"
@@ -585,7 +585,7 @@ WantedBy=multi-user.target
             logger.debug(f"验证写入的配置: {verify_result.stdout[:200]}...")
         
         # 5. 重启 clawbot 服务
-        logger.info(f"步骤5: 重启 clawbot 服务")
+        logger.info("步骤5: 重启 clawbot 服务")
         restart_cmd = "sudo systemctl restart clawbot 2>/dev/null || systemctl --user restart clawbot 2>/dev/null || true"
         logger.debug(f"执行重启命令: {restart_cmd}")
         restart_result = self._wsl_manager.execute_command(
@@ -598,5 +598,5 @@ WantedBy=multi-user.target
         else:
             logger.warning(f"⚠ clawbot 服务重启可能失败: {restart_result.stderr}")
         
-        logger.info(f"========== 同步配置到 WSL 完成 ==========")
+        logger.info("========== 同步配置到 WSL 完成 ==========")
         return True

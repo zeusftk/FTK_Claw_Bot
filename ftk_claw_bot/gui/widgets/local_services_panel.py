@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import time
-from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QSpinBox, QFileDialog, QProgressBar, QScrollArea,
@@ -51,7 +50,7 @@ def get_windows_host_ip() -> str:
             return wsl_ip
         
         return "localhost"
-    except:
+    except Exception:
         return "localhost"
 
 

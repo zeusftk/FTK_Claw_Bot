@@ -21,6 +21,7 @@ from .skill_config import (
     BUILTIN_SKILLS,
     get_builtin_skill_info,
     get_all_builtin_skills,
+    DEFAULT_PRIORITY,
 )
 
 __all__ = [
@@ -47,4 +48,5 @@ __all__ = [
     "BUILTIN_SKILLS",
     "get_builtin_skill_info",
     "get_all_builtin_skills",
+    "DEFAULT_PRIORITY",
 ]

@@ -5,6 +5,7 @@ import threading
 import uuid
 import time
 import traceback
+from datetime import datetime
 from typing import Optional, Callable
 from enum import Enum
 from queue import Queue
@@ -116,7 +117,7 @@ class ClawbotChatClient:
         }
 
     def connect(self) -> bool:
-        logger.info(f"[ChatClient] ========== 开始连接 ==========")
+        logger.info("[ChatClient] ========== 开始连接 ==========")
         logger.info(f"[ChatClient] 连接参数: URL={self._gateway_url}, reconnect={self._reconnect}, "
                    f"max_attempts={self._max_reconnect_attempts}")
         logger.debug(f"[ChatClient] 调用线程: {_get_thread_id()}")
@@ -149,7 +150,7 @@ class ClawbotChatClient:
             logger.debug(f"[ChatClient] 启动事件循环线程: {self._loop_thread.name}")
             self._loop_thread.start()
             
-            logger.debug(f"[ChatClient] 等待事件循环线程就绪...")
+            logger.debug("[ChatClient] 等待事件循环线程就绪...")
             time.sleep(0.1)
             
             if not self._loop_thread.is_alive():
@@ -158,7 +159,7 @@ class ClawbotChatClient:
                 self._running = False
                 return False
             
-            logger.debug(f"[ChatClient] 开始异步连接...")
+            logger.debug("[ChatClient] 开始异步连接...")
             future = asyncio.run_coroutine_threadsafe(
                 self._async_connect(),
                 self._loop
@@ -247,7 +248,7 @@ class ClawbotChatClient:
         except ConnectionRefusedError as e:
             self._error_count += 1
             logger.error(f"[ChatClient.Async] ❌ 连接被拒绝: {e}")
-            logger.error(f"[ChatClient.Async] 请确认 clawbot gateway 是否正在运行，端口是否正确")
+            logger.error("[ChatClient.Async] 请确认 clawbot gateway 是否正在运行，端口是否正确")
             logger.error(f"[ChatClient.Async] 上下文: {self._get_connection_context()}")
             self._set_status(ConnectionStatus.ERROR)
             if self._reconnect and self._reconnect_attempts < self._max_reconnect_attempts:
@@ -494,7 +495,7 @@ class ClawbotChatClient:
             return False
 
     def disconnect(self):
-        logger.info(f"[ChatClient] ========== 开始断开连接 ==========")
+        logger.info("[ChatClient] ========== 开始断开连接 ==========")
         logger.debug(f"[ChatClient] 调用来源: {''.join(traceback.format_stack()[-3:-1]).strip()}")
         logger.debug(f"[ChatClient] 当前线程: {_get_thread_id()}")
         logger.debug(f"[ChatClient] 断开前上下文: {self._get_connection_context()}")

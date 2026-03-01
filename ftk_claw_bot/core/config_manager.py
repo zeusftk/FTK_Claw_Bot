@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
 
-from ..models import ClawbotConfig, ChannelsConfig, SkillsConfig
-from ..constants import Paths, VERSION
+from ..models import ClawbotConfig
+from ..constants import VERSION
 
 
 class ConfigManager:
@@ -15,7 +15,9 @@ class ConfigManager:
 
     def __init__(self, config_dir: Optional[str] = None):
         if config_dir is None:
-            config_dir = str(Path.cwd() / "config")
+            # 使用统一的 user_data 目录
+            from ftk_claw_bot.utils.user_data_dir import user_data
+            config_dir = str(user_data.config)
 
         self._config_dir = config_dir
         self._main_config_path = str(Path(config_dir) / "config.json")
@@ -187,7 +189,6 @@ class ConfigManager:
             ftk_config.channels.mochat = MochatConfig.from_clawbot_config(channels["mochat"])
     
     def _apply_skills_config(self, ftk_config: ClawbotConfig, skills: dict):
-        from ..models import SkillInfo
         
         if "enabled_skills" in skills:
             ftk_config.skills.enabled_skills = skills["enabled_skills"]
@@ -195,8 +196,6 @@ class ConfigManager:
             ftk_config.skills.custom_skills_dir = skills["custom_skills_dir"]
         if "skill_settings" in skills:
             ftk_config.skills.skill_settings = skills["skill_settings"]
-    
-    _apply_wsl_config_to_ftk = apply_wsl_config_to_ftk
 
     def _load_main_config(self):
         if os.path.exists(self._main_config_path):

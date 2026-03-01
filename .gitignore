@@ -28,3 +28,4 @@ dist/
 *.spec
 others/
 FTK_AI.ico
+web_api_agent/

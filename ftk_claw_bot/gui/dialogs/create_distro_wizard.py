@@ -2,28 +2,25 @@
 import os
 import re
 import threading
-import subprocess
 import traceback
 from typing import Optional, Dict, Any
-from pathlib import Path
 
 from loguru import logger
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QCheckBox, QSpinBox, QWidget, QStackedWidget,
-    QFileDialog, QFrame, QScrollArea, QMessageBox, QProgressBar,QComboBox
+    QFileDialog, QFrame, QScrollArea, QProgressBar,QComboBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
 
 from ...models import (
     ClawbotConfig, ChannelsConfig, SkillsConfig,
     WhatsAppConfig, TelegramConfig, DiscordConfig, FeishuConfig,
-    DingTalkConfig, SlackConfig, SlackDMConfig, EmailConfig,
+    DingTalkConfig, SlackConfig, EmailConfig,
     QQConfig, MochatConfig, CHANNEL_INFO
 )
-from .message_dialog import show_warning, show_info, show_critical
+from .message_dialog import show_warning, show_critical
 
 
 WIZARD_STYLE = """
@@ -1380,7 +1377,7 @@ class CreateDistroWizard(QDialog):
             self.next_btn.setText("下一步")
             self.next_btn.setEnabled(True)
             self.cancel_btn.setVisible(True)
-        logger.info(f"_update_buttons 完成")
+        logger.info("_update_buttons 完成")
     
     def _go_to_step(self, step: int):
         logger.info(f"_go_to_step: {self._current_step} -> {step}")

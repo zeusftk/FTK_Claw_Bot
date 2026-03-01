@@ -2,8 +2,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-import json
+from typing import Optional, List
 
 from .channel_config import ChannelsConfig
 from .skill_config import SkillsConfig
@@ -150,6 +149,12 @@ class ClawbotConfig:
         }
         
         config["channels"] = self.channels.to_clawbot_config()
+        
+        # 同步技能配置（包含启用列表和优先级）
+        config["skills"] = {
+            "enabled": self.skills.enabled_skills if self.skills.enabled_skills else None,
+            "priorities": self.skills.skill_priorities
+        }
         
         return config
 

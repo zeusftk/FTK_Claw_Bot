@@ -35,6 +35,14 @@ setup(
         "cryptography>=41.0.0",
         "pywin32>=306",
         "watchdog>=3.0.0",
+        "websockets>=12.0",
+        "loguru>=0.7.0",
+        "requests>=2.28.0",
+        "fastapi>=0.100.0",
+        "pydantic>=2.0.0",
+        "numpy>=1.24.0",
+        "onnxruntime>=1.16.0",
+        "uvicorn>=0.23.0",
     ],
     entry_points={
         "console_scripts": [

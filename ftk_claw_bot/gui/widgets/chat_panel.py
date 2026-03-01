@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import threading
+import time
+import traceback
 from datetime import datetime
 from typing import List, Optional, Set, Dict
 
@@ -7,14 +10,22 @@ from loguru import logger
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem,
-    QToolButton, QSizePolicy, QSpacerItem, QCheckBox, QSpinBox, QMessageBox
+    QToolButton, QCheckBox, QSpinBox, QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QThread
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QCursor
 
 from ..mixins import WSLStateAwareMixin
 from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.i18n import tr
+
+
+def _get_thread_info() -> str:
+    return f"T:{threading.current_thread().ident}:{threading.current_thread().name[:10]}"
+
+
+def _is_main_thread() -> bool:
+    return QThread.currentThread() == QThread.currentThread()
 
 
 class ChatMessage:
@@ -961,64 +972,92 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                 QMessageBox.warning(self, tr("chat.msg.select_bot_first", "请先选择要连接的 Clawbot"))
     
     def _on_send_message(self):
+        logger.debug(f"[ChatPanel] 发送消息按钮点击, 线程: {_get_thread_info()}")
         text = self.message_input.toPlainText().strip()
         if not text:
+            logger.debug("[ChatPanel] 消息为空，忽略")
             return
         
         if not self._selected_clawbots:
+            logger.warning("[ChatPanel] 未选择任何 Clawbot")
             QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Clawbot"))
             return
         
+        logger.info(f"[ChatPanel] 发送用户消息 (长度: {len(text)}, 目标: {list(self._selected_clawbots)})")
         self.message_input.clear()
         self.add_message("user", text)
         self.message_sent.emit(text, list(self._selected_clawbots))
     
     def add_message(self, role: str, content: str, clawbot_name: Optional[str] = None):
-        message = ChatMessage(role, content, clawbot_name)
-        self._messages.append(message)
-        self._append_message(message)
+        start_time = time.perf_counter()
+        logger.debug(f"[ChatPanel] 添加消息: role={role}, bot={clawbot_name}, "
+                    f"长度={len(content)}, 线程={_get_thread_info()}, "
+                    f"主线程={_is_main_thread()}")
+        
+        try:
+            message = ChatMessage(role, content, clawbot_name)
+            self._messages.append(message)
+            self._append_message(message)
+            
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.debug(f"[ChatPanel] 消息添加完成, 总消息数: {len(self._messages)}, 耗时: {elapsed:.2f}ms")
+        except Exception as e:
+            logger.error(f"[ChatPanel] 添加消息异常: {type(e).__name__}: {e}")
+            logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
+            raise
     
     def _append_message(self, message: ChatMessage):
-        cursor = self.chat_text.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
+        append_start = time.perf_counter()
+        logger.debug(f"[ChatPanel] 追加消息到 UI: role={message.role}, bot={message.clawbot_name}")
         
-        if message.role == "user":
-            role_text = tr("chat.role.you", "你")
-            role_color = QColor("#58a6ff")
-            bg_color = QColor("#1f3a5f")
-        elif message.role == "assistant":
-            role_text = message.clawbot_name or tr("chat.role.ai", "AI")
-            if message.clawbot_name:
-                if message.clawbot_name not in self._bot_color_map:
-                    color_idx = len(self._bot_color_map) % len(self._BOT_COLORS)
-                    self._bot_color_map[message.clawbot_name] = self._BOT_COLORS[color_idx]
-                role_color = QColor(self._bot_color_map[message.clawbot_name][0])
-                bg_color = QColor(self._bot_color_map[message.clawbot_name][1])
+        try:
+            cursor = self.chat_text.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            
+            if message.role == "user":
+                role_text = tr("chat.role.you", "你")
+                role_color = QColor("#58a6ff")
+                bg_color = QColor("#1f3a5f")
+            elif message.role == "assistant":
+                role_text = message.clawbot_name or tr("chat.role.ai", "AI")
+                if message.clawbot_name:
+                    if message.clawbot_name not in self._bot_color_map:
+                        color_idx = len(self._bot_color_map) % len(self._BOT_COLORS)
+                        self._bot_color_map[message.clawbot_name] = self._BOT_COLORS[color_idx]
+                    role_color = QColor(self._bot_color_map[message.clawbot_name][0])
+                    bg_color = QColor(self._bot_color_map[message.clawbot_name][1])
+                else:
+                    role_color = QColor("#3fb950")
+                    bg_color = QColor("#1a3a2f")
             else:
-                role_color = QColor("#3fb950")
-                bg_color = QColor("#1a3a2f")
-        else:
-            role_text = message.role
-            role_color = QColor("#8b949e")
-            bg_color = QColor("#2d333b")
-        
-        format_text = QTextCharFormat()
-        format_text.setBackground(bg_color)
-        format_text.setForeground(role_color)
-        format_text.setFontWeight(QFont.Weight.Bold)
-        cursor.insertText(f"[{role_text}] ", format_text)
-        
-        format_time = QTextCharFormat()
-        format_time.setForeground(QColor("#8b949e"))
-        format_time.setFontPointSize(9)
-        cursor.insertText(f"{message.timestamp}\n", format_time)
-        
-        format_content = QTextCharFormat()
-        format_content.setForeground(QColor("#c9d1d9"))
-        cursor.insertText(f"{message.content}\n\n", format_content)
-        
-        scrollbar = self.chat_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+                role_text = message.role
+                role_color = QColor("#8b949e")
+                bg_color = QColor("#2d333b")
+            
+            format_text = QTextCharFormat()
+            format_text.setBackground(bg_color)
+            format_text.setForeground(role_color)
+            format_text.setFontWeight(QFont.Weight.Bold)
+            cursor.insertText(f"[{role_text}] ", format_text)
+            
+            format_time = QTextCharFormat()
+            format_time.setForeground(QColor("#8b949e"))
+            format_time.setFontPointSize(9)
+            cursor.insertText(f"{message.timestamp}\n", format_time)
+            
+            format_content = QTextCharFormat()
+            format_content.setForeground(QColor("#c9d1d9"))
+            cursor.insertText(f"{message.content}\n\n", format_content)
+            
+            scrollbar = self.chat_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+            
+            elapsed = (time.perf_counter() - append_start) * 1000
+            logger.debug(f"[ChatPanel] UI 追加完成, 耗时: {elapsed:.2f}ms")
+        except Exception as e:
+            logger.error(f"[ChatPanel] UI 追加异常: {type(e).__name__}: {e}")
+            logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
+            raise
     
     def _clear_clicked(self):
         self._messages.clear()
@@ -1056,36 +1095,45 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             self.connect_clicked.emit("")
     
     def set_connecting(self):
-        logger.info("[ChatPanel] 设置状态: 正在连接...")
+        logger.info(f"[ChatPanel] 设置状态: 正在连接..., 线程: {_get_thread_info()}")
         self._connect_btn.setEnabled(False)
         self._connect_btn.setText(tr("chat.btn.connecting", "连接中..."))
     
     def set_connection_status(self, bot_name: str, is_connected: bool, info: Optional[str] = None):
-        logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -> {is_connected}, info={info}")
+        logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -> {is_connected}, "
+                   f"info={info}, 线程={_get_thread_info()}, 主线程={_is_main_thread()}")
         
-        self._connection_status[bot_name] = is_connected
-        
-        if bot_name in self._clawbot_cards:
-            if is_connected:
-                self._clawbot_cards[bot_name].set_connection_status("connected")
-                self._connected_bot_info[bot_name] = {
-                    "address": info or "",
-                    "connected_at": datetime.now(),
-                    "message_count": 0
-                }
+        try:
+            self._connection_status[bot_name] = is_connected
+            
+            if bot_name in self._clawbot_cards:
+                if is_connected:
+                    self._clawbot_cards[bot_name].set_connection_status("connected")
+                    self._connected_bot_info[bot_name] = {
+                        "address": info or "",
+                        "connected_at": datetime.now(),
+                        "message_count": 0
+                    }
+                    logger.debug(f"[ChatPanel] Bot {bot_name} 连接信息已记录")
+                else:
+                    self._clawbot_cards[bot_name].set_connection_status("disconnected")
+                    if bot_name in self._connected_bot_info:
+                        del self._connected_bot_info[bot_name]
+                    logger.debug(f"[ChatPanel] Bot {bot_name} 连接信息已清除")
+            
+            self._update_connection_status_display()
+            
+            connected_bots = [bot for bot, status in self._connection_status.items() if status]
+            if connected_bots:
+                self._connect_btn.setText(tr("chat.disconnect_all", "断开全部"))
             else:
-                self._clawbot_cards[bot_name].set_connection_status("disconnected")
-                if bot_name in self._connected_bot_info:
-                    del self._connected_bot_info[bot_name]
-        
-        self._update_connection_status_display()
-        
-        connected_bots = [bot for bot, status in self._connection_status.items() if status]
-        if connected_bots:
-            self._connect_btn.setText(tr("chat.disconnect_all", "断开全部"))
-        else:
-            self._connect_btn.setText(tr("chat.connect_all", "连接全部"))
-        self._connect_btn.setEnabled(True)
+                self._connect_btn.setText(tr("chat.connect_all", "连接全部"))
+            self._connect_btn.setEnabled(True)
+            
+            logger.debug(f"[ChatPanel] 连接状态更新完成, 已连接: {connected_bots}")
+        except Exception as e:
+            logger.error(f"[ChatPanel] 设置连接状态异常: {type(e).__name__}: {e}")
+            logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
     
     def _update_connection_status_display(self):
         for i in reversed(range(self._connection_status_layout.count() - 1)):

@@ -16,51 +16,58 @@ class Container:
                     cls._instance._services: Dict[str, Any] = {}
                     cls._instance._factories: Dict[str, Callable] = {}
                     cls._instance._singletons: Dict[str, Any] = {}
+                    cls._instance._data_lock = Lock()
         return cls._instance
     
     def register(self, name: str, instance: Any) -> None:
-        self._services[name] = instance
+        with self._data_lock:
+            self._services[name] = instance
         logger.debug(f"Container: 注册服务 {name}")
     
     def register_factory(self, name: str, factory: Callable[[], Any], singleton: bool = False) -> None:
-        self._factories[name] = factory
-        if singleton:
-            self._singletons[name] = None
+        with self._data_lock:
+            self._factories[name] = factory
+            if singleton:
+                self._singletons[name] = None
         logger.debug(f"Container: 注册工厂 {name} (singleton={singleton})")
     
     def get(self, name: str) -> Optional[Any]:
-        if name in self._services:
-            return self._services[name]
-        
-        if name in self._factories:
-            if name in self._singletons:
-                if self._singletons[name] is None:
-                    self._singletons[name] = self._factories[name]()
-                return self._singletons[name]
-            return self._factories[name]()
-        
-        logger.warning(f"Container: 服务 {name} 未注册")
-        return None
+        with self._data_lock:
+            if name in self._services:
+                return self._services[name]
+            
+            if name in self._factories:
+                if name in self._singletons:
+                    if self._singletons[name] is None:
+                        self._singletons[name] = self._factories[name]()
+                    return self._singletons[name]
+                return self._factories[name]()
+            
+            logger.warning(f"Container: 服务 {name} 未注册")
+            return None
     
     def has(self, name: str) -> bool:
-        return name in self._services or name in self._factories
+        with self._data_lock:
+            return name in self._services or name in self._factories
     
     def remove(self, name: str) -> bool:
-        removed = False
-        if name in self._services:
-            del self._services[name]
-            removed = True
-        if name in self._factories:
-            del self._factories[name]
-            removed = True
-        if name in self._singletons:
-            del self._singletons[name]
-        return removed
+        with self._data_lock:
+            removed = False
+            if name in self._services:
+                del self._services[name]
+                removed = True
+            if name in self._factories:
+                del self._factories[name]
+                removed = True
+            if name in self._singletons:
+                del self._singletons[name]
+            return removed
     
     def clear(self) -> None:
-        self._services.clear()
-        self._factories.clear()
-        self._singletons.clear()
+        with self._data_lock:
+            self._services.clear()
+            self._factories.clear()
+            self._singletons.clear()
     
     @property
     def wsl_manager(self):
@@ -109,6 +116,14 @@ class Container:
     @plugin_manager.setter
     def plugin_manager(self, value):
         self.register("plugin_manager", value)
+    
+    @property
+    def windows_bridge_started(self):
+        return self.get("windows_bridge_started") or False
+    
+    @windows_bridge_started.setter
+    def windows_bridge_started(self, value):
+        self.register("windows_bridge_started", value)
 
 
 container = Container()

@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
     QLineEdit, QSpinBox, QCheckBox, QComboBox, QTabWidget,
     QWidget, QMessageBox, QFileDialog, QGroupBox, QFormLayout,
     QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import pyqtSignal
 
 from ...core import ConfigManager
 from ...utils.i18n import I18nManager, tr

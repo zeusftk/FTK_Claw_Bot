@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QComboBox, QSpinBox, QGroupBox, QSplitter
+    QTextEdit, QComboBox, QSpinBox, QGroupBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
 
 from ...core import WSLManager

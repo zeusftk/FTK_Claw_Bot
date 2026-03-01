@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-import sys
+import threading
+import time
 import traceback
 from typing import Optional
 from datetime import datetime
-import os
 from pathlib import Path
 
 from loguru import logger
@@ -11,22 +11,32 @@ from loguru import logger
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QListWidget, QListWidgetItem, QLabel, QPushButton,
-    QStatusBar, QSystemTrayIcon, QMenu, QSplitter, QFrame, QMessageBox, QDialog
+    QStatusBar, QSystemTrayIcon, QMenu, QFrame, QDialog
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer, QEvent
-from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter, QKeySequence
+from PyQt6.QtCore import Qt, QTimer, QEvent, QThread, pyqtSignal
+from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter
 
 from ..core import (
     WSLManager, ClawbotController, ConfigManager,
     ClawbotGatewayManager, BridgeManager, GatewayStatus
 )
 from ..core.config_sync_manager import ConfigSyncManager
-from ..services import WindowsBridge, MonitorService, ClawbotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
+from ..services import WindowsBridge, MonitorService, ClawbotChatClient, ConnectionStatus, init_wsl_state_service
 from ..utils import make_thread_safe, I18nManager, tr
+from ..utils.crash_handler import set_crash_context
 from ..constants import Bridge, VERSION
 from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel, LocalServicesPanel
 from .styles import get_stylesheet
 from .dialogs import SettingsDialog
+
+
+def _get_thread_info() -> str:
+    return f"T:{threading.current_thread().ident}:{threading.current_thread().name[:10]}"
+
+
+def _is_main_thread() -> bool:
+    app = QApplication.instance()
+    return app is not None and QThread.currentThread() == app.thread()
 
 
 def _debug_log(msg: str):
@@ -61,6 +71,8 @@ def _get_app_icon() -> QIcon:
 
 
 class MainWindow(QMainWindow):
+    _chat_message_signal = pyqtSignal(str, object)
+    
     def __init__(
         self,
         wsl_manager=None,
@@ -73,6 +85,8 @@ class MainWindow(QMainWindow):
         _debug_log("[MainWindow] 开始初始化...")
         super().__init__()
         _debug_log("[MainWindow] super().__init__() 完成")
+        
+        self._chat_message_signal.connect(self._handle_chat_message_on_main_thread)
         
         self.setWindowIcon(_get_app_icon())
         
@@ -108,6 +122,9 @@ class MainWindow(QMainWindow):
             _debug_log("[MainWindow] 调用 _init_chat...")
             self._init_chat()
             _debug_log("[MainWindow] _init_chat 完成")
+            
+            # 检查 Windows Bridge 启动状态
+            self._check_windows_bridge_status()
         else:
             self._wsl_manager = WSLManager()
             self._config_manager = ConfigManager()
@@ -130,6 +147,9 @@ class MainWindow(QMainWindow):
             self._init_connections()
             self._init_tray()
             self._init_chat()
+            
+            # 启动 Windows Bridge 并检查状态
+            self._start_and_check_windows_bridge()
 
     def _init_ui(self):
         _debug_log("[MainWindow._init_ui] 开始...")
@@ -392,6 +412,44 @@ class MainWindow(QMainWindow):
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
 
+    def _check_windows_bridge_status(self):
+        """检查 Windows Bridge 启动状态，失败时提示用户"""
+        from ..container import container
+        from PyQt6.QtWidgets import QMessageBox
+        
+        if not container.windows_bridge_started:
+            logger.warning("Windows Bridge 服务未成功启动")
+            QMessageBox.warning(
+                self,
+                "Windows Bridge 服务未启动",
+                f"Windows Bridge 服务启动失败，端口 {self._windows_bridge.port} 可能已被占用。\n\n"
+                "WSL 中的 clawbot 将无法使用 Windows GUI 自动化功能。\n\n"
+                "请检查：\n"
+                "1. 是否有其他程序占用了端口\n"
+                "2. 在桥接面板点击刷新按钮重启 bridge 服务",
+                QMessageBox.StandardButton.Ok
+            )
+
+    def _start_and_check_windows_bridge(self):
+        """启动 Windows Bridge 并检查状态，失败时提示用户"""
+        from PyQt6.QtWidgets import QMessageBox
+        
+        if self._windows_bridge:
+            if not self._windows_bridge.start():
+                logger.warning("Windows Bridge 服务启动失败")
+                QMessageBox.warning(
+                    self,
+                    "Windows Bridge 服务未启动",
+                    f"Windows Bridge 服务启动失败，端口 {self._windows_bridge.port} 可能已被占用。\n\n"
+                    "WSL 中的 clawbot 将无法使用 Windows GUI 自动化功能。\n\n"
+                    "请检查：\n"
+                    "1. 是否有其他程序占用了端口\n"
+                    "2. 在桥接面板点击刷新按钮重启 bridge 服务",
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                logger.info(f"Windows Bridge 服务已启动，监听端口: {self._windows_bridge.port}")
+
     def _init_chat(self):
         default_config = self._config_manager.get_default()
         if default_config:
@@ -414,11 +472,9 @@ class MainWindow(QMainWindow):
 
     def _update_client_count(self):
         if self._windows_bridge and self._windows_bridge.is_running:
-            clients_info = self._windows_bridge.get_connected_clients_info()
             distros = self._wsl_manager.list_distros()
-            logger.debug(f"[Bridge] 客户端信息: {clients_info}")
-            self.bridge_panel.update_clients_info(clients_info)
-            self.bridge_panel.update_wsl_connection_status(distros, clients_info)
+            logger.debug(f"[Bridge] 更新 WSL 状态，共 {len(distros)} 个分发")
+            self.bridge_panel.update_wsl_connection_status(distros)
         else:
             logger.debug(f"[Bridge] 桥接未运行: windows_bridge={self._windows_bridge is not None}, is_running={self._windows_bridge.is_running if self._windows_bridge else False}")
 
@@ -535,12 +591,8 @@ class MainWindow(QMainWindow):
         logger.info("刷新 WSL 连通状态")
         
         distros = self._wsl_manager.list_distros()
-        clients_info = []
-        if self._windows_bridge and self._windows_bridge.is_running:
-            clients_info = self._windows_bridge.get_connected_clients_info()
         
-        self.bridge_panel.update_wsl_connection_status(distros, clients_info)
-        self.bridge_panel.update_clients_info(clients_info)
+        self.bridge_panel.update_wsl_connection_status(distros)
         self.bridge_panel._add_log(f"✓ WSL 连通状态已刷新，共 {len(distros)} 个分发")
 
     def _on_chat_connect(self):
@@ -643,18 +695,18 @@ class MainWindow(QMainWindow):
             first_bot = valid_bots[0]
             first_config = first_bot["config"]
             if self._gateway_manager.status != GatewayStatus.RUNNING:
-                logger.info(f"Gateway 未运行，正在启动...")
+                logger.info("Gateway 未运行，正在启动...")
                 self._gateway_manager._port = first_config.gateway_port
                 if not self._gateway_manager.start_gateway(first_config.distro_name):
-                    logger.error(f"Gateway 启动失败")
-                    self.chat_panel.show_error(f"无法启动 gateway 服务")
+                    logger.error("Gateway 启动失败")
+                    self.chat_panel.show_error("无法启动 gateway 服务")
                     self.chat_panel.set_connection_status(False)
                     return
-                logger.info(f"Gateway 启动成功，等待服务就绪...")
+                logger.info("Gateway 启动成功，等待服务就绪...")
                 import time
                 time.sleep(2)
             else:
-                logger.info(f"Gateway 已在运行")
+                logger.info("Gateway 已在运行")
         
         # 开始连接每个有效的 bot
         connected_count = 0
@@ -711,7 +763,7 @@ class MainWindow(QMainWindow):
                     )
         else:
             logger.error("❌ 没有成功连接任何 clawbot")
-            self.chat_panel.show_error(f"无法连接到 gateways，请检查每个 Bot 的 gateway 是否正在运行")
+            self.chat_panel.show_error("无法连接到 gateways，请检查每个 Bot 的 gateway 是否正在运行")
 
     def _on_single_clawbot_connect(self, clawbot_name: str):
         """处理单个bot的连接请求"""
@@ -745,18 +797,18 @@ class MainWindow(QMainWindow):
         
         if self._gateway_manager:
             if self._gateway_manager.status != GatewayStatus.RUNNING:
-                logger.info(f"Gateway 未运行，正在启动...")
+                logger.info("Gateway 未运行，正在启动...")
                 self._gateway_manager._port = config.gateway_port
                 if not self._gateway_manager.start_gateway(config.distro_name):
-                    logger.error(f"Gateway 启动失败")
+                    logger.error("Gateway 启动失败")
                     self.chat_panel.show_error(f"无法启动 {clawbot_name} 的 gateway 服务")
                     self.chat_panel.set_connection_status(clawbot_name, False)
                     return
-                logger.info(f"Gateway 启动成功，等待服务就绪...")
+                logger.info("Gateway 启动成功，等待服务就绪...")
                 import time
                 time.sleep(2)
             else:
-                logger.info(f"Gateway 已在运行")
+                logger.info("Gateway 已在运行")
         
         gateway_url = f"ws://{wsl_ip}:{config.gateway_port}/ws"
         logger.info(f"开始连接到 {clawbot_name}: {gateway_url}")
@@ -851,59 +903,99 @@ class MainWindow(QMainWindow):
             logger.warning("[MainWindow] 没有成功向任何 clawbot 发送消息")
 
     def _on_chat_message_received(self, message: str, clawbot_name: Optional[str] = None):
-        import threading
-        current_thread = threading.current_thread()
-        main_thread = threading.main_thread()
-        is_main_thread = current_thread == main_thread
+        logger.info(f"[MainWindow.Chat] 收到消息: bot={clawbot_name}, "
+                   f"长度={len(message) if message else 0}, "
+                   f"线程={_get_thread_info()}, 主线程={_is_main_thread()}")
         
-        logger.debug(f"[Chat] 收到消息, 线程ID: {current_thread.ident}, 主线程: {main_thread.ident}, 是否主线程: {is_main_thread}, 来源: {clawbot_name}, 长度: {len(message) if message else 0}")
+        if not _is_main_thread():
+            logger.debug("[MainWindow.Chat] 非主线程，通过信号转发到主线程处理")
+            self._chat_message_signal.emit(message, clawbot_name)
+            return
         
-        if not is_main_thread:
-            logger.warning(f"[Chat] 警告: 在非主线程中收到消息，可能导致UI崩溃!")
+        self._handle_chat_message_on_main_thread(message, clawbot_name)
+    
+    def _handle_chat_message_on_main_thread(self, message: str, clawbot_name: Optional[str] = None):
+        start_time = time.perf_counter()
+        logger.debug(f"[MainWindow.Chat] 主线程处理消息: bot={clawbot_name}, "
+                   f"长度={len(message) if message else 0}")
+        
+        set_crash_context("last_message", {
+            "bot": clawbot_name,
+            "length": len(message) if message else 0,
+            "time": datetime.now().isoformat()
+        })
         
         try:
             self.chat_panel.add_message("assistant", message, clawbot_name)
             
             if self.chat_panel.is_group_chat_enabled() and self._group_chat_forward_allowed:
+                logger.debug("[MainWindow.Chat] 群聊模式启用，准备转发消息")
                 self._group_chat_forward_allowed = False
                 self._forward_to_other_bots(message, clawbot_name)
                 interval = self.chat_panel.get_group_chat_interval()
                 self._group_chat_timer.start(interval)
+                logger.debug(f"[MainWindow.Chat] 转发定时器已启动，间隔: {interval}ms")
+            
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.debug(f"[MainWindow.Chat] 消息处理完成, 耗时: {elapsed:.2f}ms")
         except Exception as e:
             logger.error(f"[MainWindow.Chat] 处理消息异常: {type(e).__name__}: {e}")
             logger.error(f"[MainWindow.Chat] 堆栈跟踪:\n{traceback.format_exc()}")
+            logger.error(f"[MainWindow.Chat] 消息上下文: bot={clawbot_name}, 长度={len(message) if message else 0}")
+            set_crash_context("last_error", {
+                "type": type(e).__name__,
+                "message": str(e),
+                "bot": clawbot_name
+            })
     
     def _on_group_chat_timer(self):
+        logger.debug(f"[MainWindow.Chat] 群聊转发定时器触发, 线程={_get_thread_info()}")
         self._group_chat_forward_allowed = True
     
     def _forward_to_other_bots(self, message: str, source_bot: str):
+        forward_start = time.perf_counter()
         selected_bots = list(self.chat_panel._selected_clawbots)
-        logger.debug(f"[Chat.Forward] 开始转发消息, 来源: {source_bot}, 消息长度: {len(message)}, 目标列表: {selected_bots}")
+        logger.info(f"[MainWindow.Forward] 开始转发: 源={source_bot}, "
+                   f"目标列表={selected_bots}, 消息长度={len(message)}")
         
         forward_count = 0
+        errors = []
+        
         try:
             for bot_name in selected_bots:
-                if bot_name != source_bot:
-                    if bot_name not in self._chat_clients:
-                        logger.warning(f"[Chat.Forward] 跳过未连接的bot: {bot_name}, 原因: 不在客户端列表")
-                        continue
-                        
-                    chat_client = self._chat_clients[bot_name]
-                    if not chat_client.is_connected:
-                        logger.warning(f"[Chat.Forward] 跳过未连接的bot: {bot_name}, 状态: {chat_client.status}")
-                        continue
+                if bot_name == source_bot:
+                    continue
                     
-                    try:
-                        forward_msg = f"[{source_bot} 说]: {message}"
-                        chat_client.send_message(forward_msg)
-                        logger.debug(f"[Chat.Forward] 转发成功: {source_bot} -> {bot_name}")
+                if bot_name not in self._chat_clients:
+                    logger.warning(f"[MainWindow.Forward] 跳过 {bot_name}: 不在客户端列表")
+                    errors.append(f"{bot_name}: not_in_clients")
+                    continue
+                    
+                chat_client = self._chat_clients[bot_name]
+                if not chat_client.is_connected:
+                    logger.warning(f"[MainWindow.Forward] 跳过 {bot_name}: 状态={chat_client.status.value}")
+                    errors.append(f"{bot_name}: not_connected")
+                    continue
+                
+                try:
+                    forward_msg = f"[{source_bot} 说]: {message}"
+                    send_result = chat_client.send_message(forward_msg)
+                    if send_result:
                         forward_count += 1
-                    except Exception as e:
-                        logger.error(f"[Chat.Forward] 转发失败 {source_bot} -> {bot_name}: {type(e).__name__}: {e}", exc_info=True)
+                        logger.debug(f"[MainWindow.Forward] 转发成功: {source_bot} -> {bot_name}")
+                    else:
+                        logger.warning(f"[MainWindow.Forward] 转发失败: {source_bot} -> {bot_name} (send_message返回False)")
+                        errors.append(f"{bot_name}: send_failed")
+                except Exception as e:
+                    logger.error(f"[MainWindow.Forward] 转发异常 {source_bot} -> {bot_name}: {type(e).__name__}: {e}")
+                    errors.append(f"{bot_name}: {type(e).__name__}")
         except Exception as e:
-            logger.error(f"[Chat.Forward] 转发过程异常: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"[MainWindow.Forward] 转发过程异常: {type(e).__name__}: {e}")
+            logger.error(f"[MainWindow.Forward] 堆栈跟踪:\n{traceback.format_exc()}")
         
-        logger.debug(f"[Chat.Forward] 完成，成功转发 {forward_count} 个目标")
+        elapsed = (time.perf_counter() - forward_start) * 1000
+        logger.info(f"[MainWindow.Forward] 完成: 成功={forward_count}, 错误={len(errors)}, "
+                   f"耗时={elapsed:.2f}ms, 错误详情={errors if errors else '无'}")
 
     def _on_chat_status_changed(self, status: ConnectionStatus, bot_name: str = ""):
         # 注意：此方法目前未使用，因为我们直接在连接/断开时更新状态

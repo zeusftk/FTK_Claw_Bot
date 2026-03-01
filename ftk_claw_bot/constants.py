@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pathlib import Path
 
 
@@ -19,15 +19,46 @@ class Network:
 
 
 class Paths:
-    LOG_DIR_NAME = "logs"
+    """路径配置 - 使用统一的 user_data 目录"""
     
     @classmethod
     def get_log_dir(cls) -> Path:
-        return Path.cwd() / cls.LOG_DIR_NAME
+        """获取日志目录"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return user_data.logs
     
     @classmethod
     def get_clawbot_configs_dir(cls) -> Path:
-        return Path.cwd() / "clawbot_configs"
+        """获取 Clawbot 实例配置目录"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return user_data.clawbot_configs
+    
+    @classmethod
+    def get_config_dir(cls) -> Path:
+        """获取配置目录"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return user_data.config
+    
+    @classmethod
+    def get_user_data_dir(cls) -> Path:
+        """获取用户数据根目录"""
+        from ftk_claw_bot.utils.user_data_dir import user_data
+        return user_data.base
+
+
+class WebAutomation:
+    """Web 自动化配置"""
+    # 浏览器窗口固定大小
+    VIEWPORT_WIDTH = 1280
+    VIEWPORT_HEIGHT = 800
+    
+    # 默认超时时间（秒）
+    DEFAULT_TIMEOUT = 30
+    PAGE_LOAD_TIMEOUT = 60
+    
+    # 截图配置
+    SCREENSHOT_QUALITY = 80
+    SCREENSHOT_TYPE = "jpeg"  # jpeg 或 png
 
 
 class UI:

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import threading
-from os import curdir
 from typing import Optional, List, Dict
 
 from loguru import logger
@@ -9,18 +8,18 @@ from loguru import logger
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QLineEdit, QComboBox,
-    QCheckBox, QFrame, QScrollArea, QSizePolicy, QFileDialog,
-    QMessageBox, QGroupBox, QDialog, QTabWidget, QApplication
+    QCheckBox, QFrame, QScrollArea, QFileDialog,
+    QMessageBox, QDialog, QTabWidget, QApplication
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from ...core import ConfigManager, WSLManager
-from ...models import ClawbotConfig, CHANNEL_INFO, ChannelsConfig, SkillsConfig
-from ...services import ServiceRegistry, ServiceStatus
+from ...models import ClawbotConfig, CHANNEL_INFO, ChannelsConfig
+from ...services import ServiceRegistry
 from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.thread_safe import ThreadSafeSignal
-from ...utils.i18n import tr, I18nManager
+from ...utils.i18n import tr
 from ..mixins import WSLStateAwareMixin
 from .channel_config_dialog import get_channel_dialog
 from .skills_config_widget import SkillsConfigWidget
@@ -204,7 +203,12 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
         
-        self._skills_widget = SkillsConfigWidget()
+        # 创建技能配置 widget，传入 WSL 管理器
+        self._skills_widget = SkillsConfigWidget(
+            wsl_manager=self._wsl_manager,
+            distro_name="",  # 将在加载配置时设置
+            workspace=""
+        )
         self._skills_widget.config_changed.connect(self._on_skills_config_changed)
         layout.addWidget(self._skills_widget)
         
@@ -537,6 +541,13 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if not self._current_config:
             return
         
+        # 设置 WSL 上下文
+        self._skills_widget.set_wsl_context(
+            self._wsl_manager,
+            self._current_config.distro_name,
+            self._current_config.workspace
+        )
+        
         self._skills_widget.set_config(self._current_config.skills)
 
     def _load_configs(self):
@@ -574,7 +585,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                     logger.warning(f"初始化时从 WSL 分发 '{distro.name}' 读取配置失败: {e}")
         
         # 显示所有WSL分发
-        configs = self._config_manager.get_all()
         default_name = self._config_manager.get_default_name()
         
         for distro in distros:
@@ -860,7 +870,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         except ValueError:
             pass
 
-        logger.info(f"========== 开始保存配置流程 ==========")
+        logger.info("========== 开始保存配置流程 ==========")
         logger.info(f"配置名称: {name}")
         logger.info(f"分发名称: {distro_name}")
         logger.info(f"Windows 工作空间: {windows_ws}")
@@ -874,7 +884,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         if is_oauth:
             api_key = ""
-            logger.info(f"API Key: (OAuth provider, no API key needed)")
+            logger.info("API Key: (OAuth provider, no API key needed)")
         else:
             api_key = self.apiKey_edit.text()
             logger.info(f"API Key: {api_key[:10] if api_key else 'None'}...")
@@ -906,13 +916,13 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             skills=self._skills_widget.get_config(),
         )
 
-        logger.info(f"步骤1: 保存配置到本地文件")
+        logger.info("步骤1: 保存配置到本地文件")
         if self._config_manager.save(config):
             logger.info(f"✓ 本地配置保存成功: {name}")
             self._current_config = config
             
             # 只更新配置列表的显示，不重新加载（避免覆盖配置）
-            logger.info(f"步骤2: 更新配置列表显示")
+            logger.info("步骤2: 更新配置列表显示")
             self._update_config_list_display()
             self.config_saved.emit(name)
             
@@ -929,7 +939,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                     sync_message = "\n⚠ 配置同步到 WSL 分发失败"
                     logger.warning(f"✗ WSL 配置同步失败: {config.distro_name}")
             
-            logger.info(f"========== 配置保存流程完成 ==========")
+            logger.info("========== 配置保存流程完成 ==========")
             
             # 检查是否有正在运行的 clawbot 实例
             need_restart = False
@@ -961,14 +971,13 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     
     def _update_config_list_display(self):
         """仅更新配置列表的显示，不重新加载"""
-        logger.info(f"更新配置列表显示")
+        logger.info("更新配置列表显示")
         current_row = self.config_list.currentRow()
         current_text = self.config_list.currentItem().text() if self.config_list.currentItem() else ""
         
         self.config_list.clear()
         
         distros = self._wsl_manager.list_distros()
-        configs = self._config_manager.get_all()
         default_name = self._config_manager.get_default_name()
         
         for distro in distros:
@@ -1161,7 +1170,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.cannot_read_wsl_config", "无法从 WSL 分发 '{distro}' 读取配置").format(distro=distro_name))
             return
         
-        logger.info(f"成功读取 WSL 配置")
+        logger.info("成功读取 WSL 配置")
         self._populate_from_clawbot_config(wsl_config)
         QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.imported_from_wsl", "已从 WSL 分发 '{distro}' 导入配置").format(distro=distro_name))
     
@@ -1241,14 +1250,13 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         if web_search.get("apiKey"):
             self.web_search_check.setChecked(True)
             self.brave_key_edit.setText(web_search["apiKey"])
-            logger.info(f"设置 web_search 和 brave_apiKey")
+            logger.info("设置 web_search 和 brave_apiKey")
         elif tools.get("web"):
             self.web_search_check.setChecked(True)
-            logger.info(f"设置 enable_web_search=True")
+            logger.info("设置 enable_web_search=True")
     
     def _on_oauth_login(self):
         """触发 OAuth 登录流程"""
-        provider = self.provider_combo.currentText()
         distro_name = self._current_config.distro_name if self._current_config else None
         
         if not distro_name:

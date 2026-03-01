@@ -9,6 +9,22 @@ from typing import Optional
 
 from loguru import logger
 
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QFrame, QMessageBox, QFileDialog, QDialog, QLineEdit,
+    QScrollArea, QProgressBar, QComboBox
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QColor
+
+from ...core import WSLManager, ClawbotController, ConfigManager
+from ...models import DistroStatus
+from ...gui.dialogs import show_info, show_critical, show_question, show_warning
+from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
+from ...utils.thread_safe import ThreadSafeSignal
+from ...utils.i18n import tr, I18nManager
+
 
 def _debug_log(msg: str):
     """调试日志 - 同时输出到日志文件和控制台"""
@@ -17,23 +33,6 @@ def _debug_log(msg: str):
         logger.info(msg)
     except Exception:
         pass
-
-
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QFrame, QMessageBox, QFileDialog, QProgressDialog, QDialog, QLineEdit,
-    QScrollArea, QProgressBar, QComboBox
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QColor
-
-from ...core import WSLManager, ClawbotController, ConfigManager
-from ...models import DistroStatus, WSLDistro
-from ...gui.dialogs import show_info, show_critical, show_question, show_warning
-from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
-from ...utils.thread_safe import ThreadSafeSignal
-from ...utils.i18n import tr, I18nManager
 
 
 class ImportProgressDialog(QDialog):
@@ -1485,7 +1484,6 @@ class OverviewPanel(QWidget):
         
         if mem_total > 0:
             mem_mb = mem_usage / (1024 * 1024)
-            mem_total_mb = mem_total / (1024 * 1024)
             self.memory_card.set_value(f"{mem_mb:.0f}MB")
     
     def update_wsl_status(self, distro_name: str, is_running: bool):
