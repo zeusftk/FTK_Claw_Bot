@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import glob
 import time
@@ -8,6 +9,22 @@ from typing import Optional
 
 from loguru import logger
 
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QFrame, QMessageBox, QFileDialog, QDialog, QLineEdit,
+    QScrollArea, QProgressBar, QComboBox
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QColor
+
+from ...core import WSLManager, ClawbotController, ConfigManager
+from ...models import DistroStatus
+from ...gui.dialogs import show_info, show_critical, show_question, show_warning
+from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
+from ...utils.thread_safe import ThreadSafeSignal
+from ...utils.i18n import tr, I18nManager
+
 
 def _debug_log(msg: str):
     """调试日志 - 同时输出到日志文件和控制台"""
@@ -16,23 +33,6 @@ def _debug_log(msg: str):
         logger.info(msg)
     except Exception:
         pass
-
-
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QFrame, QMessageBox, QFileDialog, QProgressDialog, QDialog, QLineEdit,
-    QScrollArea, QProgressBar, QComboBox
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QColor
-
-from ...core import WSLManager, NanobotController, ConfigManager
-from ...models import DistroStatus, WSLDistro
-from ...gui.dialogs import show_info, show_critical, show_question, show_warning
-from ...gui.dialogs.create_distro_wizard import CreateDistroWizard
-from ...utils.thread_safe import ThreadSafeSignal
-from ...utils.i18n import tr, I18nManager
 
 
 class ImportProgressDialog(QDialog):
@@ -413,7 +413,7 @@ class OverviewPanel(QWidget):
     def __init__(
         self,
         wsl_manager: WSLManager,
-        nanobot_controller: NanobotController,
+        clawbot_controller: ClawbotController,
         config_manager: ConfigManager,
         parent=None
     ):
@@ -422,7 +422,7 @@ class OverviewPanel(QWidget):
         _debug_log("[OverviewPanel] super().__init__() 完成")
         
         self._wsl_manager = wsl_manager
-        self._nanobot_controller = nanobot_controller
+        self._clawbot_controller = clawbot_controller
         self._config_manager = config_manager
         _debug_log("[OverviewPanel] 成员变量赋值完成")
 
@@ -1060,7 +1060,7 @@ class OverviewPanel(QWidget):
         wizard = CreateDistroWizard(
             self._wsl_manager, 
             self._config_manager,
-            self._nanobot_controller,
+            self._clawbot_controller,
             self
         )
         wizard.distro_created.connect(self._on_distro_created)
@@ -1484,7 +1484,6 @@ class OverviewPanel(QWidget):
         
         if mem_total > 0:
             mem_mb = mem_usage / (1024 * 1024)
-            mem_total_mb = mem_total / (1024 * 1024)
             self.memory_card.set_value(f"{mem_mb:.0f}MB")
     
     def update_wsl_status(self, distro_name: str, is_running: bool):

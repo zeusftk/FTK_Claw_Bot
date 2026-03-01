@@ -1,9 +1,9 @@
+# -*- coding: utf-8 -*-
 from PyQt6.QtWidgets import (
     QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, 
-    QLabel, QPushButton, QFrame, QApplication
+    QLabel, QPushButton, QFrame
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon, QFont
+from PyQt6.QtCore import Qt, QTimer
 
 
 class CustomMessageDialog(QDialog):

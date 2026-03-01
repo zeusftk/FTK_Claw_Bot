@@ -1,6 +1,6 @@
+# -*- coding: utf-8 -*-
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 
 
 @dataclass
@@ -31,12 +31,18 @@ class SkillInfo:
         )
 
 
+# 默认优先级
+DEFAULT_PRIORITY = 1
+
+
 @dataclass
 class SkillsConfig:
     enabled_skills: List[str] = field(default_factory=list)
     custom_skills_dir: str = ""
     skill_settings: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     available_skills: List[SkillInfo] = field(default_factory=list)
+    # 技能优先级：name -> priority，值越大优先级越高，默认为1
+    skill_priorities: Dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -44,6 +50,7 @@ class SkillsConfig:
             "custom_skills_dir": self.custom_skills_dir,
             "skill_settings": self.skill_settings,
             "available_skills": [s.to_dict() for s in self.available_skills],
+            "skill_priorities": self.skill_priorities,
         }
 
     @classmethod
@@ -54,6 +61,7 @@ class SkillsConfig:
             custom_skills_dir=data.get("custom_skills_dir", ""),
             skill_settings=data.get("skill_settings", {}),
             available_skills=[SkillInfo.from_dict(s) for s in available_skills_data],
+            skill_priorities=data.get("skill_priorities", {}),
         )
 
     def is_skill_enabled(self, skill_name: str) -> bool:
@@ -77,6 +85,25 @@ class SkillsConfig:
         if skill_name not in self.skill_settings:
             self.skill_settings[skill_name] = {}
         self.skill_settings[skill_name][key] = value
+
+    def get_skill_priority(self, skill_name: str) -> int:
+        """获取技能优先级，默认为1"""
+        return self.skill_priorities.get(skill_name, DEFAULT_PRIORITY)
+
+    def set_skill_priority(self, skill_name: str, priority: int) -> None:
+        """设置技能优先级"""
+        if priority == DEFAULT_PRIORITY:
+            # 默认优先级不需要存储
+            self.skill_priorities.pop(skill_name, None)
+        else:
+            self.skill_priorities[skill_name] = priority
+
+    def get_skills_sorted_by_priority(self) -> List[str]:
+        """获取按优先级排序的启用的技能列表（高优先级在前）"""
+        enabled = list(self.enabled_skills) if self.enabled_skills else []
+        # 按优先级降序排序
+        enabled.sort(key=lambda s: self.get_skill_priority(s), reverse=True)
+        return enabled
 
 
 BUILTIN_SKILLS = {
@@ -116,16 +143,22 @@ BUILTIN_SKILLS = {
         "icon": "🧠",
         "requires": [],
     },
-    "opencode": {
-        "name": "opencode",
-        "description": "代码开发助手",
-        "icon": "💻",
-        "requires": [],
-    },
     "skill-creator": {
         "name": "skill-creator",
         "description": "创建新技能",
         "icon": "✨",
+        "requires": [],
+    },
+    "windows-gui": {
+        "name": "windows-gui",
+        "description": "Windows GUI 自动化控制",
+        "icon": "🪟",
+        "requires": [],
+    },
+    "clawhub": {
+        "name": "clawhub",
+        "description": "ClawHub 技能市场集成",
+        "icon": "🌐",
         "requires": [],
     },
 }

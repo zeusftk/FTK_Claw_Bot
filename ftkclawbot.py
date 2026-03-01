@@ -99,6 +99,14 @@ def main():
         except Exception as e:
             log_message(f"[步骤2] 失败: {e}")
         
+        log_message("[步骤2.5] 初始化用户数据目录...")
+        try:
+            from ftk_claw_bot.utils.user_data_dir import user_data
+            user_data.initialize()
+            log_message(f"[步骤2.5] 用户数据目录: {user_data.base}")
+        except Exception as e:
+            log_message(f"[步骤2.5] 失败: {e}")
+        
         log_message("[步骤3] 导入主模块...")
         try:
             from ftk_claw_bot.main import main as app_main

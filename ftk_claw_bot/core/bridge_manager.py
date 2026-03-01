@@ -1,6 +1,5 @@
 from typing import Optional, Callable
 
-from loguru import logger
 
 from .wsl_manager import WSLManager
 

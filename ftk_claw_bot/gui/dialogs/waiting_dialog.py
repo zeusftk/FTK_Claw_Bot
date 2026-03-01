@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont

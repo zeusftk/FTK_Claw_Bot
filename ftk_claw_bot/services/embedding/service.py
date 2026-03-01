@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import sys
 import threading
@@ -40,7 +41,7 @@ def _get_model_path() -> Optional[str]:
 
 def _run_server_process(model_path: str, port: int):
     """在独立进程中运行服务器"""
-    print(f"[EMBEDDING_PROCESS] 开始执行 _run_server_process")
+    print("[EMBEDDING_PROCESS] 开始执行 _run_server_process")
     print(f"[EMBEDDING_PROCESS] PID: {os.getpid()}")
     print(f"[EMBEDDING_PROCESS] model_path: {model_path}")
     print(f"[EMBEDDING_PROCESS] port: {port}")
@@ -50,7 +51,7 @@ def _run_server_process(model_path: str, port: int):
     
     try:
         from .server import run_server
-        print(f"[EMBEDDING_PROCESS] 导入 run_server 成功")
+        print("[EMBEDDING_PROCESS] 导入 run_server 成功")
         sys.stdout.flush()
         
         run_server(model_path, port)
@@ -92,11 +93,16 @@ class EmbeddingService(LocalService):
         
         with self._start_lock:
             if self._status in (ServiceStatus.RUNNING, ServiceStatus.STARTING):
-                logger.info(f"[EMBEDDING] 服务已在运行或启动中，跳过")
+                logger.info("[EMBEDDING] 服务已在运行或启动中，跳过")
                 return True
             
             if self._process and self._process.is_alive():
-                logger.info(f"[EMBEDDING] 进程已存在且存活，跳过")
+                logger.info("[EMBEDDING] 进程已存在且存活，跳过")
+                return True
+            
+            if self._health_check():
+                logger.info(f"[EMBEDDING] 端口 {self._port} 已有服务运行，跳过启动")
+                self._status = ServiceStatus.RUNNING
                 return True
             
             try:
@@ -183,7 +189,7 @@ class EmbeddingService(LocalService):
         try:
             r = requests.get(f"http://localhost:{self._port}/health", timeout=2)
             return r.status_code == 200
-        except:
+        except Exception:
             return False
 
 

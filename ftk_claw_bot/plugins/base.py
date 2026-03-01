@@ -1,5 +1,9 @@
+# -*- coding: utf-8 -*-
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..app import Application
 
 
 class IPlugin(ABC):

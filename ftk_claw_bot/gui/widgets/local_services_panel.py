@@ -1,5 +1,5 @@
+# -*- coding: utf-8 -*-
 import time
-from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QSpinBox, QFileDialog, QProgressBar, QScrollArea,
@@ -50,7 +50,7 @@ def get_windows_host_ip() -> str:
             return wsl_ip
         
         return "localhost"
-    except:
+    except Exception:
         return "localhost"
 
 
@@ -434,7 +434,7 @@ class LocalServicesPanel(QWidget):
     def _select_whl_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            tr("local_services.select_whl_dialog", "选择 nanobot wheel 文件"),
+            tr("local_services.select_whl_dialog", "选择 clawbot wheel 文件"),
             "",
             "Wheel Files (*.whl);;All Files (*)"
         )

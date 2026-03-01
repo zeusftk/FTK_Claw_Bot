@@ -1,5 +1,5 @@
 from .wsl_distro import WSLDistro, DistroStatus
-from .nanobot_config import NanobotConfig, NanobotStatus, NanobotInstance
+from .clawbot_config import ClawbotConfig, ClawbotStatus, ClawbotInstance
 from .skill import Skill
 from .channel_config import (
     ChannelsConfig,
@@ -21,14 +21,15 @@ from .skill_config import (
     BUILTIN_SKILLS,
     get_builtin_skill_info,
     get_all_builtin_skills,
+    DEFAULT_PRIORITY,
 )
 
 __all__ = [
     "WSLDistro",
     "DistroStatus",
-    "NanobotConfig",
-    "NanobotStatus",
-    "NanobotInstance",
+    "ClawbotConfig",
+    "ClawbotStatus",
+    "ClawbotInstance",
     "Skill",
     "ChannelsConfig",
     "WhatsAppConfig",
@@ -47,4 +48,5 @@ __all__ = [
     "BUILTIN_SKILLS",
     "get_builtin_skill_info",
     "get_all_builtin_skills",
+    "DEFAULT_PRIORITY",
 ]

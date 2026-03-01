@@ -1,4 +1,5 @@
-from typing import Protocol, Dict, Any, Optional, Callable, List
+# -*- coding: utf-8 -*-
+from typing import Protocol, Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -102,7 +103,7 @@ class ServiceRegistry:
                 
                 try:
                     results[service_id] = service.start()
-                except Exception as e:
+                except Exception:
                     results[service_id] = False
         
         return results

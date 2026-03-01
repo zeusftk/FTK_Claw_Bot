@@ -2,7 +2,7 @@
 
 # FTK_Claw_Bot - 抓虾机器人
 
-FTK_Claw_Bot - Windows 平台的虾群控制工具，openclaw 平替方案。专注 WSL2 环境下 bot 管理与控制，支持单机多 bot 实例并行运行、bot 群聊。提供完整 Windows 系统操作桥接（鼠标/键盘/截图/窗口/剪贴板），现代化 PyQt6 图形界面，插件系统支持无限扩展，WSL2 桥接代理实现跨系统协作。
+FTK_Claw_Bot - Windows 平台的虾群控制工具，openclaw 平替方案。专注 WSL2 环境中 bot 管理与控制，支持单机多 bot 实例并行运行、bot 群聊。提供完整 Windows 系统操作桥接（鼠标/键盘/截图/窗口/剪贴板），现代化 PyQt6 图形界面，插件系统支持无限扩展，WSL2 桥接代理实现跨系统协作。
 
 ## ✨ 功能特性
 <div align="center">
@@ -19,7 +19,7 @@ FTK_Claw_Bot - Windows 平台的虾群控制工具，openclaw 平替方案。专
 | **技能管理** | 创建/编辑/删除技能，导入/导出技能包，实时搜索，Markdown 编辑器集成 |
 | **Windows 桥接** | 鼠标控制、键盘模拟、屏幕截图、窗口查找与控制、应用启动、剪贴板同步 |
 | **聊天面板** | WebSocket 连接 Clawbot Gateway，多 bot 群聊支持，消息转发 |
-| **Embedding 服务** | 文本向量化服务 (Qwen3-Embedding-0.6B)，支持语义相似度计算，ONNX 推理加速 |
+| **Embedding 服务** | 文本向量化服务(Qwen3-Embedding-0.6B)，支持语义相似度计算，ONNX 推理加速 |
 
 ### 🎨 界面特性
 
@@ -90,9 +90,9 @@ FTK_Claw_Bot/
 │   │   ├── bridge_manager.py           # 桥接管理器
 │   │   ├── config_manager.py           # 配置管理器
 │   │   ├── config_sync_manager.py      # 配置同步管理器
-│   │   ├── multi_nanobot_gateway_manager.py  # 多Bot网关管理
-│   │   ├── nanobot_controller.py       # Bot控制器
-│   │   ├── nanobot_gateway_manager.py  # 网关管理器
+│   │   ├── multi_clawbot_gateway_manager.py  # 多Bot网关管理
+│   │   ├── clawbot_controller.py       # Bot控制器
+│   │   ├── clawbot_gateway_manager.py  # 网关管理器
 │   │   ├── port_manager.py             # 端口管理器
 │   │   ├── skill_manager.py            # 技能管理器
 │   │   └── wsl_manager.py              # WSL管理器
@@ -104,6 +104,7 @@ FTK_Claw_Bot/
 │   │   │   ├── skill_editor.py         # 技能编辑器
 │   │   │   └── waiting_dialog.py       # 等待对话框
 │   │   ├── mixins/           # 混入类
+│   │   │   └── wsl_state_aware.py      # WSL状态感知混入
 │   │   ├── resources/        # 资源文件
 │   │   ├── widgets/          # 控件
 │   │   │   ├── channel_config_dialog.py # 频道配置
@@ -124,7 +125,7 @@ FTK_Claw_Bot/
 │   │   └── wsl.py            # WSL接口
 │   ├── models/               # 数据模型
 │   │   ├── channel_config.py # 频道配置模型
-│   │   ├── nanobot_config.py # Bot配置模型
+│   │   ├── clawbot_config.py # Bot配置模型
 │   │   ├── skill.py          # 技能模型
 │   │   ├── skill_config.py   # 技能配置模型
 │   │   └── wsl_distro.py     # WSL分发模型
@@ -141,13 +142,18 @@ FTK_Claw_Bot/
 │   │   │   └── service.py    # 服务管理
 │   │   ├── ipc_server.py     # IPC服务器
 │   │   ├── monitor_service.py # 监控服务
-│   │   ├── nanobot_chat_client.py # 聊天客户端
+│   │   ├── clawbot_chat_client.py # 聊天客户端
+│   │   ├── clawbot_upgrader.py     # Bot升级服务
 │   │   ├── service_registry.py # 服务注册中心
 │   │   ├── windows_bridge.py # Windows桥接
 │   │   ├── wsl_initializer.py # WSL初始化服务
 │   │   └── wsl_state_service.py # WSL状态服务
+│   ├── translations/         # 国际化翻译
+│   │   ├── en_US.json        # 英文翻译
+│   │   └── zh_CN.json        # 中文翻译
 │   ├── utils/                # 工具函数
 │   │   ├── async_ops.py      # 异步操作
+│   │   ├── i18n.py           # 国际化工具
 │   │   ├── logger.py         # 日志工具
 │   │   ├── path_converter.py # 路径转换
 │   │   ├── path_utils.py     # 路径工具
@@ -209,9 +215,9 @@ FTK_Claw_Bot/
 |------|------|----------|
 | 1.0.8 | 2026-02-24 | 优化镜像检测逻辑、优化 pip 镜像配置代码 |
 | 1.0.7 | 2026-02-24 | 添加英文 README、预览 GIF |
-| 1.0.6 | 2026-02-23 | 添加 GUI logo、修复 I18nManager 信号问题、更新 nanobot wheel |
+| 1.0.6 | 2026-02-23 | 添加 GUI logo、修复 I18nManager 信号问题、更新 clawbot wheel |
 | 1.0.5 | 2026-02-23 | 新增 Embedding 服务，支持文本向量化 |
-| 1.0.4 | 2026-02-21 | nanobot wheel包更新至0.1.4.1、项目结构优化 |
+| 1.0.4 | 2026-02-21 | clawbot wheel包更新至0.1.4.1、项目结构优化 |
 | 1.0.3 | 2026-02-20 | 文档同步更新、目录结构优化 |
 | 1.0.2 | 2026-02-18 | 布局优化、默认提供商调整、进度对话框修复 |
 | 1.0.1 | 2026-02-17 | 版本号统一管理、插件系统、命名规范文档 |

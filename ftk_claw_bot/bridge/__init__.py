@@ -1,10 +1,9 @@
-from .bridge_agent import BridgeAgent, IPCMessage
-from .protocol import CommandType, BridgeRequest, BridgeResponse
+from .protocol import CommandType, BridgeRequest, BridgeResponse, TargetType, ExecutorType
 
 __all__ = [
-    "BridgeAgent",
-    "IPCMessage",
     "CommandType",
     "BridgeRequest",
     "BridgeResponse",
+    "TargetType",
+    "ExecutorType",
 ]

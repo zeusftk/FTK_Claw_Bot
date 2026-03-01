@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from PyQt6.QtCore import QObject, pyqtSignal
 from typing import Callable, Any
 

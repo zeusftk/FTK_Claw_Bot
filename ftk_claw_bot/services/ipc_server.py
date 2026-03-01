@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 import socket
 import json
 import threading
 import uuid
 from datetime import datetime
 from typing import Optional, Callable, Dict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -13,7 +14,7 @@ class IPCMessage:
     msg_type: str = "request"
     msg_id: str = ""
     timestamp: str = ""
-    payload: dict = None
+    payload: Optional[dict] = field(default_factory=dict)
 
     def to_json(self) -> str:
         return json.dumps({
@@ -60,6 +61,7 @@ class IPCServer:
             del self._handlers[action]
 
     def start(self) -> bool:
+        from loguru import logger
         try:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -69,9 +71,16 @@ class IPCServer:
 
             self._server_thread = threading.Thread(target=self._accept_loop, daemon=True)
             self._server_thread.start()
+            logger.info(f"[IPC] 服务启动成功，监听 {self._host}:{self._port}")
             return True
+        except OSError as e:
+            if e.errno == 10048 or "address already in use" in str(e).lower():
+                logger.error(f"[IPC] 端口 {self._port} 已被占用，请检查是否有其他程序使用该端口")
+            else:
+                logger.error(f"[IPC] 启动失败 (OSError): {e}")
+            return False
         except Exception as e:
-            print(f"Failed to start IPC server: {e}")
+            logger.error(f"[IPC] 启动失败: {type(e).__name__}: {e}")
             return False
 
     def stop(self):
@@ -109,7 +118,7 @@ class IPCServer:
                     self._client_info[client_socket] = {
                         "address": address,
                         "distro_name": None,
-                        "nanobot_name": None,
+                        "clawbot_name": None,
                         "workspace": None,
                         "connected_at": datetime.now().isoformat()
                     }
@@ -133,35 +142,38 @@ class IPCServer:
         
         self._request_client_identify(client_socket)
 
-        while self._running:
-            try:
-                client_socket.settimeout(1.0)
-                data = client_socket.recv(self.BUFFER_SIZE)
-                if not data:
-                    break
-
-                buffer += data.decode("utf-8")
-
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    if line.strip():
-                        response = self._process_message_with_client(line.strip(), client_socket)
-                        client_socket.sendall((response + "\n").encode("utf-8"))
-
-            except socket.timeout:
-                continue
-            except Exception:
-                break
-
-        with self._lock:
-            if client_socket in self._clients:
-                self._clients.remove(client_socket)
-            if client_socket in self._client_info:
-                del self._client_info[client_socket]
         try:
-            client_socket.close()
-        except Exception:
-            pass
+            while self._running:
+                try:
+                    client_socket.settimeout(1.0)
+                    data = client_socket.recv(self.BUFFER_SIZE)
+                    if not data:
+                        break
+
+                    buffer += data.decode("utf-8")
+
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
+                        if line.strip():
+                            response = self._process_message_with_client(line.strip(), client_socket)
+                            client_socket.sendall((response + "\n").encode("utf-8"))
+
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    from loguru import logger
+                    logger.debug(f"[IPC] 客户端处理异常: {e}")
+                    break
+        finally:
+            with self._lock:
+                if client_socket in self._clients:
+                    self._clients.remove(client_socket)
+                if client_socket in self._client_info:
+                    del self._client_info[client_socket]
+            try:
+                client_socket.close()
+            except Exception:
+                pass
 
     def _request_client_identify(self, client_socket: socket.socket):
         """请求客户端发送身份信息"""
@@ -183,6 +195,15 @@ class IPCServer:
             message = IPCMessage.from_json(message_str)
             action = message.payload.get("action", "")
             params = message.payload.get("params", {})
+
+            # 版本校验
+            if message.version != "1.0":
+                response = IPCMessage(
+                    msg_type="response",
+                    msg_id=message.msg_id,
+                    payload={"success": False, "error": f"Unsupported protocol version: {message.version}"}
+                )
+                return response.to_json()
 
             # Log all requests for debugging
             logger.info(f"[IPC] Received request - action: {action}, params: {params}")
@@ -218,7 +239,7 @@ class IPCServer:
             if client_socket in self._client_info:
                 self._client_info[client_socket].update({
                     "distro_name": params.get("distro_name"),
-                    "nanobot_name": params.get("nanobot_name"),
+                    "clawbot_name": params.get("clawbot_name"),
                     "workspace": params.get("workspace"),
                     "identified_at": datetime.now().isoformat()
                 })

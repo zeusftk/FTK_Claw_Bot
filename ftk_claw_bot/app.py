@@ -1,9 +1,8 @@
-import os
+# -*- coding: utf-8 -*-
 import sys
 import threading
 from typing import Optional
 from pathlib import Path
-from datetime import datetime
 
 from loguru import logger
 
@@ -11,14 +10,15 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-from .constants import VERSION, APP_NAME, APP_AUTHOR, UI
+from .constants import VERSION, APP_NAME, APP_AUTHOR
 from .container import container
 from .events import event_bus, EventType
 from .plugins import PluginManager
 from .utils import setup_logger
-from .core import WSLManager, NanobotController, ConfigManager
+from .utils.crash_handler import install_crash_handler, uninstall_crash_handler, set_crash_context
+from .core import WSLManager, ClawbotController, ConfigManager
 from .services import MonitorService, WindowsBridge
-from .models import NanobotConfig
+from .models import ClawbotConfig
 from .gui import MainWindow
 from .gui.widgets import SplashScreen
 
@@ -35,8 +35,8 @@ def _debug_log(msg: str):
 def get_app_dir() -> Path:
     """获取应用目录，兼容打包和开发环境
     
-    Nuitka onefile 模式下，资源被解压到临时目录，
-    __file__ 会正确指向临时目录中的模块路径
+    Nuitka onefile 模式下，资源被解压到临时目录中，
+    __file__ 会正确指向临时目录中的模块路径。
     """
     return Path(__file__).parent
 
@@ -73,6 +73,8 @@ class Application:
     
     def setup_logging(self, console: bool = True):
         setup_logger("ftk_claw_bot", console=console)
+        install_crash_handler()
+        logger.info("崩溃处理器已安装")
     
     def create_qt_app(self):
         self._app = QApplication(sys.argv)
@@ -106,10 +108,10 @@ class Application:
         container.config_manager = config_manager
         _debug_log("[INIT-03] ConfigManager 创建成功")
         
-        _debug_log("[INIT-04] 创建 NanobotController...")
-        nanobot_controller = NanobotController(wsl_manager)
-        container.nanobot_controller = nanobot_controller
-        _debug_log("[INIT-04] NanobotController 创建成功")
+        _debug_log("[INIT-04] 创建 ClawbotController...")
+        clawbot_controller = ClawbotController(wsl_manager)
+        container.clawbot_controller = clawbot_controller
+        _debug_log("[INIT-04] ClawbotController 创建成功")
         
         if progress_callback:
             progress_callback("正在获取 WSL 分发列表...", 30)
@@ -129,7 +131,7 @@ class Application:
                 
                 config = config_manager.get(distro.name)
                 if not config:
-                    config = NanobotConfig(
+                    config = ClawbotConfig(
                         name=distro.name,
                         distro_name=distro.name
                     )
@@ -143,7 +145,7 @@ class Application:
         if distros:
             config_manager.load_and_sync_from_wsl(
                 wsl_manager, 
-                nanobot_controller, 
+                clawbot_controller, 
                 valid_distro_names
             )
         _debug_log("[INIT-06] 配置同步完成")
@@ -152,7 +154,7 @@ class Application:
             progress_callback("正在启动监控服务...", 85)
         
         _debug_log("[INIT-07] 创建 MonitorService...")
-        monitor_service = MonitorService(wsl_manager, nanobot_controller)
+        monitor_service = MonitorService(wsl_manager, clawbot_controller)
         container.monitor_service = monitor_service
         _debug_log("[INIT-07] MonitorService 创建成功")
         
@@ -205,11 +207,18 @@ class Application:
         
         _debug_log("[INIT-15] 启动 WindowsBridge...")
         try:
-            windows_bridge.start()
-            _debug_log("[INIT-15] WindowsBridge 启动成功")
+            if windows_bridge.start():
+                _debug_log("[INIT-15] WindowsBridge 启动成功")
+                logger.info(f"WindowsBridge 服务已启动，监听端口: {windows_bridge.port}")
+                container.windows_bridge_started = True
+            else:
+                _debug_log("[INIT-15] WindowsBridge 启动失败（可能端口被占用）")
+                logger.error(f"WindowsBridge 启动失败，端口 {windows_bridge.port} 可能已被占用")
+                container.windows_bridge_started = False
         except Exception as e:
             _debug_log(f"[INIT-15] WindowsBridge 启动失败: {e}")
             logger.error(f"WindowsBridge 启动失败: {e}")
+            container.windows_bridge_started = False
         
         _debug_log("[INIT-16] 发布 APP_STARTED 事件...")
         try:
@@ -247,7 +256,7 @@ class Application:
         if progress_callback:
             progress_callback("初始化完成", 100)
         
-        _debug_log("[INIT] 服务初始化全部完成!")
+        _debug_log("[INIT] 服务初始化全部完成")
     
     def init_services_async(self, progress_callback=None, completion_callback=None):
         """异步初始化服务
@@ -271,8 +280,8 @@ class Application:
                 config_manager = ConfigManager()
                 container.config_manager = config_manager
                 
-                nanobot_controller = NanobotController(wsl_manager)
-                container.nanobot_controller = nanobot_controller
+                clawbot_controller = ClawbotController(wsl_manager)
+                container.clawbot_controller = clawbot_controller
                 
                 if progress_callback:
                     progress_callback("正在获取 WSL 分发列表...", 30)
@@ -290,7 +299,7 @@ class Application:
                         
                         config = config_manager.get(distro.name)
                         if not config:
-                            config = NanobotConfig(
+                            config = ClawbotConfig(
                                 name=distro.name,
                                 distro_name=distro.name
                             )
@@ -303,14 +312,14 @@ class Application:
                 if distros:
                     config_manager.load_and_sync_from_wsl(
                         wsl_manager, 
-                        nanobot_controller, 
+                        clawbot_controller, 
                         valid_distro_names
                     )
                 
                 if progress_callback:
                     progress_callback("正在启动监控服务...", 85)
                 
-                monitor_service = MonitorService(wsl_manager, nanobot_controller)
+                monitor_service = MonitorService(wsl_manager, clawbot_controller)
                 container.monitor_service = monitor_service
                 
                 default_config = config_manager.get_default()
@@ -336,7 +345,12 @@ class Application:
                 plugin_manager.initialize_all(self)
                 
                 monitor_service.start()
-                windows_bridge.start()
+                if windows_bridge.start():
+                    logger.info(f"WindowsBridge 服务已启动，监听端口: {windows_bridge.port}")
+                    container.windows_bridge_started = True
+                else:
+                    logger.error(f"WindowsBridge 启动失败，端口 {windows_bridge.port} 可能已被占用")
+                    container.windows_bridge_started = False
                 
                 event_bus.publish(EventType.APP_STARTED, {"distros": len(distros) if distros else 0, "plugins": len(plugin_manager.get_all())})
                 
@@ -377,7 +391,7 @@ class Application:
             self._window = MainWindow(
                 wsl_manager=container.wsl_manager,
                 config_manager=container.config_manager,
-                nanobot_controller=container.nanobot_controller,
+                clawbot_controller=container.clawbot_controller,
                 monitor_service=container.monitor_service,
                 windows_bridge=container.windows_bridge,
                 skip_init=True
@@ -424,6 +438,9 @@ class Application:
         return result
     
     def shutdown(self):
+        logger.info("开始应用关闭流程...")
+        set_crash_context("shutdown_phase", "in_progress")
+        
         event_bus.publish(EventType.APP_SHUTDOWN, {})
         
         if container.plugin_manager:
@@ -435,7 +452,10 @@ class Application:
         if container.windows_bridge:
             container.windows_bridge.stop()
         
+        set_crash_context("shutdown_phase", "completed")
         logger.info("应用已关闭")
+        
+        uninstall_crash_handler()
     
     @property
     def app(self):

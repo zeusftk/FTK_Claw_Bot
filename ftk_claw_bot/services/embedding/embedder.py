@@ -1,7 +1,7 @@
+# -*- coding: utf-8 -*-
 import os
 import logging
 from typing import Optional
-from pathlib import Path
 
 import numpy as np
 

@@ -1,13 +1,13 @@
+# -*- coding: utf-8 -*-
 """
 FTK_Claw_Bot - Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作
 """
 
 import os
-import sys
+
+os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.gui.icc=false'
 import traceback
-from datetime import datetime
 from ftk_claw_bot.app import Application
-from ftk_claw_bot.constants import VERSION, APP_NAME
 from loguru import logger
 
 

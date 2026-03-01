@@ -1,8 +1,12 @@
+# -*- coding: utf-8 -*-
 import logging
 import sys
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .embedder import Embedder
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -99,7 +103,7 @@ def create_app(model_path: str, port: int = 18765) -> FastAPI:
 
 def run_server(model_path: str, port: int):
     """运行服务器（在独立进程中调用）"""
-    print(f"[EMBEDDING_SERVER] run_server() 开始执行")
+    print("[EMBEDDING_SERVER] run_server() 开始执行")
     print(f"[EMBEDDING_SERVER] PID: {os.getpid()}")
     print(f"[EMBEDDING_SERVER] model_path: {model_path}")
     print(f"[EMBEDDING_SERVER] port: {port}")
@@ -109,15 +113,15 @@ def run_server(model_path: str, port: int):
     
     try:
         import uvicorn
-        print(f"[EMBEDDING_SERVER] uvicorn 导入成功")
+        print("[EMBEDDING_SERVER] uvicorn 导入成功")
         sys.stdout.flush()
         
-        print(f"[EMBEDDING_SERVER] 创建 FastAPI app...")
+        print("[EMBEDDING_SERVER] 创建 FastAPI app...")
         sys.stdout.flush()
         
         app = create_app(model_path, port)
         
-        print(f"[EMBEDDING_SERVER] 启动 uvicorn 服务器...")
+        print("[EMBEDDING_SERVER] 启动 uvicorn 服务器...")
         sys.stdout.flush()
         
         server = uvicorn.Server(uvicorn.Config(

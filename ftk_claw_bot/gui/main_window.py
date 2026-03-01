@@ -1,7 +1,9 @@
-import sys
+# -*- coding: utf-8 -*-
+import threading
+import time
+import traceback
 from typing import Optional
 from datetime import datetime
-import os
 from pathlib import Path
 
 from loguru import logger
@@ -9,22 +11,33 @@ from loguru import logger
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QListWidget, QListWidgetItem, QLabel, QPushButton,
-    QStatusBar, QSystemTrayIcon, QMenu, QSplitter, QFrame, QMessageBox, QDialog
+    QStatusBar, QSystemTrayIcon, QMenu, QFrame, QDialog
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer, QEvent
-from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter, QKeySequence
+from PyQt6.QtCore import Qt, QTimer, QEvent, QThread, pyqtSignal
+from PyQt6.QtGui import QIcon, QAction, QFont, QPixmap, QColor, QPainter
 
 from ..core import (
-    WSLManager, NanobotController, ConfigManager,
-    NanobotGatewayManager, BridgeManager, GatewayStatus
+    WSLManager, ClawbotController, ConfigManager,
+    ClawbotGatewayManager, BridgeManager, GatewayStatus,
+    GroupChatManager
 )
 from ..core.config_sync_manager import ConfigSyncManager
-from ..services import WindowsBridge, MonitorService, NanobotChatClient, ConnectionStatus, init_wsl_state_service, get_wsl_state_service
+from ..services import WindowsBridge, MonitorService, ClawbotChatClient, ConnectionStatus, init_wsl_state_service
 from ..utils import make_thread_safe, I18nManager, tr
+from ..utils.crash_handler import set_crash_context
 from ..constants import Bridge, VERSION
 from .widgets import ConfigPanel, LogPanel, OverviewPanel, ChatPanel, WindowsBridgePanel, CommandPanel, LocalServicesPanel
 from .styles import get_stylesheet
 from .dialogs import SettingsDialog
+
+
+def _get_thread_info() -> str:
+    return f"T:{threading.current_thread().ident}:{threading.current_thread().name[:10]}"
+
+
+def _is_main_thread() -> bool:
+    app = QApplication.instance()
+    return app is not None and QThread.currentThread() == app.thread()
 
 
 def _debug_log(msg: str):
@@ -59,11 +72,13 @@ def _get_app_icon() -> QIcon:
 
 
 class MainWindow(QMainWindow):
+    _chat_message_signal = pyqtSignal(str, object)
+    
     def __init__(
         self,
         wsl_manager=None,
         config_manager=None,
-        nanobot_controller=None,
+        clawbot_controller=None,
         monitor_service=None,
         windows_bridge=None,
         skip_init=False
@@ -72,24 +87,24 @@ class MainWindow(QMainWindow):
         super().__init__()
         _debug_log("[MainWindow] super().__init__() 完成")
         
+        self._chat_message_signal.connect(self._handle_chat_message_on_main_thread)
+        
         self.setWindowIcon(_get_app_icon())
         
-        if skip_init and wsl_manager and config_manager and nanobot_controller:
+        if skip_init and wsl_manager and config_manager and clawbot_controller:
             _debug_log("[MainWindow] 使用 skip_init 模式")
             self._wsl_manager = wsl_manager
             self._config_manager = config_manager
-            self._nanobot_controller = nanobot_controller
+            self._clawbot_controller = clawbot_controller
             self._monitor_service = monitor_service
             self._windows_bridge = windows_bridge
-            self._gateway_manager: Optional[NanobotGatewayManager] = None
+            self._gateway_manager: Optional[ClawbotGatewayManager] = None
             self._bridge_manager: Optional[BridgeManager] = None
-            self._chat_clients: dict[str, NanobotChatClient] = {}
+            self._chat_clients: dict[str, ClawbotChatClient] = {}
             self._client_count_timer = QTimer()
             self._client_count_timer.timeout.connect(self._update_client_count)
-            self._group_chat_forward_allowed = True
-            self._group_chat_timer = QTimer()
-            self._group_chat_timer.setSingleShot(True)
-            self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
+            self._group_chat_manager = GroupChatManager(self)
+            self._group_chat_manager.message_to_bot.connect(self._on_group_chat_message_to_bot)
             
             _debug_log("[MainWindow] 调用 _init_ui...")
             self._init_ui()
@@ -106,28 +121,32 @@ class MainWindow(QMainWindow):
             _debug_log("[MainWindow] 调用 _init_chat...")
             self._init_chat()
             _debug_log("[MainWindow] _init_chat 完成")
+            
+            # 检查 Windows Bridge 启动状态
+            self._check_windows_bridge_status()
         else:
             self._wsl_manager = WSLManager()
             self._config_manager = ConfigManager()
-            self._nanobot_controller = NanobotController(self._wsl_manager)
+            self._clawbot_controller = ClawbotController(self._wsl_manager)
             self._windows_bridge = WindowsBridge()
-            self._monitor_service = MonitorService(self._wsl_manager, self._nanobot_controller)
+            self._monitor_service = MonitorService(self._wsl_manager, self._clawbot_controller)
 
-            self._gateway_manager: Optional[NanobotGatewayManager] = None
+            self._gateway_manager: Optional[ClawbotGatewayManager] = None
             self._bridge_manager: Optional[BridgeManager] = None
-            self._chat_clients: dict[str, NanobotChatClient] = {}
+            self._chat_clients: dict[str, ClawbotChatClient] = {}
             self._client_count_timer = QTimer()
             self._client_count_timer.timeout.connect(self._update_client_count)
-            self._group_chat_forward_allowed = True
-            self._group_chat_timer = QTimer()
-            self._group_chat_timer.setSingleShot(True)
-            self._group_chat_timer.timeout.connect(self._on_group_chat_timer)
+            self._group_chat_manager = GroupChatManager(self)
+            self._group_chat_manager.message_to_bot.connect(self._on_group_chat_message_to_bot)
             
             self._init_ui()
             self._init_managers()
             self._init_connections()
             self._init_tray()
             self._init_chat()
+            
+            # 启动 Windows Bridge 并检查状态
+            self._start_and_check_windows_bridge()
 
     def _init_ui(self):
         _debug_log("[MainWindow._init_ui] 开始...")
@@ -218,19 +237,19 @@ class MainWindow(QMainWindow):
         _debug_log("[MainWindow._init_ui] 创建 OverviewPanel...")
         self.overview_panel = OverviewPanel(
             self._wsl_manager,
-            self._nanobot_controller,
+            self._clawbot_controller,
             self._config_manager
         )
         _debug_log("[MainWindow._init_ui] 创建 ConfigPanel...")
         self.config_panel = ConfigPanel(
             self._config_manager,
             self._wsl_manager,
-            self._nanobot_controller
+            self._clawbot_controller
         )
         _debug_log("[MainWindow._init_ui] 创建 CommandPanel...")
         self.command_panel = CommandPanel(self._wsl_manager)
         _debug_log("[MainWindow._init_ui] 创建 ChatPanel...")
-        self.chat_panel = ChatPanel(self._config_manager, self._nanobot_controller, self._wsl_manager)
+        self.chat_panel = ChatPanel(self._config_manager, self._clawbot_controller, self._wsl_manager)
         _debug_log("[MainWindow._init_ui] 创建 WindowsBridgePanel...")
         self.bridge_panel = WindowsBridgePanel(
             windows_bridge=self._windows_bridge,
@@ -257,15 +276,15 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
 
         self.wsl_status_label = QLabel(tr("status.wsl_not_detected", "WSL: 未检测"))
-        self.nanobot_status_label = QLabel(tr("status.clawbot_not_running", "Clawbot: 未运行"))
+        self.clawbot_status_label = QLabel(tr("status.clawbot_not_running", "Clawbot: 未运行"))
         self.resource_label = QLabel(tr("status.cpu_mem", "CPU: -- | MEM: --"))
 
         self.status_bar.addWidget(self.wsl_status_label)
         self.status_bar.addWidget(QLabel(" | "))
-        self.status_bar.addWidget(self.nanobot_status_label)
+        self.status_bar.addWidget(self.clawbot_status_label)
         self.status_bar.addWidget(QLabel(" | "))
         self.status_bar.addWidget(self.resource_label)
-        self.status_bar.addPermanentWidget(QLabel("FTK_Claw_Bot v0.1.0"))
+        self.status_bar.addPermanentWidget(QLabel(f"FTK_Claw_Bot v{VERSION}"))
 
         _debug_log("[MainWindow._init_ui] 应用样式...")
         self._apply_styles()
@@ -285,7 +304,7 @@ class MainWindow(QMainWindow):
         self.nav_list.item(5).setText(tr("nav.log", "日志查看"))
         self.nav_list.item(6).setText(tr("nav.local_services", "本地服务"))
         self.wsl_status_label.setText(tr("status.wsl_not_detected", "WSL: 未检测"))
-        self.nanobot_status_label.setText(tr("status.clawbot_not_running", "Clawbot: 未运行"))
+        self.clawbot_status_label.setText(tr("status.clawbot_not_running", "Clawbot: 未运行"))
         self.resource_label.setText(tr("status.cpu_mem", "CPU: -- | MEM: --"))
         self.settings_btn.setText(f"⚙ {tr('settings.title', '设置')}")
     
@@ -306,7 +325,7 @@ class MainWindow(QMainWindow):
         if distros:
             self._config_manager.load_and_sync_from_wsl(
                 self._wsl_manager, 
-                self._nanobot_controller, 
+                self._clawbot_controller, 
                 valid_distro_names
             )
             
@@ -336,11 +355,11 @@ class MainWindow(QMainWindow):
 
         # 使用线程安全的信号包装回调
         self._safe_wsl_callback = make_thread_safe(self._on_wsl_status_changed)
-        self._safe_nanobot_callback = make_thread_safe(self._on_nanobot_status_changed)
+        self._safe_clawbot_callback = make_thread_safe(self._on_clawbot_status_changed)
         self._safe_resources_callback = make_thread_safe(self._on_resources_updated)
 
         self._monitor_service.register_callback("wsl_status", self._safe_wsl_callback.emit)
-        self._monitor_service.register_callback("nanobot_status", self._safe_nanobot_callback.emit)
+        self._monitor_service.register_callback("clawbot_status", self._safe_clawbot_callback.emit)
         self._monitor_service.register_callback("resources", self._safe_resources_callback.emit)
 
         self.overview_panel.distro_started.connect(self._on_distro_started)
@@ -348,8 +367,8 @@ class MainWindow(QMainWindow):
         self.overview_panel.distro_imported.connect(self._on_distro_imported)
         self.config_panel.config_saved.connect(self._on_config_saved)
         
-        # Register log callback to forward nanobot logs to log panel
-        self._nanobot_controller.register_log_callback(self._on_nanobot_log)
+        # Register log callback to forward clawbot logs to log panel
+        self._clawbot_controller.register_log_callback(self._on_clawbot_log)
 
         # Chat panel connections
         self.chat_panel.message_sent.connect(self._on_chat_message_sent)
@@ -357,8 +376,8 @@ class MainWindow(QMainWindow):
         self.chat_panel.disconnect_clicked.connect(self._on_chat_disconnect)
         self.chat_panel.clear_clicked.connect(self._on_chat_clear)
         # 新增：单个bot的连接/断开信号
-        self.chat_panel.nanobot_connect_requested.connect(self._on_single_nanobot_connect)
-        self.chat_panel.nanobot_disconnect_requested.connect(self._on_single_nanobot_disconnect)
+        self.chat_panel.clawbot_connect_requested.connect(self._on_single_clawbot_connect)
+        self.chat_panel.clawbot_disconnect_requested.connect(self._on_single_clawbot_disconnect)
         
         # Bridge panel connections
         self.bridge_panel.start_bridge.connect(self._on_start_bridge)
@@ -390,10 +409,48 @@ class MainWindow(QMainWindow):
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
 
+    def _check_windows_bridge_status(self):
+        """检查 Windows Bridge 启动状态，失败时提示用户"""
+        from ..container import container
+        from PyQt6.QtWidgets import QMessageBox
+        
+        if not container.windows_bridge_started:
+            logger.warning("Windows Bridge 服务未成功启动")
+            QMessageBox.warning(
+                self,
+                "Windows Bridge 服务未启动",
+                f"Windows Bridge 服务启动失败，端口 {self._windows_bridge.port} 可能已被占用。\n\n"
+                "WSL 中的 clawbot 将无法使用 Windows GUI 自动化功能。\n\n"
+                "请检查：\n"
+                "1. 是否有其他程序占用了端口\n"
+                "2. 在桥接面板点击刷新按钮重启 bridge 服务",
+                QMessageBox.StandardButton.Ok
+            )
+
+    def _start_and_check_windows_bridge(self):
+        """启动 Windows Bridge 并检查状态，失败时提示用户"""
+        from PyQt6.QtWidgets import QMessageBox
+        
+        if self._windows_bridge:
+            if not self._windows_bridge.start():
+                logger.warning("Windows Bridge 服务启动失败")
+                QMessageBox.warning(
+                    self,
+                    "Windows Bridge 服务未启动",
+                    f"Windows Bridge 服务启动失败，端口 {self._windows_bridge.port} 可能已被占用。\n\n"
+                    "WSL 中的 clawbot 将无法使用 Windows GUI 自动化功能。\n\n"
+                    "请检查：\n"
+                    "1. 是否有其他程序占用了端口\n"
+                    "2. 在桥接面板点击刷新按钮重启 bridge 服务",
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                logger.info(f"Windows Bridge 服务已启动，监听端口: {self._windows_bridge.port}")
+
     def _init_chat(self):
         default_config = self._config_manager.get_default()
         if default_config:
-            self._gateway_manager = NanobotGatewayManager(
+            self._gateway_manager = ClawbotGatewayManager(
                 self._wsl_manager,
                 port=default_config.gateway_port
             )
@@ -412,11 +469,9 @@ class MainWindow(QMainWindow):
 
     def _update_client_count(self):
         if self._windows_bridge and self._windows_bridge.is_running:
-            clients_info = self._windows_bridge.get_connected_clients_info()
             distros = self._wsl_manager.list_distros()
-            logger.debug(f"[Bridge] 客户端信息: {clients_info}")
-            self.bridge_panel.update_clients_info(clients_info)
-            self.bridge_panel.update_wsl_connection_status(distros, clients_info)
+            logger.debug(f"[Bridge] 更新 WSL 状态，共 {len(distros)} 个分发")
+            self.bridge_panel.update_wsl_connection_status(distros)
         else:
             logger.debug(f"[Bridge] 桥接未运行: windows_bridge={self._windows_bridge is not None}, is_running={self._windows_bridge.is_running if self._windows_bridge else False}")
 
@@ -533,29 +588,25 @@ class MainWindow(QMainWindow):
         logger.info("刷新 WSL 连通状态")
         
         distros = self._wsl_manager.list_distros()
-        clients_info = []
-        if self._windows_bridge and self._windows_bridge.is_running:
-            clients_info = self._windows_bridge.get_connected_clients_info()
         
-        self.bridge_panel.update_wsl_connection_status(distros, clients_info)
-        self.bridge_panel.update_clients_info(clients_info)
+        self.bridge_panel.update_wsl_connection_status(distros)
         self.bridge_panel._add_log(f"✓ WSL 连通状态已刷新，共 {len(distros)} 个分发")
 
     def _on_chat_connect(self):
         logger.info("=== 开始聊天连接流程 ===")
         
-        # 获取选中的 nanobots
-        selected_nanobots = list(self.chat_panel._selected_nanobots)
-        if not selected_nanobots:
+        # 获取选中的 clawbots
+        selected_clawbots = list(self.chat_panel._selected_clawbots)
+        if not selected_clawbots:
             # 如果没有选中，使用默认配置
             default_config = self._config_manager.get_default()
             if not default_config:
                 logger.error("连接失败: 没有配置")
-                self.chat_panel.show_error("请先配置 nanobot")
+                self.chat_panel.show_error("请先配置 clawbot")
                 return
-            selected_nanobots = [default_config.name]
+            selected_clawbots = [default_config.name]
         
-        logger.info(f"准备连接到 nanobots: {selected_nanobots}")
+        logger.info(f"准备连接到 clawbots: {selected_clawbots}")
         
         self.chat_panel.set_connecting()
 
@@ -575,32 +626,32 @@ class MainWindow(QMainWindow):
         info_text = "即将连接到以下 Clawbot:\n\n"
         valid_bots = []
         
-        for nanobot_name in selected_nanobots:
-            config = self._config_manager.get(nanobot_name)
+        for clawbot_name in selected_clawbots:
+            config = self._config_manager.get(clawbot_name)
             if not config:
-                logger.warning(f"未找到 {nanobot_name} 的配置，跳过")
+                logger.warning(f"未找到 {clawbot_name} 的配置，跳过")
                 continue
             
             # 检查 WSL 分发是否运行
             distro = self._wsl_manager.get_distro(config.distro_name)
             if not distro or not distro.is_running:
-                info_text += f"❌ {nanobot_name}: WSL 分发未运行\n"
+                info_text += f"❌ {clawbot_name}: WSL 分发未运行\n"
                 continue
             
             # 获取 WSL 分发的 IP 地址
             wsl_ip = self._wsl_manager.get_distro_ip(config.distro_name)
             if not wsl_ip:
-                info_text += f"❌ {nanobot_name}: 无法获取 WSL IP 地址\n"
+                info_text += f"❌ {clawbot_name}: 无法获取 WSL IP 地址\n"
                 continue
             
             valid_bots.append({
-                "name": nanobot_name,
+                "name": clawbot_name,
                 "config": config,
                 "wsl_ip": wsl_ip,
                 "distro_name": config.distro_name
             })
             
-            info_text += f"✅ {nanobot_name}:\n"
+            info_text += f"✅ {clawbot_name}:\n"
             info_text += f"   WSL: {config.distro_name}\n"
             info_text += f"   IP: {wsl_ip}\n"
             info_text += f"   Port: {config.gateway_port}\n\n"
@@ -637,134 +688,172 @@ class MainWindow(QMainWindow):
             self.chat_panel.set_connection_status(False)
             return
         
+        if self._gateway_manager and valid_bots:
+            first_bot = valid_bots[0]
+            first_config = first_bot["config"]
+            if self._gateway_manager.status != GatewayStatus.RUNNING:
+                logger.info("Gateway 未运行，正在启动...")
+                self._gateway_manager._port = first_config.gateway_port
+                if not self._gateway_manager.start_gateway(first_config.distro_name):
+                    logger.error("Gateway 启动失败")
+                    self.chat_panel.show_error("无法启动 gateway 服务")
+                    self.chat_panel.set_connection_status(False)
+                    return
+                logger.info("Gateway 启动成功，等待服务就绪...")
+                import time
+                time.sleep(2)
+            else:
+                logger.info("Gateway 已在运行")
+        
         # 开始连接每个有效的 bot
         connected_count = 0
         connected_info = []
         
         for bot_info in valid_bots:
-            nanobot_name = bot_info["name"]
+            clawbot_name = bot_info["name"]
             config = bot_info["config"]
             wsl_ip = bot_info["wsl_ip"]
             
             # 如果已经连接了，跳过
-            if nanobot_name in self._chat_clients:
-                logger.info(f"{nanobot_name} 已经连接，跳过")
+            if clawbot_name in self._chat_clients:
+                logger.info(f"{clawbot_name} 已经连接，跳过")
                 connected_count += 1
-                connected_info.append(f"{nanobot_name}(已连接)")
+                connected_info.append(f"{clawbot_name}(已连接)")
                 continue
             
             # 使用 WSL 分发的 IP + bot 配置的 gateway_port
             gateway_url = f"ws://{wsl_ip}:{config.gateway_port}/ws"
-            logger.info(f"开始连接到 {nanobot_name}: {gateway_url}")
+            logger.info(f"开始连接到 {clawbot_name}: {gateway_url}")
             
-            # 使用闭包创建专用的消息回调，绑定 nanobot_name
+            # 使用闭包创建专用的消息回调，绑定 clawbot_name
             def create_message_callback(name):
                 def callback(message):
                     self._on_chat_message_received(message, name)
                 return callback
             
-            chat_client = NanobotChatClient(
+            chat_client = ClawbotChatClient(
                 gateway_url,
-                on_message=create_message_callback(nanobot_name),
+                on_message=create_message_callback(clawbot_name),
                 on_status_changed=self._on_chat_status_changed
             )
             
             if chat_client.connect():
-                logger.info(f"✅ {nanobot_name} 连接成功！(ws://{wsl_ip}:{config.gateway_port})")
-                self._chat_clients[nanobot_name] = chat_client
+                logger.info(f"✅ {clawbot_name} 连接成功！(ws://{wsl_ip}:{config.gateway_port})")
+                self._chat_clients[clawbot_name] = chat_client
                 connected_count += 1
-                connected_info.append(f"{nanobot_name}({wsl_ip}:{config.gateway_port})")
+                connected_info.append(f"{clawbot_name}({wsl_ip}:{config.gateway_port})")
             else:
-                logger.error(f"❌ {nanobot_name} 连接失败！(ws://{wsl_ip}:{config.gateway_port})")
+                logger.error(f"❌ {clawbot_name} 连接失败！(ws://{wsl_ip}:{config.gateway_port})")
         
         if connected_count > 0:
-            logger.info(f"✅ 成功连接 {connected_count} 个 nanobot")
+            logger.info(f"✅ 成功连接 {connected_count} 个 clawbot")
             # 更新每个bot的连接状态
             for bot_info in valid_bots:
-                nanobot_name = bot_info["name"]
-                if nanobot_name in self._chat_clients:
+                clawbot_name = bot_info["name"]
+                if clawbot_name in self._chat_clients:
                     wsl_ip = bot_info["wsl_ip"]
                     config = bot_info["config"]
                     self.chat_panel.set_connection_status(
-                        nanobot_name, 
+                        clawbot_name, 
                         True, 
                         f"{wsl_ip}:{config.gateway_port}"
                     )
         else:
-            logger.error("❌ 没有成功连接任何 nanobot")
-            self.chat_panel.show_error(f"无法连接到 gateways，请检查每个 Bot 的 gateway 是否正在运行")
+            logger.error("❌ 没有成功连接任何 clawbot")
+            self.chat_panel.show_error("无法连接到 gateways，请检查每个 Bot 的 gateway 是否正在运行")
 
-    def _on_single_nanobot_connect(self, nanobot_name: str):
+    def _on_single_clawbot_connect(self, clawbot_name: str):
         """处理单个bot的连接请求"""
-        logger.info(f"=== 开始连接单个 Bot: {nanobot_name} ===")
+        logger.info(f"=== 开始连接单个 Bot: {clawbot_name} ===")
         
-        config = self._config_manager.get(nanobot_name)
+        config = self._config_manager.get(clawbot_name)
         if not config:
-            logger.error(f"未找到 {nanobot_name} 的配置")
-            self.chat_panel.show_error(f"未找到 {nanobot_name} 的配置")
-            self.chat_panel.set_connection_status(nanobot_name, False)
+            logger.error(f"未找到 {clawbot_name} 的配置")
+            self.chat_panel.show_error(f"未找到 {clawbot_name} 的配置")
+            self.chat_panel.set_connection_status(clawbot_name, False)
             return
         
         distro = self._wsl_manager.get_distro(config.distro_name)
         if not distro or not distro.is_running:
-            logger.error(f"{nanobot_name}: WSL 分发未运行")
+            logger.error(f"{clawbot_name}: WSL 分发未运行")
             self.chat_panel.show_error(f"{config.distro_name} WSL 分发未运行")
-            self.chat_panel.set_connection_status(nanobot_name, False)
+            self.chat_panel.set_connection_status(clawbot_name, False)
             return
         
         wsl_ip = self._wsl_manager.get_distro_ip(config.distro_name)
         if not wsl_ip:
-            logger.error(f"{nanobot_name}: 无法获取 WSL IP 地址")
+            logger.error(f"{clawbot_name}: 无法获取 WSL IP 地址")
             self.chat_panel.show_error(f"无法获取 {config.distro_name} 的 IP 地址")
-            self.chat_panel.set_connection_status(nanobot_name, False)
+            self.chat_panel.set_connection_status(clawbot_name, False)
             return
         
-        if nanobot_name in self._chat_clients:
-            logger.info(f"{nanobot_name} 已经连接，跳过")
-            self.chat_panel.set_connection_status(nanobot_name, True, f"{wsl_ip}:{config.gateway_port}")
+        if clawbot_name in self._chat_clients:
+            logger.info(f"{clawbot_name} 已经连接，跳过")
+            self.chat_panel.set_connection_status(clawbot_name, True, f"{wsl_ip}:{config.gateway_port}")
             return
+        
+        if self._gateway_manager:
+            if self._gateway_manager.status != GatewayStatus.RUNNING:
+                logger.info("Gateway 未运行，正在启动...")
+                self._gateway_manager._port = config.gateway_port
+                if not self._gateway_manager.start_gateway(config.distro_name):
+                    logger.error("Gateway 启动失败")
+                    self.chat_panel.show_error(f"无法启动 {clawbot_name} 的 gateway 服务")
+                    self.chat_panel.set_connection_status(clawbot_name, False)
+                    return
+                logger.info("Gateway 启动成功，等待服务就绪...")
+                import time
+                time.sleep(2)
+            else:
+                logger.info("Gateway 已在运行")
         
         gateway_url = f"ws://{wsl_ip}:{config.gateway_port}/ws"
-        logger.info(f"开始连接到 {nanobot_name}: {gateway_url}")
+        logger.info(f"开始连接到 {clawbot_name}: {gateway_url}")
         
         def create_message_callback(name):
             def callback(message):
                 self._on_chat_message_received(message, name)
             return callback
         
-        chat_client = NanobotChatClient(
+        chat_client = ClawbotChatClient(
             gateway_url,
-            on_message=create_message_callback(nanobot_name),
+            on_message=create_message_callback(clawbot_name),
             on_status_changed=self._on_chat_status_changed
         )
         
         if chat_client.connect():
-            logger.info(f"✅ {nanobot_name} 连接成功！({gateway_url})")
-            self._chat_clients[nanobot_name] = chat_client
+            logger.info(f"✅ {clawbot_name} 连接成功！({gateway_url})")
+            self._chat_clients[clawbot_name] = chat_client
             self.chat_panel.set_connection_status(
-                nanobot_name, 
+                clawbot_name, 
                 True, 
                 f"{wsl_ip}:{config.gateway_port}"
             )
+            self._group_chat_manager.register_bot(clawbot_name)
         else:
-            logger.error(f"❌ {nanobot_name} 连接失败！({gateway_url})")
-            self.chat_panel.show_error(f"无法连接到 {nanobot_name} 的 gateway")
-            self.chat_panel.set_connection_status(nanobot_name, False)
+            logger.error(f"❌ {clawbot_name} 连接失败！({gateway_url})")
+            self.chat_panel.show_error(f"无法连接到 {clawbot_name} 的 gateway")
+            self.chat_panel.set_connection_status(clawbot_name, False)
     
-    def _on_single_nanobot_disconnect(self, nanobot_name: str):
-        """处理单个bot的断开请求"""
-        logger.info(f"[MainWindow] 断开 {nanobot_name} 连接")
+    def _on_single_clawbot_disconnect(self, clawbot_name: str):
+        logger.info(f"[MainWindow.Chat] 断开连接请求: {clawbot_name}")
         
-        if nanobot_name in self._chat_clients:
+        self._group_chat_manager.unregister_bot(clawbot_name)
+        
+        if clawbot_name in self._chat_clients:
             try:
-                chat_client = self._chat_clients[nanobot_name]
+                chat_client = self._chat_clients[clawbot_name]
                 chat_client.disconnect()
-                del self._chat_clients[nanobot_name]
-                logger.info(f"[MainWindow] {nanobot_name} 已断开连接")
-                self.chat_panel.set_connection_status(nanobot_name, False)
+                logger.info(f"[MainWindow.Chat] {clawbot_name} 已断开")
             except Exception as e:
-                logger.error(f"[MainWindow] 断开 {nanobot_name} 连接时出错: {e}")
-                self.chat_panel.set_connection_status(nanobot_name, False)
+                logger.error(f"[MainWindow.Chat] 断开 {clawbot_name} 异常: {e}")
+            finally:
+                if clawbot_name in self._chat_clients:
+                    del self._chat_clients[clawbot_name]
+                self.chat_panel.set_connection_status(clawbot_name, False)
+        else:
+            logger.warning(f"[MainWindow.Chat] {clawbot_name} 不在已连接列表中")
+            self.chat_panel.set_connection_status(clawbot_name, False)
     
     def _on_chat_disconnect(self, bot_name: str = ""):
         if bot_name:
@@ -780,61 +869,110 @@ class MainWindow(QMainWindow):
                     logger.error(f"[MainWindow] 断开 {bot_name} 连接时出错: {e}")
         else:
             logger.info("[MainWindow] 断开所有连接")
-            for nanobot_name, chat_client in list(self._chat_clients.items()):
+            for clawbot_name, chat_client in list(self._chat_clients.items()):
                 try:
                     chat_client.disconnect()
-                    logger.info(f"[MainWindow] {nanobot_name} 已断开连接")
-                    self.chat_panel.set_connection_status(nanobot_name, False)
+                    logger.info(f"[MainWindow] {clawbot_name} 已断开连接")
+                    self.chat_panel.set_connection_status(clawbot_name, False)
                 except Exception as e:
-                    logger.error(f"[MainWindow] 断开 {nanobot_name} 连接时出错: {e}")
+                    logger.error(f"[MainWindow] 断开 {clawbot_name} 连接时出错: {e}")
             
             self._chat_clients.clear()
 
     def _on_chat_clear(self):
         self.chat_panel.clear_messages()
+        self._group_chat_manager.clear_all()
 
-    def _on_chat_message_sent(self, message: str, selected_nanobots: list):
-        logger.info(f"[MainWindow] 聊天消息发送: {message[:100]}..., 目标: {selected_nanobots}")
+    def _on_chat_message_sent(self, message: str, selected_clawbots: list):
+        logger.info(f"[MainWindow] 聊天消息发送: {message[:100]}..., 目标: {selected_clawbots}")
         
         if not self._chat_clients:
-            logger.warning("[MainWindow] 没有连接任何 nanobot")
+            logger.warning("[MainWindow] 没有连接任何 clawbot")
             return
         
-        # 向所有已连接且被选中的 nanobot 发送消息
-        sent_count = 0
-        for nanobot_name in selected_nanobots:
-            if nanobot_name in self._chat_clients:
-                chat_client = self._chat_clients[nanobot_name]
-                if chat_client.is_connected:
-                    logger.debug(f"[MainWindow] 向 {nanobot_name} 发送消息")
-                    chat_client.send_message(message)
-                    sent_count += 1
-        
-        if sent_count == 0:
-            logger.warning("[MainWindow] 没有成功向任何 nanobot 发送消息")
+        if self.chat_panel.is_group_chat_enabled():
+            self._group_chat_manager.set_interval(self.chat_panel.get_group_chat_interval())
+            self._group_chat_manager.handle_user_message(message)
+        else:
+            for clawbot_name in selected_clawbots:
+                if clawbot_name in self._chat_clients:
+                    chat_client = self._chat_clients[clawbot_name]
+                    if chat_client.is_connected:
+                        logger.debug(f"[MainWindow] 向 {clawbot_name} 发送消息")
+                        chat_client.send_message(message)
 
-    def _on_chat_message_received(self, message: str, nanobot_name: Optional[str] = None):
-        self.chat_panel.add_message("assistant", message, nanobot_name)
+    def _on_chat_message_received(self, message: str, clawbot_name: Optional[str] = None):
+        logger.info(f"[MainWindow.Chat] 收到消息: bot={clawbot_name}, "
+                   f"长度={len(message) if message else 0}, "
+                   f"线程={_get_thread_info()}, 主线程={_is_main_thread()}")
         
-        if self.chat_panel.is_group_chat_enabled() and self._group_chat_forward_allowed:
-            self._group_chat_forward_allowed = False
-            self._forward_to_other_bots(message, nanobot_name)
-            interval = self.chat_panel.get_group_chat_interval()
-            self._group_chat_timer.start(interval)
-    
-    def _on_group_chat_timer(self):
-        self._group_chat_forward_allowed = True
-    
-    def _forward_to_other_bots(self, message: str, source_bot: str):
-        selected_bots = list(self.chat_panel._selected_nanobots)
+        if not _is_main_thread():
+            logger.debug("[MainWindow.Chat] 非主线程，通过信号转发到主线程处理")
+            self._chat_message_signal.emit(message, clawbot_name)
+            return
         
-        for bot_name in selected_bots:
-            if bot_name != source_bot and bot_name in self._chat_clients:
-                chat_client = self._chat_clients[bot_name]
-                if chat_client.is_connected:
-                    forward_msg = f"[{source_bot} 说]: {message}"
-                    # logger.info(f"[MainWindow] 群聊转发: {source_bot} -> {bot_name}")
-                    chat_client.send_message(forward_msg)
+        self._handle_chat_message_on_main_thread(message, clawbot_name)
+    
+    def _handle_chat_message_on_main_thread(self, message: str, clawbot_name: Optional[str] = None):
+        start_time = time.perf_counter()
+        logger.debug(f"[MainWindow.Chat] 主线程处理消息: bot={clawbot_name}, "
+                   f"长度={len(message) if message else 0}")
+        
+        set_crash_context("last_message", {
+            "bot": clawbot_name,
+            "length": len(message) if message else 0,
+            "time": datetime.now().isoformat()
+        })
+        
+        try:
+            self.chat_panel.add_message("assistant", message, clawbot_name)
+            
+            if self.chat_panel.is_group_chat_enabled():
+                self._group_chat_manager.handle_bot_message(clawbot_name, message)
+            
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.debug(f"[MainWindow.Chat] 消息处理完成, 耗时: {elapsed:.2f}ms")
+        except Exception as e:
+            logger.error(f"[MainWindow.Chat] 处理消息异常: {type(e).__name__}: {e}")
+            logger.error(f"[MainWindow.Chat] 堆栈跟踪:\n{traceback.format_exc()}")
+            logger.error(f"[MainWindow.Chat] 消息上下文: bot={clawbot_name}, 长度={len(message) if message else 0}")
+            set_crash_context("last_error", {
+                "type": type(e).__name__,
+                "message": str(e),
+                "bot": clawbot_name
+            })
+    
+    def _on_group_chat_message_to_bot(self, bot_name: str, trigger_reason: str, messages: list):
+        logger.info(f"[MainWindow.GroupChat] 发送消息给 {bot_name}, 原因: {trigger_reason}, 消息数: {len(messages)}")
+        
+        if bot_name not in self._chat_clients:
+            logger.warning(f"[MainWindow.GroupChat] {bot_name} 未连接")
+            return
+        
+        chat_client = self._chat_clients[bot_name]
+        if not chat_client.is_connected:
+            logger.warning(f"[MainWindow.GroupChat] {bot_name} 连接已断开")
+            return
+        
+        self._send_group_chat_message(bot_name, messages, trigger_reason)
+    
+    def _send_group_chat_message(self, bot_name: str, messages: list, trigger_reason: str):
+        if bot_name not in self._chat_clients:
+            return
+        
+        chat_client = self._chat_clients[bot_name]
+        
+        payload = {
+            "type": "group_chat",
+            "messages": messages,
+            "mentioned_you": trigger_reason == "mentioned",
+            "trigger_reason": trigger_reason
+        }
+        
+        import json
+        message_json = json.dumps(payload, ensure_ascii=False)
+        chat_client.send_message(message_json)
+        logger.debug(f"[MainWindow.GroupChat] 已发送群聊消息给 {bot_name}")
 
     def _on_chat_status_changed(self, status: ConnectionStatus, bot_name: str = ""):
         # 注意：此方法目前未使用，因为我们直接在连接/断开时更新状态
@@ -950,7 +1088,7 @@ class MainWindow(QMainWindow):
         event.accept()
 
     def _quit_app(self):
-        for nanobot_name, chat_client in list(self._chat_clients.items()):
+        for clawbot_name, chat_client in list(self._chat_clients.items()):
             try:
                 chat_client.disconnect()
             except Exception:
@@ -969,33 +1107,33 @@ class MainWindow(QMainWindow):
         self.tray_icon.hide()
         QApplication.quit()
 
-    def _on_nanobot_status_changed(self, data: dict):
-        """Handle nanobot status changes from monitor service."""
+    def _on_clawbot_status_changed(self, data: dict):
+        """Handle clawbot status changes from monitor service."""
         instance_name = data.get("instance_name", "")
         status = data.get("status", "unknown")
         is_running = data.get("is_running", False)
 
-        self.nanobot_status_label.setText(f"Nanobot ({instance_name}): {status}")
+        self.clawbot_status_label.setText(f"Clawbot ({instance_name}): {status}")
 
         if is_running:
-            self.log_panel.add_log("INFO", "Nanobot", f"Instance '{instance_name}' started")
+            self.log_panel.add_log("INFO", "Clawbot", f"Instance '{instance_name}' started")
         else:
             error = data.get("last_error")
             if error:
-                self.log_panel.add_log("ERROR", "Nanobot", f"Instance '{instance_name}' error: {error}")
+                self.log_panel.add_log("ERROR", "Clawbot", f"Instance '{instance_name}' error: {error}")
             else:
-                self.log_panel.add_log("INFO", "Nanobot", f"Instance '{instance_name}' stopped")
+                self.log_panel.add_log("INFO", "Clawbot", f"Instance '{instance_name}' stopped")
                 
-    def _on_nanobot_instance_started(self, instance_name: str):
-        self.status_bar.showMessage(f"Nanobot '{instance_name}' 已启动", 3000)
+    def _on_clawbot_instance_started(self, instance_name: str):
+        self.status_bar.showMessage(f"Clawbot '{instance_name}' 已启动", 3000)
         
-    def _on_nanobot_instance_stopped(self, instance_name: str):
-        self.status_bar.showMessage(f"Nanobot '{instance_name}' 已停止", 3000)
+    def _on_clawbot_instance_stopped(self, instance_name: str):
+        self.status_bar.showMessage(f"Clawbot '{instance_name}' 已停止", 3000)
         
-    def _on_nanobot_instance_restarted(self, instance_name: str):
-        self.status_bar.showMessage(f"Nanobot '{instance_name}' 已重启", 3000)
+    def _on_clawbot_instance_restarted(self, instance_name: str):
+        self.status_bar.showMessage(f"Clawbot '{instance_name}' 已重启", 3000)
 
-    def _on_nanobot_log(self, instance_name: str, log_type: str, message: str):
-        """Handle nanobot log messages."""
+    def _on_clawbot_log(self, instance_name: str, log_type: str, message: str):
+        """Handle clawbot log messages."""
         level = "INFO" if log_type == "stdout" else "DEBUG"
-        self.log_panel.add_log(level, f"Nanobot:{instance_name}", message)
+        self.log_panel.add_log(level, f"Clawbot:{instance_name}", message)

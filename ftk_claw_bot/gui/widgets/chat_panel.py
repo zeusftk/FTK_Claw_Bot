@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+import threading
+import time
+import traceback
 from datetime import datetime
 from typing import List, Optional, Set, Dict
 
@@ -6,9 +10,9 @@ from loguru import logger
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QScrollArea, QFrame, QListWidget, QListWidgetItem,
-    QToolButton, QSizePolicy, QSpacerItem, QCheckBox, QSpinBox, QMessageBox
+    QToolButton, QCheckBox, QSpinBox, QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QThread
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QTextCharFormat, QCursor
 
 from ..mixins import WSLStateAwareMixin
@@ -16,17 +20,25 @@ from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.i18n import tr
 
 
+def _get_thread_info() -> str:
+    return f"T:{threading.current_thread().ident}:{threading.current_thread().name[:10]}"
+
+
+def _is_main_thread() -> bool:
+    return QThread.currentThread() == QThread.currentThread()
+
+
 class ChatMessage:
-    def __init__(self, role: str, content: str, nanobot_name: Optional[str] = None, 
+    def __init__(self, role: str, content: str, clawbot_name: Optional[str] = None, 
                  timestamp: Optional[str] = None, message_type: str = "text"):
         self.role = role
         self.content = content
-        self.nanobot_name = nanobot_name
+        self.clawbot_name = clawbot_name
         self.timestamp = timestamp or datetime.now().strftime("%H:%M")
         self.message_type = message_type
 
 
-class SelectedNanobotTag(QWidget):
+class SelectedClawbotTag(QWidget):
     removed = pyqtSignal(str)
     
     def __init__(self, name: str, parent=None):
@@ -40,7 +52,7 @@ class SelectedNanobotTag(QWidget):
         layout.setSpacing(8)
         
         self.setStyleSheet("""
-            SelectedNanobotTag {
+            SelectedClawbotTag {
                 background-color: #238636;
                 border-radius: 12px;
             }
@@ -123,7 +135,7 @@ class ConnectedBotTag(QFrame):
         layout.addWidget(disconnect_btn)
 
 
-class NanobotCard(QFrame):
+class ClawbotCard(QFrame):
     clicked = pyqtSignal(str)
     connect_clicked = pyqtSignal(str)
     disconnect_clicked = pyqtSignal(str)
@@ -134,12 +146,12 @@ class NanobotCard(QFrame):
         self.config = config
         self.is_selected = False
         self.wsl_status = "stopped"
-        self.nanobot_status = "stopped"
+        self.clawbot_status = "stopped"
         self.connection_status = "disconnected"
         self._init_ui()
     
     def _init_ui(self):
-        self.setObjectName("nanobotCard")
+        self.setObjectName("clawbotCard")
         self.setFixedHeight(130)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         
@@ -156,11 +168,11 @@ class NanobotCard(QFrame):
         self.wsl_status_dot.setStyleSheet("font-size: 18px;")
         status_layout.addWidget(self.wsl_status_dot)
         
-        self.nanobot_status_dot = QLabel("⚪")
-        self.nanobot_status_dot.setFixedSize(24, 24)
-        self.nanobot_status_dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.nanobot_status_dot.setStyleSheet("font-size: 18px;")
-        status_layout.addWidget(self.nanobot_status_dot)
+        self.clawbot_status_dot = QLabel("⚪")
+        self.clawbot_status_dot.setFixedSize(24, 24)
+        self.clawbot_status_dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.clawbot_status_dot.setStyleSheet("font-size: 18px;")
+        status_layout.addWidget(self.clawbot_status_dot)
         
         main_layout.addLayout(status_layout)
         
@@ -178,9 +190,9 @@ class NanobotCard(QFrame):
         self.wsl_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
         status_text_layout.addWidget(self.wsl_status_text)
         
-        self.nanobot_status_text = QLabel(tr("chat.status.bot_stopped", "Bot: 已停止"))
-        self.nanobot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
-        status_text_layout.addWidget(self.nanobot_status_text)
+        self.clawbot_status_text = QLabel(tr("chat.status.bot_stopped", "Bot: 已停止"))
+        self.clawbot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
+        status_text_layout.addWidget(self.clawbot_status_text)
         
         self.model_text = QLabel(tr("chat.status.model_none", "模型: --"))
         self.model_text.setStyleSheet("color: #8b949e; font-size: 10px;")
@@ -265,24 +277,24 @@ class NanobotCard(QFrame):
             self.wsl_status_text.setText(f"WSL: {status}")
             self.wsl_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
     
-    def set_nanobot_status(self, status: str):
-        self.nanobot_status = status
+    def set_clawbot_status(self, status: str):
+        self.clawbot_status = status
         if status == "running":
-            self.nanobot_status_dot.setText("🟢")
-            self.nanobot_status_text.setText(tr("chat.status.bot_running", "Bot: 运行中"))
-            self.nanobot_status_text.setStyleSheet("color: #3fb950; font-size: 10px;")
+            self.clawbot_status_dot.setText("🟢")
+            self.clawbot_status_text.setText(tr("chat.status.bot_running", "Bot: 运行中"))
+            self.clawbot_status_text.setStyleSheet("color: #3fb950; font-size: 10px;")
         elif status == "starting":
-            self.nanobot_status_dot.setText("🟡")
-            self.nanobot_status_text.setText(tr("chat.status.bot_starting", "Bot: 启动中"))
-            self.nanobot_status_text.setStyleSheet("color: #d29922; font-size: 10px;")
+            self.clawbot_status_dot.setText("🟡")
+            self.clawbot_status_text.setText(tr("chat.status.bot_starting", "Bot: 启动中"))
+            self.clawbot_status_text.setStyleSheet("color: #d29922; font-size: 10px;")
         elif status == "error":
-            self.nanobot_status_dot.setText("🔴")
-            self.nanobot_status_text.setText(tr("chat.status.bot_error", "Bot: 错误"))
-            self.nanobot_status_text.setStyleSheet("color: #f85149; font-size: 10px;")
+            self.clawbot_status_dot.setText("🔴")
+            self.clawbot_status_text.setText(tr("chat.status.bot_error", "Bot: 错误"))
+            self.clawbot_status_text.setStyleSheet("color: #f85149; font-size: 10px;")
         else:
-            self.nanobot_status_dot.setText("⚪")
-            self.nanobot_status_text.setText(tr("chat.status.bot_stopped", "Bot: 已停止"))
-            self.nanobot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
+            self.clawbot_status_dot.setText("⚪")
+            self.clawbot_status_text.setText(tr("chat.status.bot_stopped", "Bot: 已停止"))
+            self.clawbot_status_text.setStyleSheet("color: #8b949e; font-size: 10px;")
     
     def set_model(self, model: str, provider: str = None):
         if model:
@@ -354,7 +366,7 @@ class NanobotCard(QFrame):
     def _update_style(self):
         if self.is_selected:
             self.setStyleSheet("""
-                QFrame#nanobotCard {
+                QFrame#clawbotCard {
                     background-color: rgba(88, 166, 255, 0.15);
                     border: 2px solid #58a6ff;
                     border-radius: 8px;
@@ -362,12 +374,12 @@ class NanobotCard(QFrame):
             """)
         else:
             self.setStyleSheet("""
-                QFrame#nanobotCard {
+                QFrame#clawbotCard {
                     background-color: #21262d;
                     border: 1px solid #30363d;
                     border-radius: 8px;
                 }
-                QFrame#nanobotCard:hover {
+                QFrame#clawbotCard:hover {
                     background-color: #30363d;
                     border-color: #484f58;
                 }
@@ -384,9 +396,9 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
     connect_clicked = pyqtSignal(str)
     disconnect_clicked = pyqtSignal(str)
     clear_clicked = pyqtSignal()
-    nanobot_selected = pyqtSignal(list)
-    nanobot_connect_requested = pyqtSignal(str)
-    nanobot_disconnect_requested = pyqtSignal(str)
+    clawbot_selected = pyqtSignal(list)
+    clawbot_connect_requested = pyqtSignal(str)
+    clawbot_disconnect_requested = pyqtSignal(str)
     
     _BOT_COLORS = [
         ("#3fb950", "#1a3a2f"),
@@ -396,24 +408,23 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         ("#a371f7", "#2a1a3a"),
     ]
     
-    def __init__(self, config_manager=None, nanobot_controller=None, wsl_manager=None, parent=None):
+    def __init__(self, config_manager=None, clawbot_controller=None, wsl_manager=None, parent=None):
         super().__init__(parent)
         WSLStateAwareMixin._init_wsl_state_aware(self)
         self._config_manager = config_manager
-        self._nanobot_controller = nanobot_controller
+        self._clawbot_controller = clawbot_controller
         self._wsl_manager = wsl_manager
         self._messages: List[ChatMessage] = []
-        self._nanobot_cards = {}
-        self._selected_nanobots: Set[str] = set()
+        self._clawbot_cards = {}
+        self._selected_clawbots: Set[str] = set()
         self._tag_widgets = {}
         self._connection_status = {}
         self._connected_bot_info = {}
         self._bot_color_map = {}
-        self._group_chat_enabled = False
         
         self._init_ui()
         self._start_timer()
-        self._load_nanobots()
+        self._load_clawbots()
     
     def _init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -462,7 +473,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                 border-color: #484f58;
             }
         """)
-        refresh_btn.clicked.connect(self._refresh_nanobots)
+        refresh_btn.clicked.connect(self._refresh_clawbots)
         header.addWidget(refresh_btn)
         
         layout.addLayout(header)
@@ -479,21 +490,21 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         action_layout.addStretch()
         layout.addLayout(action_layout)
         
-        self.nanobot_list = QListWidget()
-        self.nanobot_list.setObjectName("nanobotList")
-        self.nanobot_list.setStyleSheet("""
-            QListWidget#nanobotList {
+        self.clawbot_list = QListWidget()
+        self.clawbot_list.setObjectName("clawbotList")
+        self.clawbot_list.setStyleSheet("""
+            QListWidget#clawbotList {
                 background-color: transparent;
                 border: none;
                 outline: none;
             }
-            QListWidget#nanobotList::item {
+            QListWidget#clawbotList::item {
                 padding: 0px;
                 margin: 4px 0px;
             }
         """)
-        self.nanobot_list.setSpacing(8)
-        layout.addWidget(self.nanobot_list, 1)
+        self.clawbot_list.setSpacing(8)
+        layout.addWidget(self.clawbot_list, 1)
         
         return panel
     
@@ -597,7 +608,6 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
                 height: 16px;
             }
         """)
-        self.group_chat_checkbox.stateChanged.connect(self._on_group_chat_toggled)
         tools_layout.addWidget(self.group_chat_checkbox)
         
         self.group_chat_interval_spin = QSpinBox()
@@ -699,15 +709,15 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
     
     def _start_timer(self):
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._refresh_nanobot_status_async)
+        self._timer.timeout.connect(self._refresh_clawbot_status_async)
         self._timer.start(3000)
     
-    def _load_nanobots(self):
+    def _load_clawbots(self):
         if not self._config_manager:
             return
         
-        self.nanobot_list.clear()
-        self._nanobot_cards = {}
+        self.clawbot_list.clear()
+        self._clawbot_cards = {}
         
         valid_distro_names = set()
         if self._wsl_manager:
@@ -718,36 +728,36 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         for name in sorted(configs.keys()):
             config = configs[name]
             if config.distro_name and config.distro_name in valid_distro_names:
-                self._add_nanobot_card(name, config)
+                self._add_clawbot_card(name, config)
         
-        self._refresh_nanobot_status()
+        self._refresh_clawbot_status()
     
-    def _add_nanobot_card(self, config_name: str, config=None):
-        item = QListWidgetItem(self.nanobot_list)
-        card = NanobotCard(config_name, config)
+    def _add_clawbot_card(self, config_name: str, config=None):
+        item = QListWidgetItem(self.clawbot_list)
+        card = ClawbotCard(config_name, config)
         card.clicked.connect(self._on_card_clicked)
-        card.connect_clicked.connect(self._on_nanobot_connect_requested)
-        card.disconnect_clicked.connect(self._on_nanobot_disconnect_requested)
-        self._nanobot_cards[config_name] = card
+        card.connect_clicked.connect(self._on_clawbot_connect_requested)
+        card.disconnect_clicked.connect(self._on_clawbot_disconnect_requested)
+        self._clawbot_cards[config_name] = card
         item.setSizeHint(QSize(0, 140))
-        self.nanobot_list.addItem(item)
-        self.nanobot_list.setItemWidget(item, card)
+        self.clawbot_list.addItem(item)
+        self.clawbot_list.setItemWidget(item, card)
     
     def _on_card_clicked(self, config_name: str):
-        if config_name in self._selected_nanobots:
-            self._selected_nanobots.remove(config_name)
-            self._nanobot_cards[config_name].set_selected(False)
+        if config_name in self._selected_clawbots:
+            self._selected_clawbots.remove(config_name)
+            self._clawbot_cards[config_name].set_selected(False)
             self._remove_tag(config_name)
         else:
-            self._selected_nanobots.add(config_name)
-            self._nanobot_cards[config_name].set_selected(True)
+            self._selected_clawbots.add(config_name)
+            self._clawbot_cards[config_name].set_selected(True)
             self._add_tag(config_name)
         
         self._update_tags_label()
-        self.nanobot_selected.emit(list(self._selected_nanobots))
+        self.clawbot_selected.emit(list(self._selected_clawbots))
     
     def _add_tag(self, name: str):
-        tag = SelectedNanobotTag(name)
+        tag = SelectedClawbotTag(name)
         tag.removed.connect(self._on_tag_removed)
         self._tag_widgets[name] = tag
         
@@ -760,38 +770,35 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             tag.deleteLater()
     
     def _on_tag_removed(self, name: str):
-        if name in self._selected_nanobots:
-            self._selected_nanobots.remove(name)
-            if name in self._nanobot_cards:
-                self._nanobot_cards[name].set_selected(False)
+        if name in self._selected_clawbots:
+            self._selected_clawbots.remove(name)
+            if name in self._clawbot_cards:
+                self._clawbot_cards[name].set_selected(False)
             self._remove_tag(name)
             self._update_tags_label()
-            self.nanobot_selected.emit(list(self._selected_nanobots))
+            self.clawbot_selected.emit(list(self._selected_clawbots))
     
     def _update_tags_label(self):
-        if not self._selected_nanobots:
+        if not self._selected_clawbots:
             self.tags_label.show()
         else:
             self.tags_label.hide()
     
-    def _on_group_chat_toggled(self, state):
-        self._group_chat_enabled = state == Qt.CheckState.Checked.value
-    
     def is_group_chat_enabled(self) -> bool:
-        return self._group_chat_enabled
+        return self.group_chat_checkbox.isChecked()
     
     def get_group_chat_interval(self) -> int:
-        return self.group_chat_interval_spin.value() * 1000
+        return self.group_chat_interval_spin.value()
     
-    def _refresh_nanobots(self):
-        self._load_nanobots()
-        self._refresh_nanobot_status()
+    def _refresh_clawbots(self):
+        self._load_clawbots()
+        self._refresh_clawbot_status()
     
-    def _refresh_nanobot_status(self):
+    def _refresh_clawbot_status(self):
         if self._wsl_manager:
             self._wsl_manager.list_distros()
         
-        for config_name, card in self._nanobot_cards.items():
+        for config_name, card in self._clawbot_cards.items():
             wsl_status = "stopped"
             if card.config and self._wsl_manager:
                 distro = self._wsl_manager.get_distro(card.config.distro_name)
@@ -800,24 +807,24 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             
             card.set_wsl_status(wsl_status)
             
-            nanobot_status = "stopped"
-            if wsl_status == "running" and self._nanobot_controller:
-                status = self._nanobot_controller.get_status(config_name)
+            clawbot_status = "stopped"
+            if wsl_status == "running" and self._clawbot_controller:
+                status = self._clawbot_controller.get_status(config_name)
                 if status:
-                    nanobot_status = status.value
+                    clawbot_status = status.value
                 
-                if nanobot_status != "running" and card.config:
-                    is_connected = self._nanobot_controller.check_gateway_connectivity(
+                if clawbot_status != "running" and card.config:
+                    is_connected = self._clawbot_controller.check_gateway_connectivity(
                         card.config.distro_name,
                         card.config.gateway_port
                     )
                     if is_connected:
-                        nanobot_status = "running"
+                        clawbot_status = "running"
             
-            card.set_nanobot_status(nanobot_status)
+            card.set_clawbot_status(clawbot_status)
     
-    def _refresh_nanobot_status_async(self):
-        """异步刷新 Nanobot 状态，避免阻塞主线程"""
+    def _refresh_clawbot_status_async(self):
+        """异步刷新 Clawbot 状态，避免阻塞主线程"""
         if not self._wsl_manager:
             return
         
@@ -826,44 +833,44 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             if self._wsl_manager:
                 self._wsl_manager.list_distros()
             
-            for config_name, card in self._nanobot_cards.items():
+            for config_name, card in self._clawbot_cards.items():
                 wsl_status = "stopped"
                 if card.config and self._wsl_manager:
                     distro = self._wsl_manager.get_distro(card.config.distro_name)
                     if distro:
                         wsl_status = "running" if distro.is_running else "stopped"
                 
-                nanobot_status = "stopped"
-                if wsl_status == "running" and self._nanobot_controller:
-                    status = self._nanobot_controller.get_status(config_name)
+                clawbot_status = "stopped"
+                if wsl_status == "running" and self._clawbot_controller:
+                    status = self._clawbot_controller.get_status(config_name)
                     if status:
-                        nanobot_status = status.value
+                        clawbot_status = status.value
                     
-                    if nanobot_status != "running" and card.config:
-                        is_connected = self._nanobot_controller.check_gateway_connectivity(
+                    if clawbot_status != "running" and card.config:
+                        is_connected = self._clawbot_controller.check_gateway_connectivity(
                             card.config.distro_name,
                             card.config.gateway_port
                         )
                         if is_connected:
-                            nanobot_status = "running"
+                            clawbot_status = "running"
                 
                 results[config_name] = {
                     "wsl_status": wsl_status,
-                    "nanobot_status": nanobot_status
+                    "clawbot_status": clawbot_status
                 }
             
             return results
         
         def on_result(results):
             if isinstance(results, AsyncResult) and not results.success:
-                logger.error(f"刷新 Nanobot 状态失败: {results.error}")
+                logger.error(f"刷新 Clawbot 状态失败: {results.error}")
                 return
             
             if results:
                 for config_name, status in results.items():
-                    if config_name in self._nanobot_cards:
-                        self._nanobot_cards[config_name].set_wsl_status(status["wsl_status"])
-                        self._nanobot_cards[config_name].set_nanobot_status(status["nanobot_status"])
+                    if config_name in self._clawbot_cards:
+                        self._clawbot_cards[config_name].set_wsl_status(status["wsl_status"])
+                        self._clawbot_cards[config_name].set_clawbot_status(status["clawbot_status"])
         
         op = AsyncOperation(self)
         op.execute(refresh_operation, on_result)
@@ -872,76 +879,76 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         self._update_cards_wsl_status(distros)
     
     def on_wsl_distro_started(self, distro_name: str):
-        self._refresh_nanobot_status()
+        self._refresh_clawbot_status()
     
     def on_wsl_distro_stopped(self, distro_name: str):
-        self._refresh_nanobot_status()
+        self._refresh_clawbot_status()
     
     def on_wsl_distro_removed(self, distro_name: str):
-        self._refresh_nanobots()
+        self._refresh_clawbots()
     
     def on_wsl_distro_imported(self, distro_name: str):
-        self._refresh_nanobots()
+        self._refresh_clawbots()
     
     def on_wsl_list_changed(self, distros: List[Dict], added: List[str], removed: List[str]):
-        self._refresh_nanobots()
+        self._refresh_clawbots()
     
     def _update_cards_wsl_status(self, distros: List[Dict]):
         distro_status = {d["name"]: d.get("is_running", False) for d in distros}
-        for config_name, card in self._nanobot_cards.items():
+        for config_name, card in self._clawbot_cards.items():
             if card.config:
                 distro_name = card.config.distro_name
                 is_running = distro_status.get(distro_name, False)
                 card.set_wsl_status("running" if is_running else "stopped")
                 
-                nanobot_status = "stopped"
-                if is_running and self._nanobot_controller:
-                    status = self._nanobot_controller.get_status(config_name)
+                clawbot_status = "stopped"
+                if is_running and self._clawbot_controller:
+                    status = self._clawbot_controller.get_status(config_name)
                     if status:
-                        nanobot_status = status.value
+                        clawbot_status = status.value
                     
-                    if nanobot_status != "running" and card.config:
-                        is_connected = self._nanobot_controller.check_gateway_connectivity(
+                    if clawbot_status != "running" and card.config:
+                        is_connected = self._clawbot_controller.check_gateway_connectivity(
                             card.config.distro_name,
                             card.config.gateway_port
                         )
                         if is_connected:
-                            nanobot_status = "running"
+                            clawbot_status = "running"
                 
-                card.set_nanobot_status(nanobot_status)
+                card.set_clawbot_status(clawbot_status)
     
     def _select_all(self):
-        for name, card in self._nanobot_cards.items():
-            if name not in self._selected_nanobots:
-                self._selected_nanobots.add(name)
+        for name, card in self._clawbot_cards.items():
+            if name not in self._selected_clawbots:
+                self._selected_clawbots.add(name)
                 card.set_selected(True)
                 self._add_tag(name)
         self._update_tags_label()
-        self.nanobot_selected.emit(list(self._selected_nanobots))
+        self.clawbot_selected.emit(list(self._selected_clawbots))
     
     def _deselect_all(self):
-        for name, card in self._nanobot_cards.items():
+        for name, card in self._clawbot_cards.items():
             card.set_selected(False)
-        self._selected_nanobots.clear()
+        self._selected_clawbots.clear()
         
         for name in list(self._tag_widgets.keys()):
             self._remove_tag(name)
         
         self._update_tags_label()
-        self.nanobot_selected.emit(list(self._selected_nanobots))
+        self.clawbot_selected.emit(list(self._selected_clawbots))
     
-    def _on_nanobot_connect_requested(self, config_name: str):
+    def _on_clawbot_connect_requested(self, config_name: str):
         logger.info(f"[ChatPanel] 收到连接请求: {config_name}")
         
-        if config_name in self._nanobot_cards:
-            self._nanobot_cards[config_name].set_connection_status("connecting")
+        if config_name in self._clawbot_cards:
+            self._clawbot_cards[config_name].set_connection_status("connecting")
         
-        self.nanobot_connect_requested.emit(config_name)
+        self.clawbot_connect_requested.emit(config_name)
     
-    def _on_nanobot_disconnect_requested(self, config_name: str):
+    def _on_clawbot_disconnect_requested(self, config_name: str):
         logger.info(f"[ChatPanel] 收到断开请求: {config_name}")
         
-        self.nanobot_disconnect_requested.emit(config_name)
+        self.clawbot_disconnect_requested.emit(config_name)
     
     def _on_connect_all_clicked(self):
         connected_bots = [bot for bot, status in self._connection_status.items() if status]
@@ -949,75 +956,129 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         if connected_bots:
             logger.info("[ChatPanel] 断开全部连接")
             for bot in connected_bots:
-                self._on_nanobot_disconnect_requested(bot)
+                self._on_clawbot_disconnect_requested(bot)
         else:
-            if self._selected_nanobots:
-                logger.info(f"[ChatPanel] 连接全部选中的: {list(self._selected_nanobots)}")
-                for bot in self._selected_nanobots:
+            if self._selected_clawbots:
+                logger.info(f"[ChatPanel] 连接全部选中的: {list(self._selected_clawbots)}")
+                for bot in self._selected_clawbots:
                     if bot not in self._connection_status or not self._connection_status[bot]:
-                        self._on_nanobot_connect_requested(bot)
+                        self._on_clawbot_connect_requested(bot)
             else:
-                QMessageBox.warning(self, tr("chat.msg.select_bot_first", "请先选择要连接的 Nanobot"))
+                QMessageBox.warning(self, tr("chat.msg.select_bot_first", "请先选择要连接的 Clawbot"))
     
     def _on_send_message(self):
+        logger.debug(f"[ChatPanel] 发送消息按钮点击, 线程: {_get_thread_info()}")
         text = self.message_input.toPlainText().strip()
         if not text:
+            logger.debug("[ChatPanel] 消息为空，忽略")
             return
         
-        if not self._selected_nanobots:
-            QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Nanobot"))
+        if not self._selected_clawbots:
+            logger.warning("[ChatPanel] 未选择任何 Clawbot")
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("chat.msg.select_at_least_one", "请至少选择一个 Clawbot"))
             return
         
+        logger.info(f"[ChatPanel] 发送用户消息 (长度: {len(text)}, 目标: {list(self._selected_clawbots)})")
         self.message_input.clear()
         self.add_message("user", text)
-        self.message_sent.emit(text, list(self._selected_nanobots))
+        self.message_sent.emit(text, list(self._selected_clawbots))
     
-    def add_message(self, role: str, content: str, nanobot_name: Optional[str] = None):
-        message = ChatMessage(role, content, nanobot_name)
-        self._messages.append(message)
-        self._append_message(message)
+    def add_message(self, role: str, content: str, clawbot_name: Optional[str] = None):
+        start_time = time.perf_counter()
+        logger.debug(f"[ChatPanel] 添加消息: role={role}, bot={clawbot_name}, "
+                    f"长度={len(content)}, 线程={_get_thread_info()}, "
+                    f"主线程={_is_main_thread()}")
+        
+        try:
+            message = ChatMessage(role, content, clawbot_name)
+            self._messages.append(message)
+            self._append_message(message)
+            
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.debug(f"[ChatPanel] 消息添加完成, 总消息数: {len(self._messages)}, 耗时: {elapsed:.2f}ms")
+        except Exception as e:
+            logger.error(f"[ChatPanel] 添加消息异常: {type(e).__name__}: {e}")
+            logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
+            raise
     
     def _append_message(self, message: ChatMessage):
-        cursor = self.chat_text.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
+        append_start = time.perf_counter()
+        logger.debug(f"[ChatPanel] 追加消息到 UI: role={message.role}, bot={message.clawbot_name}")
         
-        if message.role == "user":
-            role_text = tr("chat.role.you", "你")
-            role_color = QColor("#58a6ff")
-            bg_color = QColor("#1f3a5f")
-        elif message.role == "assistant":
-            role_text = message.nanobot_name or tr("chat.role.ai", "AI")
-            if message.nanobot_name:
-                if message.nanobot_name not in self._bot_color_map:
-                    color_idx = len(self._bot_color_map) % len(self._BOT_COLORS)
-                    self._bot_color_map[message.nanobot_name] = self._BOT_COLORS[color_idx]
-                role_color = QColor(self._bot_color_map[message.nanobot_name][0])
-                bg_color = QColor(self._bot_color_map[message.nanobot_name][1])
+        try:
+            cursor = self.chat_text.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            
+            if message.role == "user":
+                role_text = tr("chat.role.you", "你")
+                role_color = QColor("#58a6ff")
+                bg_color = QColor("#1f3a5f")
+            elif message.role == "assistant":
+                role_text = message.clawbot_name or tr("chat.role.ai", "AI")
+                if message.clawbot_name:
+                    if message.clawbot_name not in self._bot_color_map:
+                        color_idx = len(self._bot_color_map) % len(self._BOT_COLORS)
+                        self._bot_color_map[message.clawbot_name] = self._BOT_COLORS[color_idx]
+                    role_color = QColor(self._bot_color_map[message.clawbot_name][0])
+                    bg_color = QColor(self._bot_color_map[message.clawbot_name][1])
+                else:
+                    role_color = QColor("#3fb950")
+                    bg_color = QColor("#1a3a2f")
             else:
-                role_color = QColor("#3fb950")
-                bg_color = QColor("#1a3a2f")
-        else:
-            role_text = message.role
-            role_color = QColor("#8b949e")
-            bg_color = QColor("#2d333b")
+                role_text = message.role
+                role_color = QColor("#8b949e")
+                bg_color = QColor("#2d333b")
+            
+            format_text = QTextCharFormat()
+            format_text.setBackground(bg_color)
+            format_text.setForeground(role_color)
+            format_text.setFontWeight(QFont.Weight.Bold)
+            cursor.insertText(f"[{role_text}] ", format_text)
+            
+            format_time = QTextCharFormat()
+            format_time.setForeground(QColor("#8b949e"))
+            format_time.setFontPointSize(9)
+            cursor.insertText(f"{message.timestamp}\n", format_time)
+            
+            self._insert_content_with_highlights(cursor, message.content)
+            cursor.insertText("\n\n")
+            
+            scrollbar = self.chat_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+            
+            elapsed = (time.perf_counter() - append_start) * 1000
+            logger.debug(f"[ChatPanel] UI 追加完成, 耗时: {elapsed:.2f}ms")
+        except Exception as e:
+            logger.error(f"[ChatPanel] UI 追加异常: {type(e).__name__}: {e}")
+            logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
+            raise
+    
+    def _insert_content_with_highlights(self, cursor, content: str):
+        import re
         
-        format_text = QTextCharFormat()
-        format_text.setBackground(bg_color)
-        format_text.setForeground(role_color)
-        format_text.setFontWeight(QFont.Weight.Bold)
-        cursor.insertText(f"[{role_text}] ", format_text)
+        format_normal = QTextCharFormat()
+        format_normal.setForeground(QColor("#c9d1d9"))
         
-        format_time = QTextCharFormat()
-        format_time.setForeground(QColor("#8b949e"))
-        format_time.setFontPointSize(9)
-        cursor.insertText(f"{message.timestamp}\n", format_time)
+        pattern = r'(@\w+)'
+        parts = re.split(pattern, content)
         
-        format_content = QTextCharFormat()
-        format_content.setForeground(QColor("#c9d1d9"))
-        cursor.insertText(f"{message.content}\n\n", format_content)
-        
-        scrollbar = self.chat_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        for part in parts:
+            if not part:
+                continue
+            
+            if part.startswith('@'):
+                bot_name = part[1:]
+                if bot_name in self._bot_color_map:
+                    fg_color, bg_color = self._bot_color_map[bot_name]
+                    format_mention = QTextCharFormat()
+                    format_mention.setForeground(QColor(fg_color))
+                    format_mention.setBackground(QColor(bg_color))
+                    format_mention.setFontWeight(QFont.Weight.Bold)
+                    cursor.insertText(part, format_mention)
+                else:
+                    cursor.insertText(part, format_normal)
+            else:
+                cursor.insertText(part, format_normal)
     
     def _clear_clicked(self):
         self._messages.clear()
@@ -1040,8 +1101,8 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         super().keyPressEvent(event)
     
     def _on_send_clicked(self):
-        if not self._selected_nanobots:
-            QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Nanobot"))
+        if not self._selected_clawbots:
+            QMessageBox.warning(self, tr("chat.msg.select_at_least_one", "请至少选择一个 Clawbot"))
             return
         
         connected_bots = [bot for bot, status in self._connection_status.items() if status]
@@ -1051,40 +1112,49 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             for bot in connected_bots:
                 self.disconnect_clicked.emit(bot)
         else:
-            logger.info(f"[ChatPanel] 发出 connect_clicked 信号，连接: {list(self._selected_nanobots)}")
+            logger.info(f"[ChatPanel] 发出 connect_clicked 信号，连接: {list(self._selected_clawbots)}")
             self.connect_clicked.emit("")
     
     def set_connecting(self):
-        logger.info("[ChatPanel] 设置状态: 正在连接...")
+        logger.info(f"[ChatPanel] 设置状态: 正在连接..., 线程: {_get_thread_info()}")
         self._connect_btn.setEnabled(False)
         self._connect_btn.setText(tr("chat.btn.connecting", "连接中..."))
     
     def set_connection_status(self, bot_name: str, is_connected: bool, info: Optional[str] = None):
-        logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -> {is_connected}, info={info}")
+        logger.info(f"[ChatPanel] 设置连接状态: {bot_name} -> {is_connected}, "
+                   f"info={info}, 线程={_get_thread_info()}, 主线程={_is_main_thread()}")
         
-        self._connection_status[bot_name] = is_connected
-        
-        if bot_name in self._nanobot_cards:
-            if is_connected:
-                self._nanobot_cards[bot_name].set_connection_status("connected")
-                self._connected_bot_info[bot_name] = {
-                    "address": info or "",
-                    "connected_at": datetime.now(),
-                    "message_count": 0
-                }
+        try:
+            self._connection_status[bot_name] = is_connected
+            
+            if bot_name in self._clawbot_cards:
+                if is_connected:
+                    self._clawbot_cards[bot_name].set_connection_status("connected")
+                    self._connected_bot_info[bot_name] = {
+                        "address": info or "",
+                        "connected_at": datetime.now(),
+                        "message_count": 0
+                    }
+                    logger.debug(f"[ChatPanel] Bot {bot_name} 连接信息已记录")
+                else:
+                    self._clawbot_cards[bot_name].set_connection_status("disconnected")
+                    if bot_name in self._connected_bot_info:
+                        del self._connected_bot_info[bot_name]
+                    logger.debug(f"[ChatPanel] Bot {bot_name} 连接信息已清除")
+            
+            self._update_connection_status_display()
+            
+            connected_bots = [bot for bot, status in self._connection_status.items() if status]
+            if connected_bots:
+                self._connect_btn.setText(tr("chat.disconnect_all", "断开全部"))
             else:
-                self._nanobot_cards[bot_name].set_connection_status("disconnected")
-                if bot_name in self._connected_bot_info:
-                    del self._connected_bot_info[bot_name]
-        
-        self._update_connection_status_display()
-        
-        connected_bots = [bot for bot, status in self._connection_status.items() if status]
-        if connected_bots:
-            self._connect_btn.setText(tr("chat.disconnect_all", "断开全部"))
-        else:
-            self._connect_btn.setText(tr("chat.connect_all", "连接全部"))
-        self._connect_btn.setEnabled(True)
+                self._connect_btn.setText(tr("chat.connect_all", "连接全部"))
+            self._connect_btn.setEnabled(True)
+            
+            logger.debug(f"[ChatPanel] 连接状态更新完成, 已连接: {connected_bots}")
+        except Exception as e:
+            logger.error(f"[ChatPanel] 设置连接状态异常: {type(e).__name__}: {e}")
+            logger.error(f"[ChatPanel] 堆栈跟踪:\n{traceback.format_exc()}")
     
     def _update_connection_status_display(self):
         for i in reversed(range(self._connection_status_layout.count() - 1)):
@@ -1096,7 +1166,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
             if is_connected and bot_name in self._connected_bot_info:
                 info = self._connected_bot_info[bot_name]
                 tag = ConnectedBotTag(bot_name, info.get("address", ""))
-                tag.disconnect_clicked.connect(self._on_nanobot_disconnect_requested)
+                tag.disconnect_clicked.connect(self._on_clawbot_disconnect_requested)
                 self._connection_status_layout.insertWidget(self._connection_status_layout.count() - 1, tag)
     
     def clear_connection_status(self):

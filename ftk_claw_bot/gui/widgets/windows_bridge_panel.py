@@ -1,19 +1,18 @@
+# -*- coding: utf-8 -*-
 import os
 import tempfile
-from typing import Optional, List, Dict
+from typing import List, Dict
 from datetime import datetime
-
-from loguru import logger
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QFrame, QGroupBox, QGridLayout, QLineEdit, QTextEdit,
-    QComboBox, QScrollArea, QMessageBox, QApplication, QSpinBox,
+    QComboBox, QMessageBox, QSpinBox,
     QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPixmap
+from PyQt6.QtGui import QFont, QColor
 
 from ..mixins import WSLStateAwareMixin
 from ..dialogs import WaitingDialog
@@ -75,7 +74,6 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         dialog = WaitingDialog(tr("bridge.msg.change_port_title", "修改端口"), tr("bridge.msg.updating_port", "正在更新端口配置..."), self)
         dialog.show()
         
-        old_port = self._bridge_port
         self._bridge_port = new_port
         
         self._bridge_status_label.setText(f"Windows Bridge: ● {tr('bridge.status_running_dot', '运行中')} (端口: {new_port})")
@@ -905,20 +903,15 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
     def update_clients_info(self, clients_info: list):
         pass
 
-    def update_wsl_connection_status(self, distros: list, connected_clients: list):
+    def update_wsl_connection_status(self, distros: list, connected_clients: list = None):
         """
         更新 WSL 连通状态表格
         
         Args:
             distros: 所有 WSL 分发列表 (WSLDistro 对象列表)
-            connected_clients: 已连接的客户端信息列表
+            connected_clients: 已连接的客户端信息列表 (用于显示当前活跃连接)
         """
-        connected_distro_names = set()
-        
-        for client in connected_clients:
-            distro_name = client.get("distro_name")
-            if distro_name:
-                connected_distro_names.add(distro_name)
+        bridge_running = self._bridge_status
         
         self._wsl_status_table.setRowCount(len(distros))
         
@@ -929,10 +922,13 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             wsl_status_item = QTableWidgetItem(tr("bridge.status_running_dot", "● 运行") if distro.is_running else tr("bridge.status_stopped_dot", "○ 停止"))
             wsl_status_item.setForeground(QColor("#3fb950") if distro.is_running else QColor("#8b949e"))
             
-            if distro.is_running:
-                is_connected = distro.name in connected_distro_names
-                bridge_status_item = QTableWidgetItem(tr("bridge.status_connected", "● 已连接") if is_connected else tr("bridge.status_disconnected", "○ 未连接"))
-                bridge_status_item.setForeground(QColor("#3fb950") if is_connected else QColor("#f85149"))
+            # 判断 Bridge 可用性：Bridge 运行 + WSL 运行 = 可连接
+            if not bridge_running:
+                bridge_status_item = QTableWidgetItem(tr("bridge.status_not_started", "○ 未启动"))
+                bridge_status_item.setForeground(QColor("#8b949e"))
+            elif distro.is_running:
+                bridge_status_item = QTableWidgetItem(tr("bridge.status_available", "● 可连接"))
+                bridge_status_item.setForeground(QColor("#3fb950"))
             else:
                 bridge_status_item = QTableWidgetItem("--")
                 bridge_status_item.setForeground(QColor("#8b949e"))
@@ -959,6 +955,7 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         scrollbar.setValue(scrollbar.maximum())
     
     def on_wsl_status_changed(self, distros: List[Dict], running_count: int, stopped_count: int):
+        # 只需要更新表格，Bridge 可用性判断使用内部的 _bridge_status
         self._update_wsl_table_from_data(distros)
 
     def on_wsl_distro_started(self, distro_name: str):
@@ -970,6 +967,14 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
         self.refresh_wsl_status.emit()
 
     def _update_wsl_table_from_data(self, distros: List[Dict]):
+        """
+        从数据更新 WSL 表格
+        
+        Args:
+            distros: WSL 分发列表 (字典格式)
+        """
+        bridge_running = self._bridge_status
+        
         self._wsl_status_table.setRowCount(len(distros))
         
         for row, distro in enumerate(distros):
@@ -980,8 +985,16 @@ class WindowsBridgePanel(QWidget, WSLStateAwareMixin):
             wsl_status_item = QTableWidgetItem(f"● {tr('bridge.status_running_dot', '运行')}" if is_running else f"○ {tr('bridge.status_stopped_dot', '停止')}")
             wsl_status_item.setForeground(QColor("#3fb950") if is_running else QColor("#8b949e"))
             
-            bridge_status_item = QTableWidgetItem("--")
-            bridge_status_item.setForeground(QColor("#8b949e"))
+            # 判断 Bridge 可用性：Bridge 运行 + WSL 运行 = 可连接
+            if not bridge_running:
+                bridge_status_item = QTableWidgetItem(tr("bridge.status_not_started", "○ 未启动"))
+                bridge_status_item.setForeground(QColor("#8b949e"))
+            elif is_running:
+                bridge_status_item = QTableWidgetItem(tr("bridge.status_available", "● 可连接"))
+                bridge_status_item.setForeground(QColor("#3fb950"))
+            else:
+                bridge_status_item = QTableWidgetItem("--")
+                bridge_status_item.setForeground(QColor("#8b949e"))
             
             self._wsl_status_table.setItem(row, 0, name_item)
             self._wsl_status_table.setItem(row, 1, wsl_status_item)

@@ -1,17 +1,16 @@
-from typing import Optional, List, Callable
+# -*- coding: utf-8 -*-
+from typing import Optional, List
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QCheckBox, QSpinBox, QGroupBox, QScrollArea,
-    QWidget, QFrame, QMessageBox, QListWidget, QListWidgetItem,
-    QComboBox, QFormLayout, QTabWidget
+    QLineEdit, QCheckBox, QSpinBox, QGroupBox, QFrame, QListWidget, QListWidgetItem,
+    QComboBox, QFormLayout
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
 from ...models import (
     WhatsAppConfig, TelegramConfig, DiscordConfig, FeishuConfig,
-    DingTalkConfig, SlackConfig, SlackDMConfig, EmailConfig,
-    QQConfig, MochatConfig, CHANNEL_INFO
+    DingTalkConfig, SlackConfig, EmailConfig,
+    QQConfig, CHANNEL_INFO
 )
 
 
