@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from .action_router import ActionRouter
 from .ipc_server import IPCServer
+from .session_store import SessionStore
+from .ocr_automation import OCRAutomation
 from ..bridge.protocol import TargetType
 
 PYAUTOGUI_AVAILABLE = True
@@ -462,6 +464,8 @@ class WindowsBridge:
         self._web_automation = None
         self._action_router: Optional[ActionRouter] = None
         self._router_lock = threading.Lock()
+        self._session_store = SessionStore()
+        self._ocr_automation = OCRAutomation()
         self._register_handlers()
 
     @property
@@ -522,6 +526,18 @@ class WindowsBridge:
         self._ipc_server.register_handler("web_go_back", self._handle_web_go_back)
         self._ipc_server.register_handler("web_go_forward", self._handle_web_go_forward)
         self._ipc_server.register_handler("web_refresh", self._handle_web_refresh)
+        
+        # Session management handlers
+        self._ipc_server.register_handler("session_create", self._handle_session_create)
+        self._ipc_server.register_handler("session_close", self._handle_session_close)
+        self._ipc_server.register_handler("session_list", self._handle_session_list)
+        self._ipc_server.register_handler("session_status", self._handle_session_status)
+        self._ipc_server.register_handler("session_keepalive", self._handle_session_keepalive)
+        
+        # OCR handlers
+        self._ipc_server.register_handler("gui_screenshot_ocr", self._handle_gui_screenshot_ocr)
+        self._ipc_server.register_handler("gui_click", self._handle_gui_click)
+        self._ipc_server.register_handler("gui_input", self._handle_gui_input)
 
     # Automation handler mapping (class-level constant)
     _AUTOMATION_HANDLERS = {
@@ -604,6 +620,7 @@ class WindowsBridge:
                 self._action_router.shutdown()
             except Exception:
                 pass
+        self._session_store.close_all_sessions()
         if self._web_automation:
             try:
                 self._web_automation.stop()
@@ -729,7 +746,22 @@ class WindowsBridge:
         
         return self._route_action(action, action_params)
 
-    def _get_web_automation_instance(self):
+    def _get_web_automation_instance(self, session_id: str = None):
+        if session_id:
+            session = self._session_store.get_session(session_id)
+            if session:
+                return session
+            
+            WebAutomation = _get_web_automation()
+            if WebAutomation is None:
+                return None
+            
+            web = WebAutomation()
+            result = self._session_store.create_web_session(session_id, web)
+            if result.get("success"):
+                return web
+            return None
+        
         if self._web_automation is None:
             WebAutomation = _get_web_automation()
             if WebAutomation is None:
@@ -739,13 +771,14 @@ class WindowsBridge:
 
     def _handle_web_start(self, params: dict) -> dict:
         from loguru import logger
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None:
             return {"success": False, "error": "playwright_not_available", "message": "Playwright is not installed"}
         headless = params.get("headless", True)
-        logger.info(f"[WindowsBridge] Starting web automation, headless={headless}")
+        logger.info(f"[WindowsBridge] Starting web automation, headless={headless}, session_id={session_id}")
         result = web.start(headless=headless)
-        return {"success": result}
+        return {"success": result, "session_id": session_id}
 
     def _handle_web_stop(self, params: dict) -> dict:
         if self._web_automation is None:
@@ -755,7 +788,8 @@ class WindowsBridge:
         return {"success": result}
 
     def _handle_web_navigate(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         url = params.get("url", "")
@@ -921,6 +955,80 @@ class WindowsBridge:
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.refresh()
+
+    # ==================== Session Management Handlers ====================
+    
+    def _handle_session_create(self, params: dict) -> dict:
+        session_type = params.get("type", "web")
+        app_path = params.get("app_path", "")
+        session_id = params.get("_session_id")
+        
+        if session_type == "web":
+            return self._session_store.create_web_session(session_id)
+        elif session_type == "app":
+            return self._session_store.create_app_session(session_id=session_id, app_path=app_path)
+        else:
+            return {"success": False, "error": "invalid_session_type"}
+    
+    def _handle_session_close(self, params: dict) -> dict:
+        session_id = params.get("session_id") or params.get("_session_id")
+        return self._session_store.close_session(session_id)
+    
+    def _handle_session_list(self, params: dict) -> dict:
+        sessions = self._session_store.list_sessions()
+        return {"success": True, "sessions": sessions}
+    
+    def _handle_session_status(self, params: dict) -> dict:
+        session_id = params.get("session_id") or params.get("_session_id")
+        info = self._session_store.get_session_info(session_id)
+        if info:
+            return {"success": True, **info}
+        return {"success": False, "error": "session_not_found"}
+    
+    def _handle_session_keepalive(self, params: dict) -> dict:
+        session_id = params.get("session_id") or params.get("_session_id")
+        return self._session_store.keepalive(session_id)
+    
+    # ==================== OCR Handlers ====================
+    
+    def _handle_gui_screenshot_ocr(self, params: dict) -> dict:
+        region = params.get("region")
+        result = self._ocr_automation.screenshot_ocr(region=region)
+        return result
+    
+    def _handle_gui_click(self, params: dict) -> dict:
+        text = params.get("text")
+        x = params.get("x")
+        y = params.get("y")
+        
+        if text:
+            return self._ocr_automation.click_text(text)
+        elif x is not None and y is not None:
+            try:
+                self._automation.mouse_click(x, y)
+                return {"success": True}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        else:
+            return {"success": False, "error": "missing_click_params"}
+    
+    def _handle_gui_input(self, params: dict) -> dict:
+        text = params.get("text")
+        value = params.get("value")
+        x = params.get("x")
+        y = params.get("y")
+        
+        if text and value:
+            return self._ocr_automation.input_text(text, value)
+        elif x is not None and y is not None and value:
+            try:
+                self._automation.mouse_click(x, y)
+                self._automation.keyboard_type(value)
+                return {"success": True}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        else:
+            return {"success": False, "error": "missing_input_params"}
 
     @property
     def is_running(self) -> bool:

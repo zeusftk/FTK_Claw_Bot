@@ -14,6 +14,7 @@ class IPCMessage:
     msg_type: str = "request"
     msg_id: str = ""
     timestamp: str = ""
+    session_id: str = ""
     payload: Optional[dict] = field(default_factory=dict)
 
     def to_json(self) -> str:
@@ -22,6 +23,7 @@ class IPCMessage:
             "type": self.msg_type,
             "id": self.msg_id,
             "timestamp": self.timestamp,
+            "session_id": self.session_id,
             "payload": self.payload or {}
         })
 
@@ -33,6 +35,7 @@ class IPCMessage:
             msg_type=data.get("type", "request"),
             msg_id=data.get("id", ""),
             timestamp=data.get("timestamp", ""),
+            session_id=data.get("session_id", ""),
             payload=data.get("payload", {})
         )
 
@@ -195,8 +198,8 @@ class IPCServer:
             message = IPCMessage.from_json(message_str)
             action = message.payload.get("action", "")
             params = message.payload.get("params", {})
+            session_id = message.session_id
 
-            # 版本校验
             if message.version != "1.0":
                 response = IPCMessage(
                     msg_type="response",
@@ -205,23 +208,27 @@ class IPCServer:
                 )
                 return response.to_json()
 
-            # Log all requests for debugging
-            logger.info(f"[IPC] Received request - action: {action}, params: {params}")
+            logger.info(f"[IPC] Received request - action: {action}, session_id: {session_id}, params: {params}")
 
             if action == "identify":
                 return self._handle_identify(client_socket, message, params)
+
+            if session_id:
+                params["_session_id"] = session_id
 
             if action in self._handlers:
                 result = self._handlers[action](params)
                 response = IPCMessage(
                     msg_type="response",
                     msg_id=message.msg_id,
+                    session_id=session_id,
                     payload={"success": True, "result": result}
                 )
             else:
                 response = IPCMessage(
                     msg_type="response",
                     msg_id=message.msg_id,
+                    session_id=session_id,
                     payload={"success": False, "error": f"Unknown action: {action}"}
                 )
 
