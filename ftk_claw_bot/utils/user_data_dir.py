@@ -42,11 +42,14 @@ class UserDataDir:
         if custom_path:
             self._base_dir = Path(custom_path)
         elif getattr(sys, 'frozen', False):
-            # 打包后：exe 同级目录下的 user_data
             self._base_dir = Path(sys.executable).parent / "user_data"
+        elif sys.argv and sys.argv[0]:
+            exe_path = Path(sys.argv[0])
+            if exe_path.exists() and exe_path.suffix.lower() == '.exe':
+                self._base_dir = exe_path.parent / "user_data"
+            else:
+                self._base_dir = Path(__file__).parent.parent.parent / "user_data"
         else:
-            # 开发环境：项目根目录下的 user_data
-            # ftk_claw_bot/utils/user_data_dir.py -> ../../user_data
             self._base_dir = Path(__file__).parent.parent.parent / "user_data"
         
         # 先标记为已初始化，防止 _ensure_dirs 中的属性访问导致递归

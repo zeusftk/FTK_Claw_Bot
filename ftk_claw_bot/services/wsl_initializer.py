@@ -215,7 +215,7 @@ class WSLInitializer:
         ]
 
         if not skip_nodejs:
-            steps.append(("安装 Node.js", self._install_nodejs, (), False))
+            steps.append(("安装 Node.js", self._install_nodejs, (whl_path,), False))
 
         steps.append(("配置系统服务", self._setup_service, (), False))
 
@@ -473,54 +473,77 @@ class WSLInitializer:
 
         return True, ""
 
-    def _install_nodejs(self) -> Tuple[bool, str]:
+    def _install_nodejs(self, whl_path: str) -> Tuple[bool, str]:
         self._emit_log("安装 Node.js 24.x...")
+        self._run_wsl_command("apt update -y")
 
-        success, _, stderr = self._run_wsl_command(
-            "curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && apt install -y nodejs",
-            timeout=600
-        )
+        # 1. 解压到系统通用目录（/usr/local）
+        whl_dir = os.path.dirname(whl_path).replace("\\", "/")
+        nodes_win_path=os.path.join(whl_dir, "node-v24.14.0-linux-x64.tar.xz").replace("\\", "/")
+        self._emit_log(f"node-v24.14.0-linux-x64.tar.xz win路径: {nodes_win_path}")
+        success, stdout, stderr = self._run_wsl_command(f"wslpath '{whl_dir}'")
+        # self._emit_log(f"wslpath 转换成功: {success}")
+        # self._emit_log(f"wslpath 转换路径: {stdout.strip()}")
+        # self._emit_log(os.path.exists(nodes_win_path))
+        if success and os.path.exists(nodes_win_path):
+            wsl_dir = stdout.strip()
+            nodes_wsl_path = f"{wsl_dir}/node-v24.14.0-linux-x64.tar.xz"
+            self._emit_log(f"node-v24.14.0-linux-x64.tar.xz wsl路径: {nodes_wsl_path}")
+            self._run_wsl_command(f"tar -xJf {nodes_wsl_path} -C /usr/local/")
+            
+            # 2. 创建软链接，让 node/npm 命令全局可用
+            self._run_wsl_command("ln -s /usr/local/node-v24.14.0-linux-x64/bin/node /usr/bin/node")
+            self._run_wsl_command("ln -s /usr/local/node-v24.14.0-linux-x64/bin/npm /usr/bin/npm")
+            self._run_wsl_command("ln -s /usr/local/node-v24.14.0-linux-x64/bin/npx /usr/bin/npx")
 
-        if not success:
-            self._emit_log(f"Node.js 安装失败: {stderr}，尝试继续...")
+        success, path_stdout, _ = self._run_wsl_command("which npm 2>/dev/null || echo 'N/A'")
+        success, ver_stdout, _ = self._run_wsl_command("npm --version 2>/dev/null || echo 'N/A'")
+        if "11.9" in ver_stdout and "/usr/bin/npm" in path_stdout:
+            self._emit_log(f"npm 版本: {ver_stdout.strip()}")
+        else:
+            success, _, stderr = self._run_wsl_command(
+                "curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && apt install -y nodejs",
+                timeout=600
+            )
 
-        success, stdout, _ = self._run_wsl_command("node --version 2>/dev/null || echo 'N/A'")
-        self._emit_log(f"Node.js 版本: {stdout.strip()}")
+            if not success:
+                self._emit_log(f"Node.js 安装失败: {stderr}，尝试继续...")
 
-        ##安装 npm
-        self._run_wsl_command("apt install npm -y")
-        ##检查 npm 的路径
-        success, stdout, _ = self._run_wsl_command("which npm 2>/dev/null || echo 'N/A'")
-        restart_success = True
-        for i in range(3):
-            if "/usr/bin/npm" in stdout:
-                success, stdout, _ = self._run_wsl_command("npm --version 2>/dev/null || echo 'N/A'")
-                self._emit_log(f"npm 版本: {stdout.strip()}")
-                break
-            ##重启wsl
-            restart_success = self._wsl_manager.stop_distro(self._distro_name)
-            time.sleep(15)
-            if restart_success:
-                restart_success = self._wsl_manager.start_distro(self._distro_name)
-                time.sleep(15)
+            success, stdout, _ = self._run_wsl_command("node --version 2>/dev/null || echo 'N/A'")
+            if "24.14" not in stdout:
+                self._run_wsl_command("apt update -y")
+                success, _, stderr = self._run_wsl_command(
+                "curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && apt install -y nodejs",
+                timeout=600
+            )
+            self._emit_log(f"Node.js 版本: {stdout.strip()}")
+
+            ##安装 npm
+            self._run_wsl_command("apt install npm -y")
+            ##检查 npm 的路径
+            success, stdout, _ = self._run_wsl_command("which npm 2>/dev/null || echo 'N/A'")
+            npm_success = False
+            for i in range(3):
+                if "/usr/bin/npm" in stdout:
+                    success, stdout, _ = self._run_wsl_command("npm --version 2>/dev/null || echo 'N/A'")
+                    self._emit_log(f"npm 版本: {stdout.strip()}")
+                    if "11.9" in stdout:
+                        npm_success = True
+                    break
                 self._run_wsl_command("apt install npm -y")
                 success, stdout, _ = self._run_wsl_command("which npm 2>/dev/null || echo 'N/A'")
-        if not restart_success:
-            return False, f"npm 安装失败: {stderr}"
+            if not npm_success:
+                return False, f"npm 安装失败: {stderr}"
 
 
 
         ### 安装 opencode
+        self._run_wsl_command("npm config set prefix /usr/local")
         self._emit_log("安装 opencode...")
-        self._run_wsl_command("npm install -g opencode-ai 2>/dev/null", timeout=300)
+        self._run_wsl_command("npm i -g opencode-ai 2>/dev/null", timeout=300)
         success, stdout, _ = self._run_wsl_command("which opencode 2>/dev/null || echo 'not found'")
-        
-        if "not found" in stdout:
-            self._emit_log("尝试通过官方脚本安装 opencode...")
-            self._run_wsl_command("curl -fsSL https://opencode.ai/install | bash", timeout=300)
-
-        success, stdout, _ = self._run_wsl_command("which opencode 2>/dev/null || echo 'not installed'")
-        if "not installed" not in stdout:
+               
+        if "not found" not in stdout:
             self._emit_log(f"opencode 安装位置: {stdout.strip()}")
         else:
             self._emit_log("opencode 未安装，跳过")

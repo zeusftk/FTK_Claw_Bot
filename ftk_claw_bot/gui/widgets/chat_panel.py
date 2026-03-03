@@ -612,7 +612,7 @@ class ChatPanel(QWidget, WSLStateAwareMixin):
         
         self.group_chat_interval_spin = QSpinBox()
         self.group_chat_interval_spin.setRange(1, 60)
-        self.group_chat_interval_spin.setValue(5)
+        self.group_chat_interval_spin.setValue(60)
         self.group_chat_interval_spin.setSuffix(tr("chat.seconds", "秒"))
         self.group_chat_interval_spin.setToolTip(tr("chat.forward_interval", "群聊转发间隔"))
         self.group_chat_interval_spin.setStyleSheet("""
