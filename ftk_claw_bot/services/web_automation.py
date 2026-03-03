@@ -5,76 +5,52 @@ import json
 import os
 import random
 import threading
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+
+from loguru import logger
 
 PLAYWRIGHT_AVAILABLE = True
 
 
-def _get_playwright():
+def _check_playwright():
     global PLAYWRIGHT_AVAILABLE
-    if not PLAYWRIGHT_AVAILABLE:
-        return None
     try:
         from playwright.async_api import async_playwright
-        return async_playwright
+        return True
     except ImportError:
         PLAYWRIGHT_AVAILABLE = False
-        return None
+        return False
 
 
-@dataclass
-class PageElement:
-    id: int
-    tag: str
-    type: str
-    action_type: str
-    text: str
-    selector: str
-    location: Dict[str, int]
-    is_interactive: bool
-    weight: int
-    is_primary: bool = True
-    duplicate_count: int = 1
-    text_group_id: str = ""
-
-
-@dataclass
-class ExtractResult:
-    url: str
-    title: str
-    elements: List[PageElement] = field(default_factory=list)
-    summary: Dict[str, int] = field(default_factory=dict)
+_check_playwright()
 
 
 class WebAutomation:
-    """基于 Playwright 的 Web 自动化类"""
+    """Web 自动化类 - 基于 web_api_agent 方案"""
 
     def __init__(self):
-        self._playwright = None
-        self._browser = None
-        self._page = None
-        self._context = None
+        self._session_id: Optional[str] = None
+        self._session_manager = None
+        self._web_agent = None
         self._started = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
+        self._headless = True
         
-        # 使用统一的 user_data 目录
         from ftk_claw_bot.utils.user_data_dir import user_data
         self._sessions_dir = str(user_data.web_sessions)
         self._cookies_dir = str(user_data.web_cookies)
         self._cookies_domain_dir = str(user_data.web_cookies_domain)
         
-        # 确保目录存在
         os.makedirs(self._sessions_dir, exist_ok=True)
         os.makedirs(self._cookies_dir, exist_ok=True)
         os.makedirs(self._cookies_domain_dir, exist_ok=True)
 
     @property
     def is_started(self) -> bool:
-        return self._started and self._browser is not None
+        return self._started and self._session_id is not None
 
     def _ensure_loop(self):
         if self._loop is None or not self._loop.is_running():
@@ -94,24 +70,29 @@ class WebAutomation:
     def _run_async(self, coro):
         self._ensure_loop()
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result(timeout=60)
+        return future.result(timeout=120)
+
+    async def _get_session_manager(self):
+        if self._session_manager is None:
+            from web_api_agent.core.session_manager import SessionManager
+            self._session_manager = SessionManager()
+            await self._session_manager.initialize()
+        return self._session_manager
+
+    async def _get_web_agent(self):
+        if self._web_agent is None and self._session_id:
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session:
+                from web_api_agent.core.web_agent import WebAgent
+                self._web_agent = WebAgent(session.page)
+        return self._web_agent
 
     def start(self, headless: bool = True, viewport: dict = None) -> bool:
-        """
-        启动浏览器
-        
-        Args:
-            headless: 是否无头模式（默认 True）
-            viewport: 视口大小，默认使用 constants 中定义的固定大小
-        
-        Returns:
-            是否启动成功
-        """
-        async_playwright = _get_playwright()
-        if async_playwright is None:
+        if not PLAYWRIGHT_AVAILABLE:
+            logger.error("[WebAutomation] Playwright not available")
             return False
 
-        # 使用固定窗口大小
         from ftk_claw_bot.constants import WebAutomation as WebConfig
         viewport = viewport or {
             "width": WebConfig.VIEWPORT_WIDTH,
@@ -119,47 +100,40 @@ class WebAutomation:
         }
 
         async def _start():
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=headless,
-                args=[f"--window-size={viewport['width']},{viewport['height']}"]
-            )
-            self._context = await self._browser.new_context(
-                viewport=viewport
-            )
-            self._page = await self._context.new_page()
-            self._started = True
-            return True
+            session_manager = await self._get_session_manager()
+            self._session_id = await session_manager.create_session()
+            
+            session = await session_manager.get_session(self._session_id)
+            if session:
+                from web_api_agent.core.web_agent import WebAgent
+                self._web_agent = WebAgent(session.page)
+                self._started = True
+                self._headless = headless
+                logger.info(f"[WebAutomation] Started session: {self._session_id}")
+                return True
+            return False
 
         try:
             return self._run_async(_start())
         except Exception as e:
-            from loguru import logger
             logger.error(f"[WebAutomation] Failed to start: {e}")
             return False
 
     def stop(self) -> bool:
         async def _stop():
-            if self._page:
-                await self._page.close()
-                self._page = None
-            if self._context:
-                await self._context.close()
-                self._context = None
-            if self._browser:
-                await self._browser.close()
-                self._browser = None
-            if self._playwright:
-                await self._playwright.stop()
-                self._playwright = None
+            if self._session_id and self._session_manager:
+                await self._session_manager.close_session(self._session_id)
+            self._session_id = None
+            self._web_agent = None
             self._started = False
             return True
 
         try:
-            if self._browser:
+            if self._session_id:
                 return self._run_async(_stop())
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[WebAutomation] Failed to stop: {e}")
             return False
 
     def navigate(self, url: str, wait_until: str = "domcontentloaded", timeout: int = 30000) -> dict:
@@ -170,32 +144,43 @@ class WebAutomation:
             return {"success": False, "error": "invalid_url", "message": "URL must start with http:// or https://"}
 
         async def _navigate():
-            await self._page.goto(url, wait_until=wait_until, timeout=timeout)
-            return await self._get_page_info()
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.navigate(url)
+            return {
+                "success": not bool(result.get("error")),
+                "url": result.get("url", ""),
+                "title": result.get("title", ""),
+                "elements": result.get("elements", []),
+                "summary": result.get("summary", {}),
+                "error": result.get("error")
+            }
 
         try:
             result = self._run_async(_navigate())
-            return {"success": True, **result}
+            return result
         except Exception as e:
             return {"success": False, "error": "navigation_failed", "message": str(e)}
-
-    async def _get_page_info(self) -> dict:
-        url = self._page.url
-        title = await self._page.title()
-        return {"url": url, "title": title}
 
     def click(self, selector: str, timeout: int = 10000) -> dict:
         if not self.is_started:
             return {"success": False, "error": "browser_not_started"}
 
         async def _click():
-            await self._page.click(selector, timeout=timeout)
-            await self._page.wait_for_load_state("networkidle", timeout=10000)
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.click(selector)
+            return {
+                "success": not bool(result.get("error")),
+                "error": result.get("error")
+            }
 
         try:
-            self._run_async(_click())
-            return {"success": True}
+            return self._run_async(_click())
         except Exception as e:
             return {"success": False, "error": "element_not_found", "message": str(e)}
 
@@ -204,12 +189,18 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _fill():
-            await self._page.fill(selector, value, timeout=timeout)
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.fill(selector, value)
+            return {
+                "success": not bool(result.get("error")),
+                "error": result.get("error")
+            }
 
         try:
-            self._run_async(_fill())
-            return {"success": True}
+            return self._run_async(_fill())
         except Exception as e:
             return {"success": False, "error": "element_not_found", "message": str(e)}
 
@@ -218,15 +209,18 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _scroll():
-            if direction == "down":
-                await self._page.evaluate(f"window.scrollBy(0, {amount})")
-            elif direction == "up":
-                await self._page.evaluate(f"window.scrollBy(0, -{amount})")
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.scroll(direction, amount)
+            return {
+                "success": not bool(result.get("error")),
+                "error": result.get("error")
+            }
 
         try:
-            self._run_async(_scroll())
-            return {"success": True}
+            return self._run_async(_scroll())
         except Exception as e:
             return {"success": False, "error": "scroll_failed", "message": str(e)}
 
@@ -235,12 +229,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _get_content():
-            content = await self._page.content()
-            return content
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            content = await agent.get_page_content()
+            return {"success": True, "content": content}
 
         try:
-            content = self._run_async(_get_content())
-            return {"success": True, "content": content}
+            return self._run_async(_get_content())
         except Exception as e:
             return {"success": False, "error": "get_content_failed", "message": str(e)}
 
@@ -248,8 +245,16 @@ class WebAutomation:
         if not self.is_started:
             return {"success": False, "error": "browser_not_started"}
 
+        async def _get_url():
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            url = await agent.get_current_url()
+            return {"success": True, "url": url}
+
         try:
-            return {"success": True, "url": self._page.url}
+            return self._run_async(_get_url())
         except Exception as e:
             return {"success": False, "error": "get_url_failed", "message": str(e)}
 
@@ -258,11 +263,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _get_title():
-            return await self._page.title()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                title = await session.page.title()
+                return {"success": True, "title": title}
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            title = self._run_async(_get_title())
-            return {"success": True, "title": title}
+            return self._run_async(_get_title())
         except Exception as e:
             return {"success": False, "error": "get_title_failed", "message": str(e)}
 
@@ -271,21 +280,26 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _screenshot():
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if not session or not session.page:
+                return {"success": False, "error": "session_not_found"}
+            
+            page = session.page
+            
             if selector:
-                element = await self._page.query_selector(selector)
+                element = await page.query_selector(selector)
                 if element:
                     data = await element.screenshot()
                 else:
-                    return None
+                    return {"success": False, "error": "element_not_found"}
             else:
-                data = await self._page.screenshot(full_page=full_page)
-            return data
+                data = await page.screenshot(full_page=full_page)
+            
+            return {"success": True, "data": base64.b64encode(data).decode("utf-8")}
 
         try:
-            data = self._run_async(_screenshot())
-            if data is None:
-                return {"success": False, "error": "element_not_found"}
-            return {"success": True, "data": base64.b64encode(data).decode("utf-8")}
+            return self._run_async(_screenshot())
         except Exception as e:
             return {"success": False, "error": "screenshot_failed", "message": str(e)}
 
@@ -293,127 +307,24 @@ class WebAutomation:
         if not self.is_started:
             return {"success": False, "error": "browser_not_started"}
 
-        config = config or {}
-        interactive_weight = config.get("interactive_weight", 100)
-        min_area = config.get("min_area", 100)
-        include_duplicates = config.get("include_duplicates", False)
-
         async def _extract():
-            title = await self._page.title()
-            url = self._page.url
-
-            raw_elements = await self._page.evaluate('''
-                function extractElements() {
-                    const elements = [];
-                    const allElements = document.querySelectorAll('*');
-                    
-                    allElements.forEach((el, index) => {
-                        const rect = el.getBoundingClientRect();
-                        const text = el.textContent.trim();
-                        
-                        if (text && rect.width > 0 && rect.height > 0) {
-                            elements.push({
-                                tag: el.tagName.toLowerCase(),
-                                type: el.type || '',
-                                action_type: el.tagName.toLowerCase() === 'a' ? 'click' : 
-                                            el.tagName.toLowerCase() === 'input' ? 'fill' : 
-                                            el.tagName.toLowerCase() === 'button' ? 'click' : 'none',
-                                text: text.substring(0, 200),
-                                selector: generateSelector(el),
-                                location: {
-                                    x: Math.round(rect.left),
-                                    y: Math.round(rect.top),
-                                    width: Math.round(rect.width),
-                                    height: Math.round(rect.height)
-                                },
-                                is_interactive: el.tagName.toLowerCase() === 'a' || 
-                                               el.tagName.toLowerCase() === 'button' || 
-                                               el.tagName.toLowerCase() === 'input' || 
-                                               el.tagName.toLowerCase() === 'select' || 
-                                               el.tagName.toLowerCase() === 'textarea'
-                            });
-                        }
-                    });
-                    
-                    function generateSelector(el) {
-                        if (el.id) {
-                            return '#' + el.id;
-                        }
-                        if (el.className && typeof el.className === 'string') {
-                            return '.' + el.className.split(' ').filter(c => c).join('.');
-                        }
-                        return el.tagName.toLowerCase();
-                    }
-                    
-                    return elements;
-                }
-                extractElements();
-            ''')
-
-            elements_with_weight = []
-            for el in raw_elements:
-                loc = el['location']
-                area = loc['width'] * loc['height']
-                if area < min_area:
-                    continue
-
-                weight = (interactive_weight if el['is_interactive'] else 0) + area
-                el['weight'] = weight
-                elements_with_weight.append(el)
-
-            elements_with_weight.sort(key=lambda x: x['weight'], reverse=True)
-
-            text_groups = {}
-            for el in elements_with_weight:
-                text = el['text']
-                if text not in text_groups:
-                    text_groups[text] = []
-                text_groups[text].append(el)
-
-            result_elements = []
-            group_id = 0
-            for text, group in text_groups.items():
-                group_id += 1
-                group.sort(key=lambda x: x['weight'], reverse=True)
-
-                for i, el in enumerate(group):
-                    result_elements.append({
-                        'id': len(result_elements) + 1,
-                        'tag': el['tag'],
-                        'type': el['type'],
-                        'action_type': el['action_type'],
-                        'text': el['text'],
-                        'selector': el['selector'],
-                        'location': el['location'],
-                        'is_interactive': el['is_interactive'],
-                        'weight': el['weight'],
-                        'is_primary': (i == 0),
-                        'duplicate_count': len(group),
-                        'text_group_id': f"g_{group_id}"
-                    })
-
-            if not include_duplicates:
-                result_elements = [e for e in result_elements if e['is_primary']]
-
-            for i, el in enumerate(result_elements):
-                el['id'] = i + 1
-
-            interactive_count = sum(1 for e in result_elements if e['is_interactive'])
-
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.get_page_structure(config)
             return {
-                'url': url,
-                'title': title,
-                'elements': result_elements,
-                'summary': {
-                    'total': len(result_elements),
-                    'interactive': interactive_count,
-                    'unique_text': len(text_groups)
-                }
+                "success": not bool(result.get("error")),
+                "url": result.get("url", ""),
+                "title": result.get("title", ""),
+                "elements": result.get("elements", []),
+                "forms": result.get("forms", []),
+                "summary": result.get("summary", {}),
+                "error": result.get("error")
             }
 
         try:
-            result = self._run_async(_extract())
-            return {"success": True, **result}
+            return self._run_async(_extract())
         except Exception as e:
             return {"success": False, "error": "extract_failed", "message": str(e)}
 
@@ -422,31 +333,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _extract():
-            data = {}
-            for item in selectors:
-                name = item.get("name")
-                selector = item.get("selector")
-                try:
-                    elements = await self._page.query_selector_all(selector)
-                    if elements:
-                        if len(elements) == 1:
-                            text = await elements[0].text_content()
-                            data[name] = text.strip() if text else None
-                        else:
-                            texts = []
-                            for el in elements:
-                                text = await el.text_content()
-                                texts.append(text.strip() if text else "")
-                            data[name] = texts
-                    else:
-                        data[name] = None
-                except Exception:
-                    data[name] = None
-            return data
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            data = await agent.extract_data(selectors)
+            return {"success": True, "data": data}
 
         try:
-            data = self._run_async(_extract())
-            return {"success": True, "data": data}
+            return self._run_async(_extract())
         except Exception as e:
             return {"success": False, "error": "extract_failed", "message": str(e)}
 
@@ -455,11 +350,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _get_cookies():
-            return await self._context.cookies()
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            cookies = await agent.get_cookies()
+            return {"success": True, "cookies": cookies}
 
         try:
-            cookies = self._run_async(_get_cookies())
-            return {"success": True, "cookies": cookies}
+            return self._run_async(_get_cookies())
         except Exception as e:
             return {"success": False, "error": "get_cookies_failed", "message": str(e)}
 
@@ -468,12 +367,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _set_cookies():
-            await self._context.add_cookies(cookies)
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.set_cookies(cookies)
+            return {"success": result}
 
         try:
-            self._run_async(_set_cookies())
-            return {"success": True}
+            return self._run_async(_set_cookies())
         except Exception as e:
             return {"success": False, "error": "set_cookies_failed", "message": str(e)}
 
@@ -482,8 +384,13 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _save():
-            cookies = await self._context.cookies()
-            storage = await self._context.storage_state()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if not session:
+                return {"success": False, "error": "session_not_found"}
+            
+            cookies = await session.context.cookies()
+            storage = await session.context.storage_state()
             session_data = {
                 "cookies": cookies,
                 "storage": storage,
@@ -492,11 +399,10 @@ class WebAutomation:
             session_file = os.path.join(self._sessions_dir, f"{session_id}.json")
             with open(session_file, "w") as f:
                 json.dump(session_data, f)
-            return True
+            return {"success": True}
 
         try:
-            self._run_async(_save())
-            return {"success": True}
+            return self._run_async(_save())
         except Exception as e:
             return {"success": False, "error": "save_session_failed", "message": str(e)}
 
@@ -513,44 +419,36 @@ class WebAutomation:
                 return {"success": False, "error": "browser_not_started"}
 
             async def _load():
-                cookies = session_data.get("cookies", [])
-                await self._context.add_cookies(cookies)
-                return True
+                session_manager = await self._get_session_manager()
+                session = await session_manager.get_session(self._session_id)
+                if session:
+                    cookies = session_data.get("cookies", [])
+                    await session.context.add_cookies(cookies)
+                    return {"success": True}
+                return {"success": False, "error": "session_not_found"}
 
-            self._run_async(_load())
-            return {"success": True}
+            return self._run_async(_load())
         except Exception as e:
             return {"success": False, "error": "load_session_failed", "message": str(e)}
 
-    # ========================================
-    # Cookie 持久化方法
-    # ========================================
-
     def save_cookies(self, domain: str = None) -> dict:
-        """
-        保存当前 cookies 到文件
-        
-        Args:
-            domain: 指定域名则只保存该域名的 cookies，否则保存全局 cookies
-        
-        Returns:
-            操作结果
-        """
         if not self.is_started:
             return {"success": False, "error": "browser_not_started"}
 
         async def _get_cookies():
-            return await self._context.cookies()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session:
+                return await session.context.cookies()
+            return []
 
         try:
             cookies = self._run_async(_get_cookies())
             
             if domain:
-                # 只保存指定域名的 cookies
                 cookies = [c for c in cookies if domain in c.get("domain", "")]
                 cookie_file = os.path.join(self._cookies_domain_dir, f"{domain}.json")
             else:
-                # 保存全局 cookies
                 cookie_file = os.path.join(self._cookies_dir, "global_cookies.json")
             
             cookie_data = {
@@ -562,24 +460,11 @@ class WebAutomation:
             with open(cookie_file, "w", encoding="utf-8") as f:
                 json.dump(cookie_data, f, ensure_ascii=False, indent=2)
             
-            return {
-                "success": True,
-                "count": len(cookies),
-                "file": cookie_file
-            }
+            return {"success": True, "count": len(cookies), "file": cookie_file}
         except Exception as e:
             return {"success": False, "error": "save_cookies_failed", "message": str(e)}
 
     def load_cookies(self, domain: str = None) -> dict:
-        """
-        从文件加载 cookies
-        
-        Args:
-            domain: 指定域名则加载该域名的 cookies，否则加载全局 cookies
-        
-        Returns:
-            操作结果
-        """
         if not self.is_started:
             return {"success": False, "error": "browser_not_started"}
 
@@ -596,31 +481,21 @@ class WebAutomation:
                 cookie_data = json.load(f)
             
             cookies = cookie_data.get("cookies", [])
-            
+
             async def _add_cookies():
-                await self._context.add_cookies(cookies)
-                return True
-            
+                session_manager = await self._get_session_manager()
+                session = await session_manager.get_session(self._session_id)
+                if session:
+                    await session.context.add_cookies(cookies)
+                    return True
+                return False
+
             self._run_async(_add_cookies())
-            
-            return {
-                "success": True,
-                "count": len(cookies),
-                "loaded_from": cookie_file
-            }
+            return {"success": True, "count": len(cookies), "loaded_from": cookie_file}
         except Exception as e:
             return {"success": False, "error": "load_cookies_failed", "message": str(e)}
 
     def clear_cookies(self, domain: str = None) -> dict:
-        """
-        清除 cookies 文件
-        
-        Args:
-            domain: 指定域名则清除该域名的 cookies 文件，否则清除全局 cookies 文件
-        
-        Returns:
-            操作结果
-        """
         try:
             if domain:
                 cookie_file = os.path.join(self._cookies_domain_dir, f"{domain}.json")
@@ -630,25 +505,14 @@ class WebAutomation:
             if os.path.exists(cookie_file):
                 os.remove(cookie_file)
                 return {"success": True, "message": f"Deleted {cookie_file}"}
-            else:
-                return {"success": True, "message": "No cookies file to delete"}
+            return {"success": True, "message": "No cookies file to delete"}
         except Exception as e:
             return {"success": False, "error": "clear_cookies_failed", "message": str(e)}
 
     def list_saved_cookies(self) -> dict:
-        """
-        列出所有已保存的 cookies 文件
-        
-        Returns:
-            cookies 文件列表
-        """
         try:
-            result = {
-                "global": None,
-                "domains": []
-            }
+            result = {"global": None, "domains": []}
             
-            # 检查全局 cookies
             global_file = os.path.join(self._cookies_dir, "global_cookies.json")
             if os.path.exists(global_file):
                 with open(global_file, "r", encoding="utf-8") as f:
@@ -658,7 +522,6 @@ class WebAutomation:
                     "saved_at": data.get("saved_at")
                 }
             
-            # 检查域名 cookies
             if os.path.exists(self._cookies_domain_dir):
                 for f in os.listdir(self._cookies_domain_dir):
                     if f.endswith(".json"):
@@ -690,17 +553,18 @@ class WebAutomation:
             return {"success": False, "error": "invalid_params", "message": "Missing required parameters"}
 
         async def _login():
-            await self._page.fill(username_selector, username)
-            await asyncio.sleep(random.uniform(0.3, 0.8))
-            await self._page.fill(password_selector, password)
-            await asyncio.sleep(random.uniform(0.3, 0.8))
-            await self._page.click(submit_selector)
-            await self._page.wait_for_load_state("networkidle", timeout=15000)
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.login(
+                username_selector, password_selector, submit_selector,
+                username, password
+            )
+            return {"success": not bool(result.get("error")), "error": result.get("error")}
 
         try:
-            self._run_async(_login())
-            return {"success": True}
+            return self._run_async(_login())
         except Exception as e:
             return {"success": False, "error": "login_failed", "message": str(e)}
 
@@ -709,14 +573,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _login():
-            await self._context.add_cookies(cookies)
-            await self._page.goto(url, wait_until="domcontentloaded")
-            await self._page.wait_for_load_state("networkidle", timeout=15000)
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.login_with_cookies(cookies)
+            return {"success": not bool(result.get("error")), "error": result.get("error")}
 
         try:
-            self._run_async(_login())
-            return {"success": True}
+            return self._run_async(_login())
         except Exception as e:
             return {"success": False, "error": "login_failed", "message": str(e)}
 
@@ -725,17 +590,20 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _get_qr():
-            element = await self._page.query_selector(selector)
-            if element:
-                data = await element.screenshot()
-                return data
-            return None
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.scan_login(selector)
+            if result.get("qr_path"):
+                with open(result["qr_path"], "rb") as f:
+                    data = f.read()
+                os.remove(result["qr_path"])
+                return {"success": True, "data": base64.b64encode(data).decode("utf-8")}
+            return {"success": False, "error": result.get("error", "qr_code_not_found")}
 
         try:
-            data = self._run_async(_get_qr())
-            if data is None:
-                return {"success": False, "error": "element_not_found", "message": "QR code element not found"}
-            return {"success": True, "data": base64.b64encode(data).decode("utf-8")}
+            return self._run_async(_get_qr())
         except Exception as e:
             return {"success": False, "error": "get_qr_failed", "message": str(e)}
 
@@ -744,12 +612,19 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _wait():
-            await self._page.wait_for_load_state("networkidle", timeout=timeout)
-            return await self._get_page_info()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                await session.page.wait_for_load_state("networkidle", timeout=timeout)
+                return {
+                    "success": True,
+                    "url": session.page.url,
+                    "title": await session.page.title()
+                }
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            result = self._run_async(_wait())
-            return {"success": True, **result}
+            return self._run_async(_wait())
         except Exception as e:
             return {"success": False, "error": "timeout", "message": str(e)}
 
@@ -758,12 +633,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _wait():
-            await self._page.wait_for_selector(selector, timeout=timeout)
-            return True
+            agent = await self._get_web_agent()
+            if agent is None:
+                return {"success": False, "error": "agent_not_available"}
+            
+            result = await agent.wait_for_selector(selector, timeout)
+            return {"success": not bool(result.get("error")), "error": result.get("error")}
 
         try:
-            self._run_async(_wait())
-            return {"success": True}
+            return self._run_async(_wait())
         except Exception as e:
             return {"success": False, "error": "timeout", "message": str(e)}
 
@@ -772,11 +650,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _eval():
-            return await self._page.evaluate(script)
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                result = await session.page.evaluate(script)
+                return {"success": True, "result": result}
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            result = self._run_async(_eval())
-            return {"success": True, "result": result}
+            return self._run_async(_eval())
         except Exception as e:
             return {"success": False, "error": "evaluate_failed", "message": str(e)}
 
@@ -785,12 +667,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _press():
-            await self._page.keyboard.press(key)
-            return True
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                await session.page.keyboard.press(key)
+                return {"success": True}
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            self._run_async(_press())
-            return {"success": True}
+            return self._run_async(_press())
         except Exception as e:
             return {"success": False, "error": "press_failed", "message": str(e)}
 
@@ -799,12 +684,15 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _type():
-            await self._page.keyboard.type(text, delay=delay)
-            return True
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                await session.page.keyboard.type(text, delay=delay)
+                return {"success": True}
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            self._run_async(_type())
-            return {"success": True}
+            return self._run_async(_type())
         except Exception as e:
             return {"success": False, "error": "type_failed", "message": str(e)}
 
@@ -813,13 +701,20 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _back():
-            await self._page.go_back()
-            await self._page.wait_for_load_state("networkidle", timeout=10000)
-            return await self._get_page_info()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                await session.page.go_back()
+                await session.page.wait_for_load_state("networkidle", timeout=10000)
+                return {
+                    "success": True,
+                    "url": session.page.url,
+                    "title": await session.page.title()
+                }
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            result = self._run_async(_back())
-            return {"success": True, **result}
+            return self._run_async(_back())
         except Exception as e:
             return {"success": False, "error": "navigation_failed", "message": str(e)}
 
@@ -828,13 +723,20 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _forward():
-            await self._page.go_forward()
-            await self._page.wait_for_load_state("networkidle", timeout=10000)
-            return await self._get_page_info()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                await session.page.go_forward()
+                await session.page.wait_for_load_state("networkidle", timeout=10000)
+                return {
+                    "success": True,
+                    "url": session.page.url,
+                    "title": await session.page.title()
+                }
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            result = self._run_async(_forward())
-            return {"success": True, **result}
+            return self._run_async(_forward())
         except Exception as e:
             return {"success": False, "error": "navigation_failed", "message": str(e)}
 
@@ -843,12 +745,19 @@ class WebAutomation:
             return {"success": False, "error": "browser_not_started"}
 
         async def _refresh():
-            await self._page.reload()
-            await self._page.wait_for_load_state("networkidle", timeout=10000)
-            return await self._get_page_info()
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if session and session.page:
+                await session.page.reload()
+                await session.page.wait_for_load_state("networkidle", timeout=10000)
+                return {
+                    "success": True,
+                    "url": session.page.url,
+                    "title": await session.page.title()
+                }
+            return {"success": False, "error": "session_not_found"}
 
         try:
-            result = self._run_async(_refresh())
-            return {"success": True, **result}
+            return self._run_async(_refresh())
         except Exception as e:
             return {"success": False, "error": "refresh_failed", "message": str(e)}
