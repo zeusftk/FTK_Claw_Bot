@@ -63,6 +63,16 @@ def setup_frozen_env():
         if hasattr(sys, '_MEIPASS'):
             sys.path.insert(0, sys._MEIPASS)
             log_message(f"添加 MEIPASS 到 sys.path: {sys._MEIPASS}")
+    
+    # 添加 web_api_agent 路径（开发和打包环境都需要）
+    if getattr(sys, 'frozen', False):
+        web_api_agent_path = os.path.join(os.path.dirname(sys.executable), "web_api_agent")
+    else:
+        web_api_agent_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web_api_agent")
+    
+    if os.path.exists(web_api_agent_path) and web_api_agent_path not in sys.path:
+        sys.path.insert(0, web_api_agent_path)
+        log_message(f"添加 web_api_agent 到 sys.path: {web_api_agent_path}")
 
 
 def redirect_stdio():

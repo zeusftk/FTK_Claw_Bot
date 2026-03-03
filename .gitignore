@@ -28,6 +28,6 @@ dist/
 *.spec
 others/
 FTK_AI.ico
-web_api_agent/
 user_data/
 node-v24.14.0-linux-x64.tar.xz
+tests/

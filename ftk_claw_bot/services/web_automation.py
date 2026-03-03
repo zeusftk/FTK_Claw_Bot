@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Any
 
 from loguru import logger
 
+from ftk_claw_bot.web_api_agent.core.ai_snapshot import AISnapshotGenerator
+
 PLAYWRIGHT_AVAILABLE = True
 
 
@@ -37,7 +39,8 @@ class WebAutomation:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
-        self._headless = True
+        self._headless = False  # 默认可见模式
+        self._ai_snapshot_generator = None  # AI 快照生成器
         
         from ftk_claw_bot.utils.user_data_dir import user_data
         self._sessions_dir = str(user_data.web_sessions)
@@ -74,7 +77,7 @@ class WebAutomation:
 
     async def _get_session_manager(self):
         if self._session_manager is None:
-            from web_api_agent.core.session_manager import SessionManager
+            from ftk_claw_bot.web_api_agent.core.session_manager import SessionManager
             self._session_manager = SessionManager()
             await self._session_manager.initialize()
         return self._session_manager
@@ -84,11 +87,11 @@ class WebAutomation:
             session_manager = await self._get_session_manager()
             session = await session_manager.get_session(self._session_id)
             if session:
-                from web_api_agent.core.web_agent import WebAgent
+                from ftk_claw_bot.web_api_agent.core.web_agent import WebAgent
                 self._web_agent = WebAgent(session.page)
         return self._web_agent
 
-    def start(self, headless: bool = True, viewport: dict = None) -> bool:
+    def start(self, headless: bool = False, viewport: dict = None) -> bool:
         if not PLAYWRIGHT_AVAILABLE:
             logger.error("[WebAutomation] Playwright not available")
             return False
@@ -105,7 +108,7 @@ class WebAutomation:
             
             session = await session_manager.get_session(self._session_id)
             if session:
-                from web_api_agent.core.web_agent import WebAgent
+                from ftk_claw_bot.web_api_agent.core.web_agent import WebAgent
                 self._web_agent = WebAgent(session.page)
                 self._started = True
                 self._headless = headless
@@ -755,9 +758,70 @@ class WebAutomation:
                     "url": session.page.url,
                     "title": await session.page.title()
                 }
-            return {"success": False, "error": "session_not_found"}
-
         try:
             return self._run_async(_refresh())
         except Exception as e:
             return {"success": False, "error": "refresh_failed", "message": str(e)}
+
+    def _get_ai_snapshot_generator(self) -> AISnapshotGenerator:
+        """Get or create AI snapshot generator (lazy initialization)."""
+        if self._ai_snapshot_generator is None:
+            self._ai_snapshot_generator = AISnapshotGenerator()
+        return self._ai_snapshot_generator
+
+    async def navigate_safe(self, url: str, wait_until: str = "domcontentloaded", timeout: int = 30000) -> dict:
+        """
+        安全导航，带 SSRF 防护。
+        """
+        if not self.is_started:
+            return {"success": False, "error": "browser_not_started"}
+        
+        from ftk_claw_bot.web_api_agent.core.ssrf_guard import SSRFGuard
+        
+        is_safe, error = SSRFGuard.is_safe_url(url)
+        if not is_safe:
+            return {"success": False, "error": "ssrf_blocked", "message": error}
+        
+        return self.navigate(url, wait_until=wait_until, timeout=timeout)
+
+    def ai_snapshot(self) -> dict:
+        """
+        生成 AI 友好的页面快照，包含结构化的元素引用。
+        
+        Returns:
+            {
+                "success": True,
+                "snapshot": str,  # 页面结构文本
+                "refs": dict,     # 元素引用 {"ref1": {"role": "button", "name": "提交", "selector": "#submit"}}
+                "truncated": bool,
+                "element_count": int
+            }
+        """
+        if not self.is_started:
+            return {"success": False, "error": "browser_not_started"}
+
+        async def _ai_snapshot():
+            session_manager = await self._get_session_manager()
+            session = await session_manager.get_session(self._session_id)
+            if not session or not session.page:
+                return {"success": False, "error": "session_not_found"}
+            
+            generator = self._get_ai_snapshot_generator()
+            result = await generator.generate(session.page)
+            
+            return {
+                "success": True,
+                "snapshot": result.snapshot,
+                "refs": {
+                    k: {"role": v.role, "name": v.name, "selector": v.selector}
+                    for k, v in result.refs.items()
+                },
+                "truncated": result.truncated,
+                "element_count": result.element_count,
+            }
+
+        try:
+            return self._run_async(_ai_snapshot())
+        except Exception as e:
+            logger.error(f"[WebAutomation] AI snapshot failed: {e}")
+            return {"success": False, "error": "ai_snapshot_failed", "message": str(e)}

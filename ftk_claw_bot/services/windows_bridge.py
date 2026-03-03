@@ -466,6 +466,8 @@ class WindowsBridge:
         self._router_lock = threading.Lock()
         self._session_store = SessionStore()
         self._ocr_automation = OCRAutomation()
+        # Cache for AI snapshot refs (key: session_id, value: refs dict)
+        self._ai_snapshot_refs: Dict[str, dict] = {}
         self._register_handlers()
 
     @property
@@ -526,6 +528,10 @@ class WindowsBridge:
         self._ipc_server.register_handler("web_go_back", self._handle_web_go_back)
         self._ipc_server.register_handler("web_go_forward", self._handle_web_go_forward)
         self._ipc_server.register_handler("web_refresh", self._handle_web_refresh)
+        
+        # AI Snapshot handlers
+        self._ipc_server.register_handler("web_ai_snapshot", self._handle_web_ai_snapshot)
+        self._ipc_server.register_handler("web_navigate_safe", self._handle_web_navigate_safe)
         
         # Session management handlers
         self._ipc_server.register_handler("session_create", self._handle_session_create)
@@ -747,17 +753,23 @@ class WindowsBridge:
         return self._route_action(action, action_params)
 
     def _get_web_automation_instance(self, session_id: str = None):
+        from loguru import logger
+        logger.debug(f"[WindowsBridge] _get_web_automation_instance called, session_id={session_id}")
+        
         if session_id:
             session = self._session_store.get_session(session_id)
             if session:
+                logger.debug(f"[WindowsBridge] Found existing session for {session_id}")
                 return session
             
             WebAutomation = _get_web_automation()
             if WebAutomation is None:
+                logger.warning("[WindowsBridge] WebAutomation class not available (Playwright not installed?)")
                 return None
             
             web = WebAutomation()
             result = self._session_store.create_web_session(session_id, web)
+            logger.info(f"[WindowsBridge] Created new web session {session_id}, result: {result}")
             if result.get("success"):
                 return web
             return None
@@ -765,19 +777,37 @@ class WindowsBridge:
         if self._web_automation is None:
             WebAutomation = _get_web_automation()
             if WebAutomation is None:
+                logger.warning("[WindowsBridge] WebAutomation class not available (Playwright not installed?)")
                 return None
             self._web_automation = WebAutomation()
+            logger.info("[WindowsBridge] Created default web_automation instance")
         return self._web_automation
 
     def _handle_web_start(self, params: dict) -> dict:
         from loguru import logger
         session_id = params.get("_session_id")
+        logger.info(f"[WindowsBridge] _handle_web_start called, session_id={session_id}, params={params}")
+        
         web = self._get_web_automation_instance(session_id)
+        logger.info(f"[WindowsBridge] web_automation instance: {web}, is_started: {web.is_started if web else 'N/A'}")
+        
         if web is None:
+            logger.error("[WindowsBridge] Playwright not available")
             return {"success": False, "error": "playwright_not_available", "message": "Playwright is not installed"}
-        headless = params.get("headless", True)
-        logger.info(f"[WindowsBridge] Starting web automation, headless={headless}, session_id={session_id}")
-        result = web.start(headless=headless)
+        
+        if web.is_started:
+            logger.info(f"[WindowsBridge] Browser already started for session {session_id}")
+            return {"success": True, "session_id": session_id, "message": "Browser already started"}
+        
+        # 强制使用有头模式，不支持 headless
+        logger.info(f"[WindowsBridge] Starting web automation (visible mode), session_id={session_id}")
+        try:
+            result = web.start(headless=False)
+            logger.info(f"[WindowsBridge] web.start() returned: {result}")
+        except Exception as e:
+            logger.error(f"[WindowsBridge] web.start() failed: {e}")
+            return {"success": False, "error": str(e)}
+        
         return {"success": result, "session_id": session_id}
 
     def _handle_web_stop(self, params: dict) -> dict:
@@ -798,24 +828,65 @@ class WindowsBridge:
         return web.navigate(url, wait_until=wait_until, timeout=timeout)
 
     def _handle_web_click(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
+        
         selector = params.get("selector", "")
+        ref = params.get("ref", "")
         timeout = params.get("timeout", 10000)
+        
+        # Resolve ref to selector if needed
+        if ref and not selector:
+            refs = self._ai_snapshot_refs.get(session_id, {})
+            ref_info = refs.get(ref)
+            if ref_info:
+                selector = ref_info.get("selector", "")
+                if not selector:
+                    # Fallback: try role + name combination
+                    role = ref_info.get("role", "")
+                    name = ref_info.get("name", "")
+                    if role and name:
+                        selector = f"{role}: \"{name}\""
+        
+        if not selector:
+            return {"success": False, "error": "no_selector", "message": f"Could not resolve ref: {ref}"}
+        
         return web.click(selector, timeout=timeout)
 
     def _handle_web_fill(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
+        
         selector = params.get("selector", "")
+        ref = params.get("ref", "")
         value = params.get("value", "")
         timeout = params.get("timeout", 10000)
+        
+        # Resolve ref to selector if needed
+        if ref and not selector:
+            refs = self._ai_snapshot_refs.get(session_id, {})
+            ref_info = refs.get(ref)
+            if ref_info:
+                selector = ref_info.get("selector", "")
+                if not selector:
+                    # Fallback: try role + name combination
+                    role = ref_info.get("role", "")
+                    name = ref_info.get("name", "")
+                    if role and name:
+                        selector = f"{role}: \"{name}\""
+        
+        if not selector:
+            return {"success": False, "error": "no_selector", "message": f"Could not resolve ref: {ref}"}
+        
         return web.fill(selector, value, timeout=timeout)
 
     def _handle_web_scroll(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         direction = params.get("direction", "down")
@@ -823,7 +894,8 @@ class WindowsBridge:
         return web.scroll(direction=direction, amount=amount)
 
     def _handle_web_screenshot(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         selector = params.get("selector")
@@ -831,52 +903,60 @@ class WindowsBridge:
         return web.screenshot(selector=selector, full_page=full_page)
 
     def _handle_web_get_content(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.get_content()
 
     def _handle_web_get_url(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.get_url()
 
     def _handle_web_get_title(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.get_title()
 
     def _handle_web_extract_elements(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         config = params.get("config", {})
         return web.extract_elements(config=config)
 
     def _handle_web_extract_data(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         selectors = params.get("selectors", [])
         return web.extract_data(selectors=selectors)
 
     def _handle_web_get_cookies(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.get_cookies()
 
     def _handle_web_set_cookies(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         cookies = params.get("cookies", [])
         return web.set_cookies(cookies=cookies)
 
     def _handle_web_login(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         login_type = params.get("type", "form")
@@ -895,28 +975,32 @@ class WindowsBridge:
             return {"success": False, "error": "unsupported_login_type", "message": f"Unsupported login type: {login_type}"}
 
     def _handle_web_save_session(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
-        session_id = params.get("session_id", "")
-        return web.save_session(session_id)
+        save_session_id = params.get("session_id", "")
+        return web.save_session(save_session_id)
 
     def _handle_web_load_session(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
-        session_id = params.get("session_id", "")
-        return web.load_session(session_id)
+        load_session_id = params.get("session_id", "")
+        return web.load_session(load_session_id)
 
     def _handle_web_press(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         key = params.get("key", "")
         return web.press(key)
 
     def _handle_web_type(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         text = params.get("text", "")
@@ -924,14 +1008,16 @@ class WindowsBridge:
         return web.type_text(text, delay=delay)
 
     def _handle_web_evaluate(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         script = params.get("script", "")
         return web.evaluate(script)
 
     def _handle_web_wait_for_selector(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         selector = params.get("selector", "")
@@ -939,22 +1025,58 @@ class WindowsBridge:
         return web.wait_for_selector(selector, timeout=timeout)
 
     def _handle_web_go_back(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.go_back()
 
     def _handle_web_go_forward(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.go_forward()
 
     def _handle_web_refresh(self, params: dict) -> dict:
-        web = self._get_web_automation_instance()
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
         if web is None or not web.is_started:
             return {"success": False, "error": "browser_not_started"}
         return web.refresh()
+
+    def _handle_web_ai_snapshot(self, params: dict) -> dict:
+        """Handle AI snapshot request."""
+        from loguru import logger
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
+        if web is None or not web.is_started:
+            return {"success": False, "error": "browser_not_started"}
+        
+        logger.info(f"[WindowsBridge] Generating AI snapshot for session: {session_id}")
+        result = web.ai_snapshot()
+        
+        # Cache refs for later use with ref-based operations
+        if result.get("success") and session_id:
+            self._ai_snapshot_refs[session_id] = result.get("refs", {})
+            logger.debug(f"[WindowsBridge] Cached {len(result.get('refs', {}))} refs for session: {session_id}")
+        
+        return result
+
+    def _handle_web_navigate_safe(self, params: dict) -> dict:
+        """Handle safe navigation request with SSRF protection."""
+        from loguru import logger
+        session_id = params.get("_session_id")
+        web = self._get_web_automation_instance(session_id)
+        if web is None or not web.is_started:
+            return {"success": False, "error": "browser_not_started"}
+        
+        url = params.get("url", "")
+        wait_until = params.get("wait_until", "domcontentloaded")
+        timeout = params.get("timeout", 30000)
+        
+        logger.info(f"[WindowsBridge] Safe navigate to: {url}")
+        return web.navigate_safe(url, wait_until=wait_until, timeout=timeout)
 
     # ==================== Session Management Handlers ====================
     

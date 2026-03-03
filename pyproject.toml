@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ftk-claw-bot"
-version = "1.0.9"
+version = "1.1.0"
 description = "Windows桌面应用，用于管理WSL2中的clawbot助手，并扩展clawbot对windows的操作"
 readme = "README.md"
 license = {text = "MIT"}
@@ -46,6 +46,10 @@ windows = [
     "pywin32>=306",
     "pywinauto>=0.6.8",
 ]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
 
 [project.scripts]
 ftkclawbot = "ftk_claw_bot.main:main"
@@ -53,3 +57,9 @@ ftkclawbot = "ftk_claw_bot.main:main"
 [project.urls]
 Homepage = "https://github.com/your-org/FTK_Claw_Bot"
 Repository = "https://github.com/your-org/FTK_Claw_Bot"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

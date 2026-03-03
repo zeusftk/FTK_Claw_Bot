@@ -217,7 +217,13 @@ class IPCServer:
                 params["_session_id"] = session_id
 
             if action in self._handlers:
-                result = self._handlers[action](params)
+                logger.debug(f"[IPC] Calling handler for action: {action}")
+                try:
+                    result = self._handlers[action](params)
+                    logger.info(f"[IPC] Handler result for {action}: success={result.get('success', 'N/A')}, keys={list(result.keys()) if isinstance(result, dict) else type(result)}")
+                except Exception as handler_error:
+                    logger.error(f"[IPC] Handler error for {action}: {handler_error}")
+                    result = {"success": False, "error": str(handler_error)}
                 response = IPCMessage(
                     msg_type="response",
                     msg_id=message.msg_id,
@@ -225,6 +231,7 @@ class IPCServer:
                     payload={"success": True, "result": result}
                 )
             else:
+                logger.warning(f"[IPC] Unknown action: {action}, available handlers: {list(self._handlers.keys())}")
                 response = IPCMessage(
                     msg_type="response",
                     msg_id=message.msg_id,

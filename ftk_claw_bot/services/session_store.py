@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import json
-import os
 import subprocess
 import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from pathlib import Path
+from typing import Dict, List, Optional, Any, Union
 import uuid
 
 from loguru import logger
@@ -42,13 +42,13 @@ class SessionStore:
     SESSION_TIMEOUT = 3600
     IDLE_TIMEOUT = 600
     
-    def __init__(self, user_data_dir: str = None):
+    def __init__(self, user_data_dir: Union[str, Path] = None):
         if user_data_dir is None:
             from ftk_claw_bot.utils.user_data_dir import user_data
-            user_data_dir = str(user_data.path)
+            user_data_dir = user_data.base
         
-        self._user_data_dir = user_data_dir
-        self._sessions_db = os.path.join(user_data_dir, "sessions.db")
+        self._user_data_dir = Path(user_data_dir)
+        self._sessions_db = self._user_data_dir / "sessions.db"
         self._web_sessions: Dict[str, Any] = {}
         self._app_sessions: Dict[str, AppSession] = {}
         self._session_info: Dict[str, SessionInfo] = {}
