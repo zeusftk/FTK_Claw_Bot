@@ -558,6 +558,19 @@ WantedBy=multi-user.target
                     existing_config["channels"][channel_name]["enabled"] = channel_data.get("enabled", False)
                     logger.info(f"✓ 更新 channels.{channel_name}.enabled = {channel_data.get('enabled', False)}")
         
+        # 更新 multi_model（完整替换，支持删除操作）
+        if "agents" in ftp_config and "multi_model" in ftp_config["agents"]:
+            if "agents" not in existing_config:
+                existing_config["agents"] = {}
+            existing_config["agents"]["multi_model"] = ftp_config["agents"]["multi_model"]
+            mm = ftp_config["agents"]["multi_model"]
+            logger.info(f"✓ 更新 multi_model: enabled={mm.get('enabled')}, models={len(mm.get('models', []))}")
+        
+        # 更新 providers（完整替换，清除未使用的 provider）
+        if "providers" in ftp_config:
+            existing_config["providers"] = ftp_config["providers"]
+            logger.info(f"✓ 更新 providers: {list(ftp_config['providers'].keys())}")
+        
         # 更新 memory
         if "memory" in ftp_config:
             existing_config["memory"] = ftp_config["memory"]

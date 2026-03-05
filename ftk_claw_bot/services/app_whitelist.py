@@ -59,7 +59,16 @@ class AppWhitelistManager:
         self._authorized_dir = user_data.authorized_apps
         self._config_file = user_data.whitelist_config_file
         self._apps: Dict[str, AppInfo] = {}
+        
+        # 确保目录存在
+        self._authorized_dir.mkdir(parents=True, exist_ok=True)
+        
+        print(f"[Whitelist] 初始化白名单管理器")
+        print(f"[Whitelist] 配置文件: {self._config_file}")
+        print(f"[Whitelist] 配置文件存在: {self._config_file.exists()}")
+        
         self._load_config()
+        print(f"[Whitelist] 已加载 {len(self._apps)} 个授权应用: {list(self._apps.keys())}")
     
     # ========================================
     # 配置管理
@@ -78,14 +87,24 @@ class AppWhitelistManager:
     
     def _save_config(self) -> None:
         """保存白名单配置"""
-        data = {
-            "version": 1,
-            "apps": {name: info.to_dict() for name, info in self._apps.items()}
-        }
-        self._config_file.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2),
-            encoding="utf-8"
-        )
+        try:
+            # 确保目录存在
+            self._config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            data = {
+                "version": 1,
+                "apps": {name: info.to_dict() for name, info in self._apps.items()}
+            }
+            self._config_file.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+            print(f"[Whitelist] 配置已保存到: {self._config_file}")
+            print(f"[Whitelist] 保存了 {len(self._apps)} 个应用: {list(self._apps.keys())}")
+        except Exception as e:
+            print(f"[Whitelist] 保存配置失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     # ========================================
     # 查询方法
@@ -93,29 +112,71 @@ class AppWhitelistManager:
     
     def is_allowed(self, app_name_or_path: str) -> bool:
         """
-        检查应用是否在白名单中
+        检查应用是否在白名单
         
-        支持匹配：
-        - 应用名称
-        - 别名
-        - 完整路径
+        支持多种匹配方式：
+        1. 名称精确匹配
+        2. 别名匹配
+        3. 路径匹配
+        4. 带扩展名的名称匹配（如 notepad.exe -> notepad）
+        
+        Args:
+            app_name_or_path: 应用名称或路径
+        
+        Returns:
+            是否在白名单中
         """
-        app_name_or_path = app_name_or_path.strip().lower()
+        if not app_name_or_path:
+            return False
         
-        # 直接名称匹配
-        if app_name_or_path in [n.lower() for n in self._apps]:
-            return True
+        app_name_lower = app_name_or_path.lower()
+        app_path_lower = app_name_or_path.lower()
         
-        # 别名匹配
+        # 处理带扩展名的情况：notepad.exe -> notepad
+        app_name_no_ext = app_name_lower
+        if '.' in app_name_no_ext:
+            app_name_no_ext = app_name_no_ext.rsplit('.', 1)[0]
+        
+        # 调试日志
+        print(f"[Whitelist] 检查白名单: '{app_name_or_path}'")
+        print(f"[Whitelist]   - 小写: '{app_name_lower}'")
+        print(f"[Whitelist]   - 去扩展名: '{app_name_no_ext}'")
+        print(f"[Whitelist]   - 当前白名单应用: {list(self._apps.keys())}")
+        
+        # 先检查别名（最宽松的匹配）
         for app in self._apps.values():
-            if app_name_or_path in [a.lower() for a in app.aliases]:
+            # 检查别名列表中是否包含
+            if app_name_lower in [a.lower() for a in app.aliases]:
+                print(f"[Whitelist]   ✓ 别名匹配: {app.aliases}")
+                return True
+            # 检查带扩展名的匹配
+            if app_name_no_ext in [a.lower() for a in app.aliases]:
+                print(f"[Whitelist]   ✓ 别名匹配(去扩展名): {app.aliases}")
                 return True
         
-        # 路径匹配
-        for app in self._apps.values():
-            if app_name_or_path == app.path.lower():
+        # 再检查名称和路径
+        for name, app in self._apps.items():
+            # 名称精确匹配
+            if app_name_lower == name.lower():
+                print(f"[Whitelist]   ✓ 名称精确匹配: {name}")
+                return True
+            
+            # 名称匹配（去掉扩展名）
+            if app_name_no_ext == name.lower():
+                print(f"[Whitelist]   ✓ 名称匹配(去扩展名): {name}")
+                return True
+            
+            # 路径匹配
+            if app_path_lower == app.path.lower():
+                print(f"[Whitelist]   ✓ 路径匹配: {app.path}")
+                return True
+            
+            # 路径匹配（提取文件名）
+            if app_name_no_ext and app_name_no_ext in app.path.lower():
+                print(f"[Whitelist]   ✓ 路径包含匹配: {app.path}")
                 return True
         
+        print(f"[Whitelist]   ✗ 未匹配")
         return False
     
     def get_actual_path(self, app_name_or_path: str) -> Optional[str]:
@@ -159,6 +220,10 @@ class AppWhitelistManager:
         """获取所有应用名称列表"""
         return list(self._apps.keys())
     
+    def get_all_apps(self) -> Dict[str, AppInfo]:
+        """获取所有授权应用（字典形式）"""
+        return dict(self._apps)
+    
     # ========================================
     # 管理方法
     # ========================================
@@ -169,7 +234,8 @@ class AppWhitelistManager:
         path: str,
         aliases: List[str] = None,
         description: str = "",
-        create_shortcut: bool = True
+        create_shortcut: bool = True,
+        skip_path_validation: bool = False
     ) -> bool:
         """
         添加应用到白名单
@@ -180,17 +246,18 @@ class AppWhitelistManager:
             aliases: 别名列表（用于模糊匹配）
             description: 应用描述
             create_shortcut: 是否创建快捷方式
+            skip_path_validation: 是否跳过路径验证（用于 WSL 环境添加 Windows 路径）
         
         Returns:
             是否添加成功
         """
-        # 验证路径
-        if not os.path.isfile(path):
+        # 验证路径（可选）
+        if not skip_path_validation and not os.path.isfile(path):
             print(f"[Whitelist] 路径不存在: {path}")
             return False
         
         # 标准化路径
-        abs_path = os.path.abspath(path)
+        abs_path = os.path.abspath(path) if not skip_path_validation else path
         
         # 创建 AppInfo
         from datetime import datetime

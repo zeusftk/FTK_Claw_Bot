@@ -500,7 +500,7 @@ class WorkspacePage(QWidget):
         ws_layout.addWidget(ws_label)
         
         self.windows_ws_edit = QLineEdit()
-        self.windows_ws_edit.setPlaceholderText(".\clawbot_workspace")
+        self.windows_ws_edit.setPlaceholderText(".\\clawbot_workspace")
         self.windows_ws_edit.textChanged.connect(self._update_wsl_path)
         ws_layout.addWidget(self.windows_ws_edit, 1)
         
@@ -625,9 +625,11 @@ class LLMConfigPage(QWidget):
         
         self.provider_combo = QComboBox()
         self.provider_combo.addItems([
-            "qwen_portal", "custom", "anthropic", "openai", "openrouter",
+            "qwen_portal", "openai_codex", "github_copilot", "doubao_web", "deepseek_web",
+            "custom", "anthropic", "openai", "openrouter",
             "deepseek", "groq", "zhipu", "dashscope",
-            "vllm", "gemini", "moonshot", "minimax", "aihubmix"
+            "siliconflow", "volcengine",
+            "vllm", "ollama", "gemini", "moonshot", "minimax", "aihubmix"
         ])
         self.provider_combo.currentTextChanged.connect(self._update_models)
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
@@ -752,7 +754,16 @@ class LLMConfigPage(QWidget):
                 "qwen-plus",
                 "qwen-turbo",
             ],
+            "siliconflow": [],
+            "volcengine": [],
             "vllm": [],
+            "ollama": [
+                "qwen3.5:9b",
+                "glm-5:cloud",
+                "qwen3.5:397b-cloud",
+                "minimax-m2.5:cloud",
+                "kimi-k2.5:cloud",
+            ],
             "gemini": [
                 "gemini-2.0-flash-exp",
                 "gemini-2.0-flash",
@@ -773,19 +784,41 @@ class LLMConfigPage(QWidget):
                 "qwen-portal/coder-model",
                 "qwen-portal/qwen-max",
             ],
+            "openai_codex": [
+                "codex",
+            ],
+            "github_copilot": [
+                "github_copilot/gpt-4o",
+                "github_copilot/claude-3.5-sonnet",
+            ],
+            "doubao_web": [],
+            "deepseek_web": [],
         }
         self.model_combo.clear()
         self.model_combo.addItems(models.get(provider, []))
     
     def _on_provider_changed(self, provider: str):
-        oauth_providers = {"qwen_portal", "openai_codex"}
+        # OAuth 提供商列表（与 config_panel.py 保持一致）
+        oauth_providers = {"qwen_portal", "openai_codex", "github_copilot", "doubao_web", "deepseek_web"}
         is_oauth = provider in oauth_providers
+        
+        # 本地部署提供商，需要启用自定义 URL
+        local_providers = {"custom", "vllm", "ollama"}
+        is_local = provider in local_providers
         
         self.apiKey_edit.setVisible(not is_oauth)
         self._oauth_container.setVisible(is_oauth)
         
-        if provider == "custom":
+        if is_local:
             self.base_url_edit.setEnabled(True)
+            # 清空并设置默认 URL
+            self.base_url_edit.setText("")
+            self.base_url_edit.setPlaceholderText("")
+            if provider == "ollama":
+                self.base_url_edit.setText("http://localhost:11434/v1")
+            elif provider == "vllm":
+                self.base_url_edit.setPlaceholderText("http://localhost:8000/v1")
+            # custom 提供商不设置默认值，让用户自己填写
         else:
             self.base_url_edit.setEnabled(False)
             self.base_url_edit.setText("")
@@ -800,13 +833,23 @@ class LLMConfigPage(QWidget):
         provider = self.provider_combo.currentText()
         distro_name = self._distro_name_getter()
         
-        if not distro_name or provider != "qwen_portal":
+        # OAuth 提供商的认证文件路径映射
+        oauth_cred_paths = {
+            "qwen_portal": "~/.qwen/oauth_creds.json",
+            "openai_codex": "~/.codex/oauth_creds.json",
+            "github_copilot": "~/.copilot/oauth_creds.json",
+            "doubao_web": "~/.doubao/oauth_creds.json",
+            "deepseek_web": "~/.deepseek/oauth_creds.json",
+        }
+        
+        cred_path = oauth_cred_paths.get(provider)
+        if not distro_name or not cred_path:
             return
         
         def check_operation():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "test -f ~/.qwen/oauth_creds.json && echo 'exists' || echo 'not_found'"
+                f"test -f {cred_path} && echo 'exists' || echo 'not_found'"
             )
             if not result.success:
                 return AsyncResult(success=False, error=result.stderr or "命令执行失败")
@@ -832,6 +875,21 @@ class LLMConfigPage(QWidget):
         from ...utils.thread_safe import ThreadSafeSignal
         
         distro_name = self._distro_name_getter()
+        provider = self.provider_combo.currentText()
+        
+        # OAuth 提供商到 clawbot 命令参数的映射
+        provider_login_map = {
+            "qwen_portal": "qwen-portal",
+            "openai_codex": "openai-codex",
+            "github_copilot": "github-copilot",
+            "doubao_web": "doubao-web",
+            "deepseek_web": "deepseek-web",
+        }
+        
+        login_provider = provider_login_map.get(provider)
+        if not login_provider:
+            show_warning(self, "错误", f"提供商 '{provider}' 不支持 OAuth 登录")
+            return
         
         if not distro_name:
             show_warning(self, "错误", "分发名称未设置")
@@ -853,7 +911,7 @@ class LLMConfigPage(QWidget):
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "clawbot provider login qwen-portal",
+                f"clawbot provider login {login_provider}",
                 timeout=180
             )
             self._oauth_signal.emit(result.success, result.stdout, result.stderr)
@@ -875,7 +933,8 @@ class LLMConfigPage(QWidget):
     def needs_oauth(self) -> bool:
         """检查是否需要 OAuth 认证"""
         provider = self.provider_combo.currentText()
-        if provider != "qwen_portal":
+        oauth_providers = {"qwen_portal", "openai_codex", "github_copilot", "doubao_web", "deepseek_web"}
+        if provider not in oauth_providers:
             return False
         return self.oauth_status_label.text() != "已登录"
     
@@ -890,6 +949,23 @@ class LLMConfigPage(QWidget):
         from ...utils.thread_safe import ThreadSafeSignal
         
         distro_name = self._distro_name_getter()
+        provider = self.provider_combo.currentText()
+        
+        # OAuth 提供商到 clawbot 命令参数的映射
+        provider_login_map = {
+            "qwen_portal": "qwen-portal",
+            "openai_codex": "openai-codex",
+            "github_copilot": "github-copilot",
+            "doubao_web": "doubao-web",
+            "deepseek_web": "deepseek-web",
+        }
+        
+        login_provider = provider_login_map.get(provider)
+        if not login_provider:
+            if self._oauth_callback:
+                self._oauth_callback(False)
+            return
+        
         if not distro_name:
             if self._oauth_callback:
                 self._oauth_callback(False)
@@ -912,7 +988,7 @@ class LLMConfigPage(QWidget):
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "clawbot provider login qwen-portal",
+                f"clawbot provider login {login_provider}",
                 timeout=180
             )
             self._oauth_signal.emit(result.success, result.stdout, result.stderr)

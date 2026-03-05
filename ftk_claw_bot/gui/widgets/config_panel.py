@@ -9,13 +9,14 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QLineEdit, QComboBox,
     QCheckBox, QFrame, QScrollArea, QFileDialog,
-    QMessageBox, QDialog, QTabWidget, QApplication
+    QMessageBox, QDialog, QTabWidget, QApplication, QGroupBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from ...core import ConfigManager, WSLManager
 from ...models import ClawbotConfig, CHANNEL_INFO, ChannelsConfig
+from ...models.clawbot_config import ProviderConfigItem, MultiModelConfigItem
 from ...services import ServiceRegistry
 from ...utils.async_ops import AsyncOperation, AsyncResult
 from ...utils.thread_safe import ThreadSafeSignal
@@ -23,6 +24,8 @@ from ...utils.i18n import tr
 from ..mixins import WSLStateAwareMixin
 from .channel_config_dialog import get_channel_dialog
 from .skills_config_widget import SkillsConfigWidget
+from .multi_model_config_widget import MultiModelConfigWidget
+from .whitelist_panel import WhitelistPanel
 
 
 class ConfigCard(QFrame):
@@ -175,6 +178,9 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         skills_tab = self._create_skills_tab()
         self._tab_widget.addTab(skills_tab, tr("config.tab.skills", "技能配置"))
         
+        whitelist_tab = self._create_whitelist_tab()
+        self._tab_widget.addTab(whitelist_tab, tr("config.tab.whitelist", "白名单"))
+        
         layout.addWidget(self._tab_widget, 1)
 
         btn_layout = QHBoxLayout()
@@ -213,6 +219,24 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         layout.addWidget(self._skills_widget)
         
         return tab
+
+    def _create_whitelist_tab(self) -> QWidget:
+        """创建白名单管理标签页"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        # 创建白名单管理 widget
+        self._whitelist_widget = WhitelistPanel()
+        self._whitelist_widget.config_changed.connect(self._on_whitelist_changed)
+        layout.addWidget(self._whitelist_widget)
+        
+        return tab
+
+    def _on_whitelist_changed(self):
+        """白名单配置变更回调"""
+        logger.info("白名单配置已变更")
 
     def _create_basic_settings_tab(self) -> QWidget:
         tab = QWidget()
@@ -288,102 +312,16 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         
         self.form_layout.addWidget(workspace_card)
 
+        # LLM 配置卡片（统一的多模型配置界面）
         llm_card = ConfigCard(tr("config.card.llm", "LLM 配置"))
         
-        self.provider_combo = QComboBox()
-        self.provider_combo.addItems([
-            "qwen_portal", "custom", "anthropic", "openai", "openrouter",
-            "deepseek", "groq", "zhipu", "dashscope",
-            "vllm", "gemini", "moonshot", "minimax", "aihubmix"
-        ])
-        self.provider_combo.currentTextChanged.connect(self._update_models)
-        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
-        llm_card.add_row(tr("config.label.provider", "提供商"), self.provider_combo)
-
-        self.model_combo = QComboBox()
-        self.model_combo.setEditable(True)
-        self._update_models()
-        llm_card.add_row(tr("config.label.model", "模型"), self.model_combo)
-
-        key_row = QHBoxLayout()
-        key_row.setSpacing(8)
-        self.apiKey_edit = QLineEdit()
-        self.apiKey_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.apiKey_edit.setPlaceholderText(tr("config.placeholder.api_key", "输入 API Key"))
-        show_key_btn = QPushButton("👁")
-        show_key_btn.setObjectName("smallButton")
-        show_key_btn.setCheckable(True)
-        show_key_btn.setToolTip(tr("config.tooltip.show_hide_key", "显示/隐藏 API Key"))
-        show_key_btn.toggled.connect(lambda checked: self.apiKey_edit.setEchoMode(
-            QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-        ))
-        copy_key_btn = QPushButton("📋")
-        copy_key_btn.setObjectName("smallButton")
-        copy_key_btn.setToolTip(tr("config.tooltip.copy_key", "复制 API Key 到剪贴板"))
-        copy_key_btn.clicked.connect(self._copy_apiKey)
-        key_row.addWidget(self.apiKey_edit)
-        key_row.addWidget(show_key_btn)
-        key_row.addWidget(copy_key_btn)
-        llm_card.add_row(tr("config.label.api_key", "API Key"), key_row)
-
-        oauth_row = QHBoxLayout()
-        oauth_row.setSpacing(8)
-        self.oauth_status_label = QLabel(tr("config.status.not_logged_in", "未登录"))
-        self.oauth_status_label.setObjectName("oauthStatusLabel")
-        self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
-        self.oauth_login_btn = QPushButton(tr("config.oauth_login", "OAuth 登录"))
-        self.oauth_login_btn.setObjectName("smallButton")
-        self.oauth_login_btn.setToolTip(tr("config.tooltip.oauth_login", "使用 OAuth 登录 Qwen Portal"))
-        self.oauth_login_btn.clicked.connect(self._on_oauth_login)
-        oauth_row.addWidget(self.oauth_status_label)
-        oauth_row.addWidget(self.oauth_login_btn)
-        oauth_row.addStretch()
-        llm_card.add_row("OAuth", oauth_row)
-        
-        self.oauth_status_label.setVisible(False)
-        self.oauth_login_btn.setVisible(False)
-
-        url_row = QHBoxLayout()
-        url_row.setSpacing(8)
-        self.base_url_edit = QLineEdit()
-        self.base_url_edit.setPlaceholderText(tr("config.placeholder.base_url", "https://api.example.com/v1"))
-        url_row.addWidget(self.base_url_edit)
-        llm_card.add_row(tr("config.label.custom_url", "自定义 URL"), url_row)
+        # 多模型配置区域
+        self.multi_model_widget = MultiModelConfigWidget()
+        self.multi_model_widget.config_changed.connect(self._on_multi_model_changed)
+        llm_card.add_widget(self.multi_model_widget)
         
         self.form_layout.addWidget(llm_card)
 
-        features_card = ConfigCard(tr("config.card.features", "功能开关"))
-        
-        self.memory_check = QCheckBox(tr("config.label.enable_memory", "启用记忆功能"))
-        self.memory_check.setChecked(True)
-        features_card.add_widget(self.memory_check)
-
-        self.web_search_check = QCheckBox(tr("config.label.enable_web_search", "启用网络搜索"))
-        self.web_search_check.setChecked(True)
-        features_card.add_widget(self.web_search_check)
-
-        brave_row = QHBoxLayout()
-        brave_row.setSpacing(8)
-        brave_label = QLabel(tr("config.label.brave_key", "Brave Key:"))
-        brave_label.setObjectName("fieldLabel")
-        brave_label.setFixedWidth(100)
-        self.brave_key_edit = QLineEdit()
-        self.brave_key_edit.setPlaceholderText(tr("config.placeholder.brave_key", "Brave Search API Key (可选)"))
-        self.brave_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        brave_row.addWidget(brave_label)
-        brave_row.addWidget(self.brave_key_edit)
-        features_card.add_layout(brave_row)
-        
-        self.form_layout.addWidget(features_card)
-
-        log_card = ConfigCard(tr("config.card.log", "日志设置"))
-        
-        self.log_level_combo = QComboBox()
-        self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
-        log_card.add_row(tr("config.label.log_level", "日志级别"), self.log_level_combo)
-        
-        self.form_layout.addWidget(log_card)
-        
         gateway_card = ConfigCard(tr("config.card.gateway", "Gateway 设置"))
         
         self.gateway_host_edit = QLineEdit()
@@ -407,7 +345,11 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.form_layout.addWidget(gateway_card)
 
         memory_card = ConfigCard(tr("config.card.memory", "Memory 设置"))
-        
+
+        self.memory_check = QCheckBox(tr("config.label.enable_memory", "启用记忆功能"))
+        self.memory_check.setChecked(True)
+        memory_card.add_widget(self.memory_check)
+
         self.memory_enabled_check = QCheckBox(tr("config.label.enable_memory_api", "启用 Embedding API"))
         memory_card.add_widget(self.memory_enabled_check)
         
@@ -428,6 +370,34 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
 
         channels_card = self._create_channels_card()
         self.form_layout.addWidget(channels_card)
+
+        log_card = ConfigCard(tr("config.card.log", "日志设置"))
+
+        self.log_level_combo = QComboBox()
+        self.log_level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
+        log_card.add_row(tr("config.label.log_level", "日志级别"), self.log_level_combo)
+
+        self.form_layout.addWidget(log_card)
+
+        features_card = ConfigCard(tr("config.card.features", "功能开关"))
+
+        self.web_search_check = QCheckBox(tr("config.label.enable_web_search", "启用网络搜索"))
+        self.web_search_check.setChecked(True)
+        features_card.add_widget(self.web_search_check)
+
+        brave_row = QHBoxLayout()
+        brave_row.setSpacing(8)
+        brave_label = QLabel(tr("config.label.brave_key", "Brave Key:"))
+        brave_label.setObjectName("fieldLabel")
+        brave_label.setFixedWidth(100)
+        self.brave_key_edit = QLineEdit()
+        self.brave_key_edit.setPlaceholderText(tr("config.placeholder.brave_key", "Brave Search API Key (可选)"))
+        self.brave_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        brave_row.addWidget(brave_label)
+        brave_row.addWidget(self.brave_key_edit)
+        features_card.add_layout(brave_row)
+
+        self.form_layout.addWidget(features_card)
 
         self.form_layout.addStretch()
 
@@ -645,7 +615,16 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 "qwen-plus",
                 "qwen-turbo",
             ],
+            "siliconflow": [],
+            "volcengine": [],
             "vllm": [],
+            "ollama": [
+                "qwen3.5:9b",
+                "glm-5:cloud",
+                "qwen3.5:397b-cloud",
+                "minimax-m2.5:cloud",
+                "kimi-k2.5:cloud",
+            ],
             "gemini": [
                 "gemini-2.0-flash-exp",
                 "gemini-2.0-flash",
@@ -666,21 +645,43 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
                 "qwen-portal/coder-model",
                 "qwen-portal/qwen-max",
             ],
+            "openai_codex": [
+                "codex",
+            ],
+            "github_copilot": [
+                "github_copilot/gpt-4o",
+                "github_copilot/claude-3.5-sonnet",
+            ],
+            "doubao_web": [],
+            "deepseek_web": [],
         }
         self.model_combo.clear()
         self.model_combo.addItems(models.get(provider, []))
 
     def _on_provider_changed(self, provider: str):
         """当提供商变更时显示/隐藏 URL 输入框"""
-        oauth_providers = {"qwen_portal"}
+        # OAuth 提供商列表（与 clawbot registry.py 保持一致）
+        oauth_providers = {"qwen_portal", "openai_codex", "github_copilot", "doubao_web", "deepseek_web"}
         is_oauth = provider in oauth_providers
+        
+        # 本地部署提供商，需要启用自定义 URL
+        local_providers = {"custom", "vllm", "ollama"}
+        is_local = provider in local_providers
         
         self.apiKey_edit.setVisible(not is_oauth)
         self.oauth_status_label.setVisible(is_oauth)
         self.oauth_login_btn.setVisible(is_oauth)
         
-        if provider == "custom":
+        if is_local:
             self.base_url_edit.setEnabled(True)
+            # 清空并设置默认 URL
+            self.base_url_edit.setText("")
+            self.base_url_edit.setPlaceholderText("")
+            if provider == "ollama":
+                self.base_url_edit.setText("http://localhost:11434/v1")
+            elif provider == "vllm":
+                self.base_url_edit.setPlaceholderText("http://localhost:8000/v1")
+            # custom 提供商不设置默认值，让用户自己填写
         else:
             self.base_url_edit.setEnabled(False)
             self.base_url_edit.setText("")
@@ -750,14 +751,6 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.sync_mnt_check.setChecked(config.sync_to_mnt)
         self._update_wsl_path()
 
-        index = self.provider_combo.findText(config.provider)
-        if index >= 0:
-            self.provider_combo.setCurrentIndex(index)
-
-        self.model_combo.setCurrentText(config.model)
-        self.apiKey_edit.setText(config.apiKey)
-        self.base_url_edit.setText(config.base_url or "")
-        self._on_provider_changed(config.provider)
         self.memory_check.setChecked(config.enable_memory)
         self.web_search_check.setChecked(config.enable_web_search)
         self.brave_key_edit.setText(config.brave_apiKey or "")
@@ -772,8 +765,70 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.embedding_url_edit.setText(config.embedding_url or self._get_default_embedding_url())
         self.memory_enabled_check.setChecked(config.embedding_enabled)
         
+        # 加载多模型配置（传递 wsl_manager 和 distro_name 用于 OAuth 登录）
+        self.multi_model_widget.set_config(
+            config.providers, 
+            config.multi_model,
+            wsl_manager=self._wsl_manager,
+            distro_name=config.distro_name
+        )
+        
         self._load_channel_configs()
         self._load_skills_config()
+
+    def _quick_add_model(self):
+        """快速添加模型到列表"""
+        provider = self.provider_combo.currentText()
+        model = self.model_combo.currentText()
+        api_key = self.apiKey_edit.text()
+        base_url = self.base_url_edit.text()
+        
+        if not model:
+            QMessageBox.warning(self, tr("error.title", "错误"), tr("error.model_required", "请选择或输入模型名称"))
+            return
+        
+        # 创建模型配置
+        from ...models.clawbot_config import ModelConfigItem, ProviderConfigItem
+        
+        model_config = ModelConfigItem(
+            name=model,
+            provider=provider,
+            alias="",  # 用户可以在列表中编辑
+            capabilities=[],
+            cost_tier="medium",
+            max_tokens=4096,
+            priority=1,
+            enabled=True,
+        )
+        
+        # 添加到多模型配置
+        providers, multi_config = self.multi_model_widget.get_config()
+        multi_config.models.append(model_config)
+        
+        # 确保 provider 在列表中
+        provider_exists = any(p.name == provider for p in providers)
+        if not provider_exists and api_key:
+            providers.append(ProviderConfigItem(
+                name=provider,
+                api_key=api_key,
+                base_url=base_url,
+                enabled=True,
+            ))
+        
+        # 更新 UI
+        self.multi_model_widget.set_config(providers, multi_config)
+        
+        # 清空输入
+        self.model_combo.setCurrentText("")
+        self.apiKey_edit.clear()
+        self.base_url_edit.clear()
+        
+        logger.info(f"快速添加模型: {provider}/{model}")
+
+    def _on_multi_model_changed(self):
+        """多模型配置变更回调"""
+        # 可以在这里添加实时验证或提示逻辑
+        pass
 
     def _on_sync_changed(self, state):
         self._update_wsl_path()
@@ -875,35 +930,52 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         logger.info(f"分发名称: {distro_name}")
         logger.info(f"Windows 工作空间: {windows_ws}")
         logger.info(f"WSL 工作空间: {wsl_ws}")
-        logger.info(f"提供商: {self.provider_combo.currentText()}")
-        logger.info(f"模型: {self.model_combo.currentText()}")
-        
-        oauth_providers = {"qwen_portal", "openai_codex"}
-        current_provider = self.provider_combo.currentText()
-        is_oauth = current_provider in oauth_providers
-        
-        if is_oauth:
-            api_key = ""
-            logger.info("API Key: (OAuth provider, no API key needed)")
-        else:
-            api_key = self.apiKey_edit.text()
-            logger.info(f"API Key: {api_key[:10] if api_key else 'None'}...")
-        
-        logger.info(f"Base URL: {self.base_url_edit.text()}")
         logger.info(f"Enable Memory: {self.memory_check.isChecked()}")
         logger.info(f"Enable Web Search: {self.web_search_check.isChecked()}")
         logger.info(f"Gateway Port: {gateway_port}")
 
+        # 获取多模型配置
+        providers, multi_model = self.multi_model_widget.get_config()
+        
+        # 根据模型数量自动判断模式
+        # 0 个模型 = 需要用户添加模型
+        # 1 个模型 = 单一模型模式（始终使用该模型）
+        # 多个模型 = 多模型智能路由模式
+        model_count = len(multi_model.models)
+        
+        if model_count == 0:
+            # 没有模型配置，提示用户添加模型
+            QMessageBox.warning(
+                self, 
+                tr("error.title", "错误"), 
+                tr("error.no_model_config", "请至少添加一个模型配置")
+            )
+            return
+        
+        if model_count == 1:
+            # 单一模型模式
+            multi_model.enabled = False
+            logger.info("模式: 单一模型（1 个模型配置）")
+        else:
+            # 多模型智能路由模式
+            multi_model.enabled = True
+            logger.info(f"模式: 多模型智能路由（{model_count} 个模型配置）")
+        
+        # 获取第一个模型的 provider 作为默认 provider（向后兼容）
+        first_model = multi_model.models[0]
+        default_provider = first_model.provider
+        default_model = f"{first_model.provider}/{first_model.name}"
+        
         config = ClawbotConfig(
             name=name,
             distro_name=distro_name,
             workspace=wsl_ws,
             windows_workspace=windows_ws,
             sync_to_mnt=self.sync_mnt_check.isChecked(),
-            provider=current_provider,
-            model=self.model_combo.currentText(),
-            apiKey=api_key,
-            base_url=self.base_url_edit.text(),
+            provider=default_provider,
+            model=default_model,
+            apiKey="",  # API Key 现在存储在 providers 列表中
+            base_url="",
             enable_memory=self.memory_check.isChecked(),
             enable_web_search=self.web_search_check.isChecked(),
             brave_apiKey=self.brave_key_edit.text() or None,
@@ -914,9 +986,12 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
             embedding_enabled=self.memory_enabled_check.isChecked(),
             channels=self._current_config.channels if self._current_config else ChannelsConfig(),
             skills=self._skills_widget.get_config(),
+            providers=providers,
+            multi_model=multi_model,
         )
 
         logger.info("步骤1: 保存配置到本地文件")
+
         if self._config_manager.save(config):
             logger.info(f"✓ 本地配置保存成功: {name}")
             self._current_config = config
@@ -1258,6 +1333,21 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
     def _on_oauth_login(self):
         """触发 OAuth 登录流程"""
         distro_name = self._current_config.distro_name if self._current_config else None
+        provider = self.provider_combo.currentText()
+        
+        # OAuth 提供商到 clawbot 命令参数的映射
+        provider_login_map = {
+            "qwen_portal": "qwen-portal",
+            "openai_codex": "openai-codex",
+            "github_copilot": "github-copilot",
+            "doubao_web": "doubao-web",
+            "deepseek_web": "deepseek-web",
+        }
+        
+        login_provider = provider_login_map.get(provider)
+        if not login_provider:
+            QMessageBox.warning(self, tr("error.title", "错误"), f"提供商 '{provider}' 不支持 OAuth 登录")
+            return
         
         if not distro_name:
             QMessageBox.warning(self, tr("error.title", "错误"), tr("config.msg.select_distro_first", "请先选择 WSL 分发"))
@@ -1279,7 +1369,7 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         def run_login():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "clawbot provider login qwen-portal",
+                f"clawbot provider login {login_provider}",
                 timeout=180
             )
             self._oauth_callback_signal.emit(result.success, result.stdout, result.stderr)
@@ -1292,11 +1382,13 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         self.oauth_login_btn.setEnabled(True)
         
         is_success = success or "login successful" in stdout.lower() or "oauth login successful" in stdout.lower()
+        provider = self.provider_combo.currentText()
+        provider_display = provider.replace("_", " ").title()
         
         if is_success:
             self.oauth_status_label.setText(tr("config.status.logged_in", "已登录"))
             self.oauth_status_label.setStyleSheet("color: #3fb950; font-size: 12px;")
-            QMessageBox.information(self, tr("error.success", "成功"), tr("config.msg.oauth_success", "Qwen Portal OAuth 登录成功！"))
+            QMessageBox.information(self, tr("error.success", "成功"), f"{provider_display} OAuth 登录成功！")
         else:
             self.oauth_status_label.setText(tr("config.status.login_failed", "登录失败"))
             self.oauth_status_label.setStyleSheet("color: #f85149; font-size: 12px;")
@@ -1308,13 +1400,23 @@ class ConfigPanel(QWidget, WSLStateAwareMixin):
         provider = self.provider_combo.currentText()
         distro_name = self._current_config.distro_name if self._current_config else None
         
-        if not distro_name or provider != "qwen_portal":
+        # OAuth 提供商的认证文件路径映射
+        oauth_cred_paths = {
+            "qwen_portal": "~/.qwen/oauth_creds.json",
+            "openai_codex": "~/.codex/oauth_creds.json",
+            "github_copilot": "~/.copilot/oauth_creds.json",
+            "doubao_web": "~/.doubao/oauth_creds.json",
+            "deepseek_web": "~/.deepseek/oauth_creds.json",
+        }
+        
+        cred_path = oauth_cred_paths.get(provider)
+        if not distro_name or not cred_path:
             return
         
         def check_operation():
             result = self._wsl_manager.execute_command(
                 distro_name,
-                "test -f ~/.qwen/oauth_creds.json && echo 'exists' || echo 'not_found'"
+                f"test -f {cred_path} && echo 'exists' || echo 'not_found'"
             )
             if not result.success:
                 return AsyncResult(success=False, error=result.stderr or "命令执行失败")

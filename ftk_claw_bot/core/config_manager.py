@@ -162,6 +162,51 @@ class ConfigManager:
         if embedding_api.get("base_url"):
             ftk_config.embedding_url = embedding_api["base_url"]
         ftk_config.embedding_enabled = embedding_api.get("enabled", True)
+        
+        # 同步多模型配置
+        multi_model = wsl_config.get("agents", {}).get("multi_model", {})
+        if multi_model:
+            self._apply_multi_model_config(ftk_config, multi_model, wsl_config.get("providers", {}))
+    
+    def _apply_multi_model_config(self, ftk_config: ClawbotConfig, multi_model: dict, providers: dict):
+        """应用多模型配置到 FTK 配置
+        
+        Args:
+            ftk_config: FTK 配置对象
+            multi_model: WSL 中的多模型配置
+            providers: WSL 中的 providers 配置
+        """
+        from ..models.clawbot_config import (
+            MultiModelConfigItem, ModelConfigItem, ProviderConfigItem, RoutingRuleItem
+        )
+        
+        # 设置启用状态和策略
+        ftk_config.multi_model.enabled = multi_model.get("enabled", False)
+        ftk_config.multi_model.strategy = multi_model.get("strategy", "auto")
+        ftk_config.multi_model.fallback_chain = multi_model.get("fallback_chain", [])
+        
+        # 加载模型配置
+        models_data = multi_model.get("models", [])
+        ftk_config.multi_model.models = [
+            ModelConfigItem.from_dict(m) for m in models_data
+        ]
+        
+        # 加载路由规则
+        routing_rules_data = multi_model.get("routing_rules", [])
+        ftk_config.multi_model.routing_rules = [
+            RoutingRuleItem.from_dict(r) for r in routing_rules_data
+        ]
+        
+        # 同步 providers 列表（包含 API Key）
+        ftk_config.providers = []
+        for provider_name, provider_cfg in providers.items():
+            if isinstance(provider_cfg, dict):
+                ftk_config.providers.append(ProviderConfigItem(
+                    name=provider_name,
+                    api_key=provider_cfg.get("apiKey", ""),
+                    base_url=provider_cfg.get("apiBase", ""),
+                    enabled=True,
+                ))
     
     def _apply_channels_config(self, ftk_config: ClawbotConfig, channels: dict):
         from ..models import (

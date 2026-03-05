@@ -213,6 +213,7 @@
     "config.card.basic_info": "Basic Info",
     "config.card.workspace": "Workspace",
     "config.card.llm": "LLM Config",
+    "config.card.multi_model": "Multi-Model Config",
     "config.card.features": "Features",
     "config.card.log": "Log Settings",
     "config.card.gateway": "Gateway Settings",
@@ -652,5 +653,37 @@
     "local_services.status_starting": "Starting...",
     "local_services.status_running": "Running",
     "local_services.status_error": "Error",
-    "local_services.click_to_copy": "Click to copy to clipboard"
+    "local_services.click_to_copy": "Click to copy to clipboard",
+    
+    "multi_model.enabled": "Enable Multi-Model Smart Routing",
+    "multi_model.strategy": "Strategy:",
+    "multi_model.models": "Model List",
+    "multi_model.fallback_chain": "Fallback Chain",
+    
+    "btn.add_model": "+ Add Model Config",
+    "btn.edit": "Edit",
+    
+    "dialog.model_config.title": "Model Config",
+    "dialog.model_config.add": "Add Model",
+    "dialog.model_config.provider_section": "Provider Settings",
+    "dialog.model_config.model_section": "Model Settings",
+    "dialog.model_config.settings_section": "Cost & Capabilities",
+    "dialog.model_config.provider": "Provider:",
+    "dialog.model_config.name": "Name:",
+    "dialog.model_config.alias": "Alias:",
+    "dialog.model_config.max_tokens": "Max Tokens:",
+    "dialog.model_config.priority": "Priority:",
+    "dialog.model_config.enabled": "Enable this model",
+    "dialog.model_config.cost_tier": "Cost Tier:",
+    "dialog.model_config.capabilities": "Capabilities:",
+    "dialog.model_config.default": "Default",
+    
+    "placeholder.api_key": "API Key (optional)",
+    "placeholder.base_url": "Custom URL (optional)",
+    "placeholder.model_name": "Model name, e.g. deepseek-chat",
+    "placeholder.alias": "Alias, e.g. fast/balanced/powerful",
+    "placeholder.fallback_chain": "Model aliases, comma-separated, e.g.: fast, balanced, powerful",
+    
+    "error.model_name_required": "Please enter model name",
+    "error.provider_required": "Please select or enter a Provider"
 }
